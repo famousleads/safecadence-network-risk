@@ -12,12 +12,14 @@ Forty-five adapters across network gear, servers, identity, cloud, and backup. T
 </div>
 
 ```bash
-git clone <repo-url> safecadence-network-risk
-cd safecadence-network-risk
-./bootstrap.sh
+pip install 'safecadence-netrisk[server]'
+safecadence demo                          # seed a 34-asset demo fleet
+safecadence ui                            # open http://127.0.0.1:8766/home
 ```
 
-`bootstrap.sh` builds a venv, installs the package editable, loads a 34-asset demo fleet (including a three-tier identity demo: a "good" tenant with a connected Okta + healthy NHIs, a "medium" tenant with an unsynced ClearPass, and a "broken" tenant with an LDAP misconfig), prompts for a UI password, and opens `http://127.0.0.1:8766/home`. Total setup: about a minute. Every surface — Identity, NHI, Execute jobs, rollback plans, compliance — has populated content on first run.
+That's it — about a minute end-to-end. The demo seed includes a three-tier identity scenario (a "good" tenant with a connected Okta + healthy NHIs, a "medium" tenant with an unsynced ClearPass, and a "broken" tenant with an LDAP misconfig) so every surface — Identity, NHI, Execute jobs, rollback plans, compliance — has populated content on first run.
+
+Prefer to clone the repo? `git clone https://github.com/famousleads/safecadence-network-risk && cd safecadence-network-risk && ./bootstrap.sh` does the same dance against an editable install.
 
 ---
 
@@ -212,7 +214,7 @@ pytest tests/ -q
 
 ## Status
 
-**v10.0.0 — production milestone.** The v9.x line was a sustained
+**v10.0.1 — shipped to PyPI.** The v9.x line was a sustained
 audit-then-fix cycle across every customer-visible surface
 (Execute, Discover, Compliance, Identity write-back, Automation,
 AI assistant, /audit). Each section got a deep audit doc, a
@@ -222,9 +224,12 @@ the audit flagged but didn't fix. The result: every load-bearing
 surface is capability-gated, rate-limited where it could be
 abused, audit-logged, and tested at the HTTP level.
 
-Local-only for now; PyPI publishing is parked until the publish
-flow is re-validated — wheels are in `dist/old/` and the
-`auto-publish-*.sh` scripts wrap the `git tag` + `twine upload`
-pattern. See `CHANGELOG.md` for the per-version history.
+Install with `pip install safecadence-netrisk` (or
+`pip install 'safecadence-netrisk[server]'` for the FastAPI UI).
+Latest release: [v10.0.1 on PyPI](https://pypi.org/project/safecadence-netrisk/10.0.1/).
+See [`CHANGELOG.md`](./CHANGELOG.md) for per-version history,
+[`docs/HOWTO.md`](./docs/HOWTO.md) for the five-minute quick
+start, and [`docs/DEPLOY.md`](./docs/DEPLOY.md) for laptop /
+server / Docker / production deployment paths.
 
 License: MIT. See `LICENSE`.
