@@ -1,0 +1,197 @@
+# Cisco NX-OS — Management plane + AAA
+---
+- id: cisco-nxos-telnet-enabled
+  title: Telnet feature enabled
+  severity: critical
+  vendor: cisco-nxos
+  domain: security
+  description: |
+    `feature telnet` is on. Telnet sends credentials in cleartext.
+  remediation: |
+    Disable telnet feature; use SSH only.
+  fix_snippet: |
+    no feature telnet
+    feature ssh
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/security/configuration/guide/b-cisco-nexus-9000-nx-os-security-configuration-guide-93x.html
+  match_regex:
+    - "(?im)^\\s*feature\\s+telnet\\s*$"
+
+- id: cisco-nxos-no-ssh-feature
+  title: SSH feature not enabled
+  severity: high
+  vendor: cisco-nxos
+  domain: security
+  description: |
+    `feature ssh` is not present. Without SSH explicitly enabled,
+    secure management may be impossible.
+  remediation: |
+    Enable the SSH feature and generate keys.
+  fix_snippet: |
+    feature ssh
+    ssh key rsa 2048 force
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/security/configuration/guide/b-cisco-nexus-9000-nx-os-security-configuration-guide-93x.html
+  absent_regex:
+    - "(?im)^\\s*feature\\s+ssh\\s*$"
+
+- id: cisco-nxos-no-aaa
+  title: No AAA server group configured
+  severity: high
+  vendor: cisco-nxos
+  domain: security
+  description: |
+    Local-only authentication is in use; no centralized AAA via
+    TACACS+ or RADIUS is configured.
+  remediation: |
+    Enable AAA with TACACS+ or RADIUS server groups.
+  fix_snippet: |
+    feature tacacs+
+    tacacs-server host 10.99.0.20 key <strong-key>
+    aaa group server tacacs+ TACGRP
+     server 10.99.0.20
+    aaa authentication login default group TACGRP local
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/security/configuration/guide/b-cisco-nexus-9000-nx-os-security-configuration-guide-93x.html
+  absent_regex:
+    - "(?im)aaa\\s+authentication\\s+login\\s+default\\s+group"
+
+- id: cisco-nxos-default-username
+  title: Default or weak username detected
+  severity: high
+  vendor: cisco-nxos
+  domain: security
+  description: |
+    A default username (admin / cisco / network-admin / root) is in
+    the local user database.
+  remediation: |
+    Replace with org-specific accounts and enforce TACACS+ via AD/Okta.
+  fix_snippet: |
+    no username admin
+    username netops-svc1 password 5 <strong-secret> role network-operator
+  references:
+    - https://owasp.org/www-community/attacks/Credential_stuffing
+  match_regex:
+    - "(?im)^\\s*username\\s+(admin|cisco|root|test|guest)\\b"
+
+- id: cisco-nxos-snmp-default-community
+  title: SNMP default community string (public/private)
+  severity: critical
+  vendor: cisco-nxos
+  domain: security
+  description: |
+    Communities named "public" or "private" are universally known.
+  remediation: |
+    Remove default communities and migrate to SNMPv3.
+  fix_snippet: |
+    no snmp-server community public
+    no snmp-server community private
+    snmp-server user nms-ro network-operator auth sha <strong> priv aes-128 <strong>
+  references:
+    - https://nvd.nist.gov/vuln/detail/CVE-1999-0517
+  match_regex:
+    - "(?im)^\\s*snmp-server\\s+community\\s+(public|private)\\b"
+
+- id: cisco-nxos-snmp-rw-community
+  title: SNMP read-write community present
+  severity: critical
+  vendor: cisco-nxos
+  domain: security
+  description: |
+    Read-write SNMP communities allow remote configuration via SET.
+  remediation: |
+    Remove RW communities; use NETCONF / RESTCONF over TLS for changes.
+  fix_snippet: |
+    no snmp-server community <name> rw
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/system-management/configuration/guide/b-cisco-nexus-9000-nx-os-system-management-configuration-guide-93x.html
+  match_regex:
+    - "(?im)^\\s*snmp-server\\s+community\\s+\\S+\\s+rw\\b"
+
+- id: cisco-nxos-no-syslog-server
+  title: No remote syslog server configured
+  severity: medium
+  vendor: cisco-nxos
+  domain: security
+  description: |
+    Local logs are insufficient for forensics.
+  remediation: |
+    Forward logs to a centralized SIEM.
+  fix_snippet: |
+    logging server 10.99.0.10 6 use-vrf management
+    logging timestamp milliseconds
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/system-management/configuration/guide/b-cisco-nexus-9000-nx-os-system-management-configuration-guide-93x.html
+  absent_regex:
+    - "(?im)^\\s*logging\\s+server\\s+\\S+"
+
+- id: cisco-nxos-no-ntp
+  title: No NTP server configured
+  severity: medium
+  vendor: cisco-nxos
+  domain: security
+  description: |
+    Without NTP, log timestamps and certificate validation are unreliable.
+  remediation: |
+    Configure two NTP sources, ideally with key authentication.
+  fix_snippet: |
+    ntp server 10.99.0.5 use-vrf management
+    ntp server 10.99.0.6 use-vrf management
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/system-management/configuration/guide/b-cisco-nexus-9000-nx-os-system-management-configuration-guide-93x.html
+  absent_regex:
+    - "(?im)^\\s*ntp\\s+server\\s+\\S+"
+
+- id: cisco-nxos-no-vty-acl
+  title: VTY lines have no access-class ACL
+  severity: high
+  vendor: cisco-nxos
+  domain: security
+  description: |
+    Management plane is reachable from any source IP.
+  remediation: |
+    Apply a tightly-scoped management ACL to vty.
+  fix_snippet: |
+    ip access-list MGMT-IN
+     permit ip 10.99.0.0/24 any
+     deny ip any any log
+    line vty
+     access-class MGMT-IN in
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/security/configuration/guide/b-cisco-nexus-9000-nx-os-security-configuration-guide-93x.html
+  absent_regex:
+    - "(?im)access-class\\s+\\S+\\s+in"
+
+- id: cisco-nxos-no-cdp-disable
+  title: CDP not disabled globally
+  severity: low
+  vendor: cisco-nxos
+  domain: security
+  description: |
+    CDP discloses model and version to attached devices.
+  remediation: |
+    Disable CDP globally; re-enable per-interface only on inter-switch links.
+  fix_snippet: |
+    no cdp enable
+  references:
+    - https://www.cisco.com/c/en/us/support/docs/ip/access-lists/13608-21.html
+  absent_regex:
+    - "(?im)^\\s*no\\s+cdp\\s+enable\\s*$"
+
+- id: cisco-nxos-vpc-no-keepalive-vrf
+  title: vPC peer-keepalive missing dedicated VRF
+  severity: medium
+  vendor: cisco-nxos
+  domain: availability
+  description: |
+    vPC peer-keepalive should ride a dedicated management VRF; without
+    it, a data-plane outage can cause split-brain.
+  remediation: |
+    Use the management VRF for peer-keepalive; bind to mgmt0.
+  fix_snippet: |
+    vpc domain 10
+     peer-keepalive destination 10.99.1.2 source 10.99.1.1 vrf management
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/switches/datacenter/sw/best_practices/vpc_resiliency/vpc_resiliency.html
+  custom: |
+    bool(re.search(r"(?im)^\s*vpc\s+domain\b", text)) and not bool(re.search(r"(?im)peer-keepalive[\s\S]{0,200}vrf\s+management", text))

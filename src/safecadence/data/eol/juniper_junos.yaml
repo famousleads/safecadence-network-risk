@@ -1,0 +1,8 @@
+---
+- {os: junos, version_prefix: "18.1", end_of_software: "2020-09-30", end_of_support: "2023-09-30"}
+- {os: junos, version_prefix: "19.1", end_of_software: "2021-04-30", end_of_support: "2024-04-30"}
+- {os: junos, version_prefix: "19.2", end_of_software: "2021-08-30", end_of_support: "2024-08-30"}
+- {os: junos, version_prefix: "20.4", end_of_software: "2022-12-31", end_of_support: "2025-12-31"}
+- {os: junos, version_prefix: "21.4", end_of_software: "2024-04-30", end_of_support: "2027-04-30", notes: "LTS train"}
+- {os: junos, version_prefix: "22.4", end_of_software: "2025-04-30", end_of_support: "2028-04-30"}
+- {os: junos, version_prefix: "23.4", end_of_software: "2026-04-30", end_of_support: "2029-04-30"}

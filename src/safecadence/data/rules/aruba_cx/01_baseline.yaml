@@ -1,0 +1,179 @@
+# Aruba CX (AOS-CX) — Baseline hardening rules
+---
+- id: aruba-cx-telnet-server-enabled
+  title: Telnet server enabled
+  severity: critical
+  vendor: aruba-cx
+  domain: security
+  description: |
+    `telnet-server enable` is configured. Telnet sends credentials cleartext.
+  remediation: |
+    Disable telnet server; use SSH.
+  fix_snippet: |
+    no telnet-server
+    ssh server vrf mgmt
+    ssh server vrf default
+  references:
+    - https://www.arubanetworks.com/techdocs/AOS-CX/10.10/HTML/security_guide/Content/index.htm
+  match_regex:
+    - "(?im)^\\s*telnet-server\\b"
+
+- id: aruba-cx-no-ssh-server
+  title: SSH server not enabled
+  severity: high
+  vendor: aruba-cx
+  domain: security
+  description: |
+    No `ssh server` directive present.
+  remediation: |
+    Enable SSH on the management VRF and any others used for mgmt.
+  fix_snippet: |
+    ssh server vrf mgmt
+  references:
+    - https://www.arubanetworks.com/techdocs/AOS-CX/10.10/HTML/security_guide/Content/index.htm
+  absent_regex:
+    - "(?im)^\\s*ssh\\s+server\\s+vrf\\s+\\S+"
+
+- id: aruba-cx-default-admin-password
+  title: Default admin user password unchanged
+  severity: critical
+  vendor: aruba-cx
+  domain: security
+  description: |
+    The admin user has an empty or default password (`user admin
+    password plaintext`).
+  remediation: |
+    Set a strong admin password and create role-based service accounts.
+  fix_snippet: |
+    user admin group administrators password ciphertext <hashed>
+  references:
+    - https://www.arubanetworks.com/techdocs/AOS-CX/10.10/HTML/security_guide/Content/index.htm
+  match_regex:
+    - "(?im)^\\s*user\\s+admin\\s+group\\s+administrators\\s+password\\s+plaintext"
+
+- id: aruba-cx-snmp-default-community
+  title: SNMP default community present
+  severity: critical
+  vendor: aruba-cx
+  domain: security
+  description: |
+    Default SNMP community ("public" / "private") is configured.
+  remediation: |
+    Migrate to SNMPv3 with auth + priv.
+  fix_snippet: |
+    no snmp-server community public
+    no snmp-server community private
+    snmp-server vrf mgmt
+    snmpv3 user nms-ro auth sha auth-pass-plaintext <strong> priv aes priv-pass-plaintext <strong>
+  references:
+    - https://nvd.nist.gov/vuln/detail/CVE-1999-0517
+  match_regex:
+    - "(?im)^\\s*snmp-server\\s+community\\s+(public|private)\\b"
+
+- id: aruba-cx-no-aaa
+  title: No TACACS+ / RADIUS configured
+  severity: high
+  vendor: aruba-cx
+  domain: security
+  description: |
+    No remote AAA server group exists. Authentication is local-only.
+  remediation: |
+    Configure tacacs / radius and use them for `aaa authentication login`.
+  fix_snippet: |
+    tacacs-server host 10.99.0.20 vrf mgmt key plaintext <strong>
+    aaa group server tacacs TACGRP
+     server 10.99.0.20 vrf mgmt
+    aaa authentication login default group TACGRP local
+  references:
+    - https://www.arubanetworks.com/techdocs/AOS-CX/10.10/HTML/security_guide/Content/index.htm
+  absent_regex:
+    - "(?im)^\\s*(tacacs-server|radius-server)\\s+host\\s+\\S+"
+
+- id: aruba-cx-no-syslog
+  title: No remote syslog destination
+  severity: medium
+  vendor: aruba-cx
+  domain: security
+  description: |
+    No `logging` host configured.
+  remediation: |
+    Forward to a centralized syslog server, ideally over TLS.
+  fix_snippet: |
+    logging 10.99.0.10 vrf mgmt
+    logging severity info
+  references:
+    - https://www.arubanetworks.com/techdocs/AOS-CX/10.10/HTML/security_guide/Content/index.htm
+  absent_regex:
+    - "(?im)^\\s*logging\\s+\\d+\\.\\d+\\.\\d+\\.\\d+"
+
+- id: aruba-cx-no-ntp
+  title: No NTP server configured
+  severity: medium
+  vendor: aruba-cx
+  domain: security
+  description: |
+    No NTP server configured.
+  remediation: |
+    Add NTP servers; ideally with key authentication.
+  fix_snippet: |
+    ntp server 10.99.0.5
+    ntp server 10.99.0.6
+    ntp enable
+  references:
+    - https://www.arubanetworks.com/techdocs/AOS-CX/10.10/HTML/security_guide/Content/index.htm
+  absent_regex:
+    - "(?im)^\\s*ntp\\s+server\\s+\\S+"
+
+- id: aruba-cx-no-port-security
+  title: Port security not configured on access ports
+  severity: medium
+  vendor: aruba-cx
+  domain: security
+  description: |
+    No `port-access` or MAC-limit security on any access interface.
+  remediation: |
+    Apply MAC-limit / dot1x / port-access role on user-facing ports.
+  fix_snippet: |
+    interface 1/1/1
+     port-access auth-mode device-mode
+     port-access role guest-role
+  references:
+    - https://www.arubanetworks.com/techdocs/AOS-CX/10.10/HTML/security_guide/Content/index.htm
+  absent_regex:
+    - "(?im)^\\s*port-access\\s+(auth-mode|role)"
+
+- id: aruba-cx-no-loop-protect
+  title: Loop protection not enabled on access ports
+  severity: low
+  vendor: aruba-cx
+  domain: availability
+  description: |
+    Without loop protection, a user-side loop can take down the broadcast
+    domain.
+  remediation: |
+    Enable loop-protect on all access interfaces.
+  fix_snippet: |
+    interface 1/1/1
+     loop-protect
+  references:
+    - https://www.arubanetworks.com/techdocs/AOS-CX/10.10/HTML/network_guide/Content/index.htm
+  absent_regex:
+    - "(?im)^\\s*loop-protect\\s*$"
+
+- id: aruba-cx-https-server-no-tls12
+  title: REST/HTTPS server may allow weak TLS
+  severity: medium
+  vendor: aruba-cx
+  domain: security
+  description: |
+    `https-server rest access-mode read-write` is enabled without an
+    explicit cipher / TLS-version restriction.
+  remediation: |
+    Ensure TLS 1.2+ only and disable plaintext HTTP.
+  fix_snippet: |
+    https-server rest access-mode read-write
+    https-server tls-version-min v1.2
+  references:
+    - https://www.arubanetworks.com/techdocs/AOS-CX/10.10/HTML/security_guide/Content/index.htm
+  custom: |
+    bool(re.search(r"(?im)^\s*https-server\s+rest\b", text)) and not bool(re.search(r"(?im)^\s*https-server\s+tls-version-min", text))

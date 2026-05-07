@@ -1,0 +1,28 @@
+---
+- cve_id: CVE-2023-22747
+  severity: critical
+  cvss: 9.8
+  os: aos-cx
+  affects: "<10.10"
+  fixed_in: "10.10.1010 or later"
+  title: "AOS-CX command injection in CLI"
+  description: |
+    A vulnerability in the CLI of AOS-CX allows authenticated remote
+    attackers to inject arbitrary commands at the underlying shell layer.
+  references:
+    - https://www.arubanetworks.com/assets/alert/ARUBA-PSA-2023-001.txt
+  published: "2023-02-21"
+
+- cve_id: CVE-2024-26301
+  severity: high
+  cvss: 7.2
+  os: aos-cx
+  affects: "<10.13"
+  fixed_in: "10.13.0001 or later"
+  title: "AOS-CX REST API DoS"
+  description: |
+    A flaw in the REST API service can be triggered by an authenticated
+    user to crash the management process, causing service disruption.
+  references:
+    - https://www.arubanetworks.com/support-services/security-bulletins/
+  published: "2024-03-19"

@@ -1,0 +1,51 @@
+{
+  "Account": "123456789012",
+  "Region": "us-east-1",
+  "AccountAliases": ["acme-prod"],
+
+  "SecurityGroups": [
+    {
+      "GroupId": "sg-0a1b2c3d",
+      "GroupName": "web-public",
+      "IpPermissions": [
+        {
+          "FromPort": 22,
+          "ToPort": 22,
+          "IpProtocol": "tcp",
+          "IpRanges": [{"CidrIp": "0.0.0.0/0"}]
+        },
+        {
+          "FromPort": 3389,
+          "ToPort": 3389,
+          "IpProtocol": "tcp",
+          "IpRanges": [{"CidrIp": "0.0.0.0/0"}]
+        }
+      ]
+    }
+  ],
+
+  "S3Buckets": [
+    {
+      "Name": "acme-prod-public",
+      "Policy": {"Statement": [{"Principal": "*", "Action": "s3:GetObject"}]},
+      "EncryptionConfiguration": "ServerSideEncryptionConfiguration: not configured"
+    }
+  ],
+
+  "IAMUsers": [
+    {"UserName": "<root_account>", "AccessKeyId": "AKIAROOTBADBADBAD"},
+    {"UserName": "alice", "MFADevices": []}
+  ],
+
+  "CloudTrails": [
+    {"Name": "default", "IsMultiRegionTrail": false}
+  ],
+
+  "RDS": [
+    {"DBInstanceIdentifier": "prod-db", "PubliclyAccessible": true}
+  ],
+
+  "KMSKeys": [
+    {"KeyId": "abcd-1234", "KeyRotationEnabled": false}
+  ]
+}

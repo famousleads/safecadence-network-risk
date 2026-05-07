@@ -1,0 +1,16 @@
+policy_id: tmpl_encryption
+policy_name: Encryption Baseline
+description: Modern crypto enforced, weak protocols blocked, encryption at rest + in transit.
+target_asset_types: [network, server, storage, cloud]
+severity: high
+compliance_frameworks: [nist-800-53, cis, pci-dss, hipaa]
+enforcement_mode: warn
+controls:
+  - control_id: enforce_encryption_in_transit
+    severity: high
+  - control_id: enforce_encryption_at_rest
+    severity: high
+  - control_id: block_insecure_crypto
+    severity: high
+  - control_id: enforce_ssh_v2
+    severity: high

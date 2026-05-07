@@ -1,0 +1,140 @@
+# Cisco IOS — Management plane hardening rules
+# Domain: security
+---
+- id: cisco-ios-telnet-enabled
+  title: Telnet enabled on VTY lines
+  severity: critical
+  vendor: cisco-ios
+  domain: security
+  description: |
+    One or more VTY lines accept telnet, which transmits credentials in
+    cleartext. Any attacker on the management path can capture credentials
+    and gain full device access.
+  remediation: |
+    Restrict VTY transport to SSH only and remove telnet completely.
+  fix_snippet: |
+    line vty 0 15
+     transport input ssh
+     no transport input telnet
+  references:
+    - https://www.cisco.com/c/en/us/support/docs/ip/access-lists/13608-21.html
+    - https://nvd.nist.gov/vuln/detail/CVE-1999-0619
+  match_regex:
+    - "(?im)^line\\s+vty[\\s\\S]{0,400}?transport\\s+input\\s+[^\\n]*telnet"
+    - "(?im)^line\\s+vty[\\s\\S]{0,400}?transport\\s+input\\s+all"
+
+- id: cisco-ios-no-ssh-enforced
+  title: SSH not explicitly enforced on VTY lines
+  severity: high
+  vendor: cisco-ios
+  domain: security
+  description: |
+    No VTY line explicitly restricts transport to SSH. Devices may fall
+    back to telnet or unencrypted protocols depending on defaults.
+  remediation: |
+    Configure SSH-only transport on every VTY range.
+  fix_snippet: |
+    ip ssh version 2
+    line vty 0 15
+     transport input ssh
+  references:
+    - https://www.cisco.com/c/en/us/support/docs/security-vpn/secure-shell-ssh/4145-ssh.html
+  absent_regex:
+    - "(?im)transport\\s+input\\s+ssh"
+
+- id: cisco-ios-ssh-version-1
+  title: SSH version 1 allowed
+  severity: high
+  vendor: cisco-ios
+  domain: security
+  description: |
+    SSH protocol v1 contains known cryptographic weaknesses. Only SSH v2
+    should be enabled.
+  remediation: |
+    Force SSH v2 explicitly.
+  fix_snippet: |
+    ip ssh version 2
+  references:
+    - https://datatracker.ietf.org/doc/html/rfc4251
+  match_regex:
+    - "(?im)^\\s*ip\\s+ssh\\s+version\\s+1\\s*$"
+
+- id: cisco-ios-http-server-enabled
+  title: HTTP web management enabled (no TLS)
+  severity: high
+  vendor: cisco-ios
+  domain: security
+  description: |
+    The IOS HTTP server transmits credentials and config over cleartext
+    HTTP. Use HTTPS or disable web management entirely.
+  remediation: |
+    Disable HTTP and force HTTPS, or disable both if web mgmt isn't used.
+  fix_snippet: |
+    no ip http server
+    ip http secure-server
+  references:
+    - https://www.cisco.com/c/en/us/support/docs/ios-nx-os-software/ios-software-releases-122-mainline/15068-aaa-http.html
+  match_regex:
+    - "(?im)^\\s*ip\\s+http\\s+server\\s*$"
+
+- id: cisco-ios-vty-no-acl
+  title: VTY lines have no access-class ACL
+  severity: high
+  vendor: cisco-ios
+  domain: security
+  description: |
+    VTY lines accept management connections from any source IP because
+    no access-class ACL is applied. This dramatically increases attack
+    surface for credential brute-forcing.
+  remediation: |
+    Apply a tightly-scoped management ACL to every VTY range.
+  fix_snippet: |
+    ip access-list standard MGMT-IN
+     permit 10.10.10.0 0.0.0.255
+     deny any log
+    line vty 0 15
+     access-class MGMT-IN in
+  references:
+    - https://www.cisco.com/c/en/us/support/docs/ip/access-lists/13608-21.html
+  absent_regex:
+    - "(?im)access-class\\s+\\S+\\s+in"
+
+- id: cisco-ios-console-no-password
+  title: Console line has no authentication
+  severity: high
+  vendor: cisco-ios
+  domain: security
+  description: |
+    The console line is missing a password or login statement. Anyone
+    with physical access can drop into privileged EXEC.
+  remediation: |
+    Apply login local (with AAA preferred) on the console line.
+  fix_snippet: |
+    line con 0
+     login local
+     exec-timeout 10 0
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/security/config_library/15-mt/secuser-15-mt-library.html
+  match_regex:
+    - "(?im)^line\\s+con\\s+0\\s*$(?:(?!^line\\s|^!\\s*$).)*?\\bno\\s+login\\b"
+
+- id: cisco-ios-no-aaa
+  title: AAA new-model not enabled
+  severity: high
+  vendor: cisco-ios
+  domain: security
+  description: |
+    The device uses local password authentication only, with no AAA
+    framework. This makes centralized identity, MFA, and audit logging
+    impossible.
+  remediation: |
+    Enable AAA and integrate with TACACS+ or RADIUS.
+  fix_snippet: |
+    aaa new-model
+    aaa authentication login default group tacacs+ local
+    aaa authorization exec default group tacacs+ local
+    aaa accounting exec default start-stop group tacacs+
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/security/config_library/15-mt/secuser-15-mt-library.html
+  absent_regex:
+    - "(?im)^\\s*aaa\\s+new-model"

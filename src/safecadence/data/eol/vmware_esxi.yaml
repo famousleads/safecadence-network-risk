@@ -1,0 +1,46 @@
+---
+- os: esxi
+  version_prefix: '9.0'
+  end_of_software: '2025-06-17'
+  end_of_support: ''
+  notes: latest=9.0.2.0
+- os: esxi
+  version_prefix: '8.0'
+  end_of_software: '2022-10-11'
+  end_of_support: '2027-10-11'
+  notes: latest=8.0 Update 3i
+- os: esxi
+  version_prefix: '7.0'
+  end_of_software: '2020-04-02'
+  end_of_support: '2025-10-02'
+  notes: latest=7.0 Update 3w
+- os: esxi
+  version_prefix: '6.7'
+  end_of_software: '2018-04-17'
+  end_of_support: '2022-10-15'
+  notes: latest=6.7 Update 3w
+- os: esxi
+  version_prefix: '6.5'
+  end_of_software: '2016-11-15'
+  end_of_support: '2022-10-15'
+  notes: latest=6.5 ESXi650-202403001
+- os: esxi
+  version_prefix: '6.0'
+  end_of_software: '2015-03-12'
+  end_of_support: '2020-03-12'
+  notes: latest=6.0 EP 25
+- os: esxi
+  version_prefix: '5.5'
+  end_of_software: '2013-09-19'
+  end_of_support: '2018-09-19'
+  notes: latest=5.5 Update 3k
+- os: esxi
+  version_prefix: '5.1'
+  end_of_software: '2012-08-27'
+  end_of_support: '2016-08-24'
+  notes: latest=5.1 Update 3d
+- os: esxi
+  version_prefix: '5.0'
+  end_of_software: '2011-07-12'
+  end_of_support: '2016-08-24'
+  notes: latest=5.0 Update 3g

@@ -1,0 +1,142 @@
+---
+- id: windows-server-smbv1-enabled
+  title: SMBv1 protocol enabled (WannaCry vulnerable)
+  severity: critical
+  vendor: windows-server
+  domain: security
+  description: |
+    `EnableSMB1Protocol : True` — exposes the host to MS17-010 / WannaCry
+    family vulnerabilities.
+  remediation: |
+    Disable SMBv1 immediately and reboot.
+  fix_snippet: |
+    Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force
+  match_regex:
+    - "(?im)EnableSMB1Protocol\\s*[:=]\\s*True\\b"
+
+- id: windows-server-firewall-disabled
+  title: Windows Firewall profile disabled
+  severity: high
+  vendor: windows-server
+  domain: security
+  description: |
+    A Defender Firewall profile (Domain / Private / Public) is set to
+    Enabled : False.
+  remediation: |
+    Re-enable all profiles unless centrally managed by a Group Policy.
+  fix_snippet: |
+    Set-NetFirewallProfile -All -Enabled True
+  match_regex:
+    - "(?im)Name\\s*[:=]\\s*(Domain|Private|Public)[\\s\\S]{0,200}?Enabled\\s*[:=]\\s*False"
+
+- id: windows-server-rdp-network-level-auth-off
+  title: RDP Network Level Authentication disabled
+  severity: high
+  vendor: windows-server
+  domain: security
+  description: |
+    NLA forces credential negotiation before establishing the RDP session,
+    blocking pre-auth bug exploitation (e.g. BlueKeep family).
+  remediation: |
+    Enable NLA on Terminal Services.
+  fix_snippet: |
+    Set-ItemProperty -Path "HKLM:\\System\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp" -Name UserAuthentication -Value 1
+  match_regex:
+    - "(?im)UserAuthentication\\s*[:=]\\s*0\\b"
+
+- id: windows-server-llmnr-enabled
+  title: LLMNR enabled (credential-relay risk)
+  severity: medium
+  vendor: windows-server
+  domain: security
+  description: |
+    Link-Local Multicast Name Resolution lets attackers on the LAN poison
+    name lookups and harvest NTLMv2 hashes (Responder).
+  remediation: |
+    Disable LLMNR via GPO or registry.
+  fix_snippet: |
+    New-ItemProperty -Path "HKLM:\\Software\\Policies\\Microsoft\\Windows NT\\DNSClient" -Name "EnableMulticast" -PropertyType DWord -Value 0 -Force
+  custom: |
+    bool(re.search(r"(?im)EnableMulticast\s*[:=]\s*1\b", text)) or not bool(re.search(r"(?im)EnableMulticast", text))
+
+- id: windows-server-guest-account-enabled
+  title: Local Guest account enabled
+  severity: high
+  vendor: windows-server
+  domain: security
+  description: |
+    The built-in Guest account is enabled.
+  remediation: |
+    Disable Guest in Local Users and Groups.
+  fix_snippet: |
+    Disable-LocalUser -Name "Guest"
+  match_regex:
+    - "(?im)Name\\s*[:=]\\s*Guest[\\s\\S]{0,200}?Enabled\\s*[:=]\\s*True"
+
+- id: windows-server-old-version
+  title: Windows Server build is unsupported / out-of-life
+  severity: high
+  vendor: windows-server
+  domain: security
+  description: |
+    `WindowsProductName` indicates 2008/2012 (R2) — past Microsoft mainstream
+    AND extended support windows.
+  remediation: |
+    Plan migration to a current supported version (2019/2022/2025).
+  match_regex:
+    - "(?im)WindowsProductName[^\\n]*Windows Server (2003|2008|2012)"
+
+- id: windows-server-defender-not-running
+  title: Microsoft Defender service not running
+  severity: high
+  vendor: windows-server
+  domain: security
+  description: |
+    The WinDefend service should be running unless centrally managed by
+    another EDR.
+  remediation: |
+    `Set-Service WinDefend -StartupType Automatic; Start-Service WinDefend`
+  custom: |
+    bool(re.search(r"(?im)WinDefend[\s\S]{0,200}?Status\s*[:=]\s*Stopped", text))
+
+- id: windows-server-default-administrator
+  title: Built-in Administrator account renamed = "Administrator"
+  severity: medium
+  vendor: windows-server
+  domain: security
+  description: |
+    The default `Administrator` account name is universally targeted by
+    automated brute-force tools.
+  remediation: |
+    Rename via secpol.msc → Local Policies → Security Options.
+  match_regex:
+    - "(?im)Name\\s*[:=]\\s*Administrator\\s*$"
+
+- id: windows-server-remote-registry
+  title: Remote Registry service running
+  severity: medium
+  vendor: windows-server
+  domain: security
+  description: |
+    Allows remote attackers (and lateral-movement tools like impacket) to
+    read/modify HKLM remotely.
+  remediation: |
+    Stop and disable the RemoteRegistry service.
+  fix_snippet: |
+    Set-Service RemoteRegistry -StartupType Disabled; Stop-Service RemoteRegistry
+  match_regex:
+    - "(?im)RemoteRegistry[\\s\\S]{0,200}?Status\\s*[:=]\\s*Running"
+
+- id: windows-server-no-bitlocker
+  title: System drive not encrypted with BitLocker
+  severity: medium
+  vendor: windows-server
+  domain: security
+  description: |
+    `Get-BitLockerVolume C:` shows VolumeStatus = FullyDecrypted.
+  remediation: |
+    Enable BitLocker on the system volume; store keys in AD/Azure AD.
+  fix_snippet: |
+    Enable-BitLocker -MountPoint "C:" -EncryptionMethod Aes256 -UsedSpaceOnly -SkipHardwareTest
+  match_regex:
+    - "(?im)VolumeStatus\\s*[:=]\\s*FullyDecrypted"

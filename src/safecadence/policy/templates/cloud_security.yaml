@@ -1,0 +1,25 @@
+policy_id: tmpl_cloud_security
+policy_name: Cloud Security Baseline
+description: |
+  Cloud workload baseline: no public exposure unless explicit, IAM
+  attached + least privilege, audit logging enabled, encryption at rest
+  and in transit, MFA for admin.
+target_asset_types: [cloud]
+severity: high
+compliance_frameworks: [nist-800-53, cis-cloud, pci-dss]
+enforcement_mode: warn
+controls:
+  - control_id: block_public_exposure
+    severity: critical
+  - control_id: enforce_cloud_iam
+    severity: high
+  - control_id: enforce_logging
+    severity: high
+  - control_id: enforce_encryption_at_rest
+    severity: high
+  - control_id: enforce_encryption_in_transit
+    severity: high
+  - control_id: enforce_mfa
+    severity: high
+  - control_id: enforce_least_privilege
+    severity: medium

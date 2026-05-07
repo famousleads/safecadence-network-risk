@@ -1,0 +1,18 @@
+policy_id: tmpl_backup_security
+policy_name: Backup Security
+description: Retention, immutability, air-gap, replication.
+target_asset_types: [backup, storage]
+severity: high
+compliance_frameworks: [nist-800-53, cis, pci-dss]
+enforcement_mode: warn
+controls:
+  - control_id: enforce_backup_retention
+    severity: high
+    parameters:
+      min_retention_days: 30
+  - control_id: enforce_immutability
+    severity: critical
+  - control_id: enforce_air_gap
+    severity: high
+  - control_id: replication_enabled
+    severity: high

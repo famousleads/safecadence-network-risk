@@ -1,0 +1,60 @@
+- cve_id: CVE-2018-0101
+  severity: critical
+  cvss: 10.0
+  os: asa
+  affects: <9.10
+  fixed_in: 9.10(1) or later
+  title: WebVPN/SSL VPN UDP heap overflow (RCE pre-auth)
+  description: 'A vulnerability in the SSL VPN feature of Cisco ASA Software allows
+
+    an unauthenticated remote attacker to cause a reload or RCE by sending
+
+    crafted XML packets to the WebVPN/AnyConnect SSL interface.
+
+    '
+  workaround: 'Disable WebVPN if not in use; restrict source ranges with crypto
+
+    isakmp / control-plane ACLs.
+
+    '
+  references:
+  - https://tools.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-20180129-asa1
+  published: '2018-01-29'
+  kev: false
+- cve_id: CVE-2020-3452
+  severity: high
+  cvss: 7.5
+  os: asa
+  affects: <9.13
+  fixed_in: 9.13(1) or later
+  title: ASA / FTD path traversal (read arbitrary files)
+  description: 'Path-traversal flaw in the web services of Cisco ASA and FTD allows
+
+    an unauthenticated remote attacker to read files within the web
+
+    services file system. Used in mass-scanning campaigns.
+
+    '
+  references:
+  - https://tools.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-ro-path-KJuQhB86
+  published: '2020-07-22'
+  kev: true
+- cve_id: CVE-2023-20269
+  severity: high
+  cvss: 7.5
+  os: asa
+  affects: '>=9.0,<9.20'
+  fixed_in: 9.18.4.5 / 9.19.1.5 / 9.20.x
+  title: ASA / FTD VPN authentication brute-force / IKE2 issue
+  description: 'A vulnerability in the remote-access VPN feature allows unauthenticated
+
+    attackers to brute force usernames and passwords. Actively exploited.
+
+    '
+  workaround: 'Apply MFA / posture; rate-limit VPN attempts via FTD/ASA features.
+
+    '
+  references:
+  - https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-ravpn-auth-8LyfCkeC
+  published: '2023-09-06'
+  kev: true

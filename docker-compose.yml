@@ -1,0 +1,48 @@
+# SafeCadence Network Risk — local UI via Docker Compose
+#
+# Run:  docker-compose up
+# Open: http://localhost:8765
+#
+# Persistent state (~/.safecadence equivalent) is mounted from ./safecadence-data
+# so your scans survive container restarts.
+
+version: "3.9"
+
+services:
+  safecadence-ui:
+    image: fkarim1/netrisk:latest
+    container_name: safecadence-ui
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    volumes:
+      # Persistent data dir for SQLite stores (discover history, asset tags, vault)
+      - ./safecadence-data:/data
+      # Mount any local config files you want to scan
+      - ./configs:/work
+    command: ["ui", "--host", "0.0.0.0", "--no-browser"]
+    networks:
+      - safecadence
+
+  # Optional companion service: continuous monitoring with Slack alerts
+  # Uncomment + set webhook URLs to enable.
+  #
+  # safecadence-watch:
+  #   image: fkarim1/netrisk:latest
+  #   container_name: safecadence-watch
+  #   restart: unless-stopped
+  #   network_mode: host  # required for ARP cache + LAN discovery
+  #   volumes:
+  #     - ./safecadence-data:/data
+  #   environment:
+  #     - SLACK_WEBHOOK=https://hooks.slack.com/services/T.../B.../X...
+  #   command:
+  #     - "watch"
+  #     - "192.168.1.0/24"
+  #     - "--interval=3600"
+  #     - "--alert-on=changes"
+  #     - "--slack-webhook=$SLACK_WEBHOOK"
+
+networks:
+  safecadence:
+    driver: bridge

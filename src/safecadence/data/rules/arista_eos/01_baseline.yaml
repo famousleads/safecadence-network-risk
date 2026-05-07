@@ -1,0 +1,200 @@
+# Arista EOS — Baseline hardening rules
+---
+- id: arista-eos-telnet-management
+  title: Telnet management server enabled
+  severity: critical
+  vendor: arista-eos
+  domain: security
+  description: |
+    `management telnet` block is configured. Telnet is cleartext.
+  remediation: |
+    Disable telnet management; use `management ssh` only.
+  fix_snippet: |
+    no management telnet
+    management ssh
+       no shutdown
+  references:
+    - https://www.arista.com/en/um-eos/eos-section-2-1-cli-overview
+  match_regex:
+    - "(?im)^\\s*management\\s+telnet\\s*$"
+
+- id: arista-eos-no-ssh-management
+  title: SSH management not enabled
+  severity: high
+  vendor: arista-eos
+  domain: security
+  description: |
+    No `management ssh` block present, or it is shutdown.
+  remediation: |
+    Enable management SSH on a restricted IP range.
+  fix_snippet: |
+    management ssh
+       ip access-group MGMT-IN in
+       no shutdown
+  references:
+    - https://www.arista.com/en/um-eos/eos-section-2-1-cli-overview
+  absent_regex:
+    - "(?im)^\\s*management\\s+ssh\\s*$"
+
+- id: arista-eos-default-username
+  title: Default or weak username present
+  severity: high
+  vendor: arista-eos
+  domain: security
+  description: |
+    A default username (`admin`, `cisco`, `root`) is in the local user
+    database.
+  remediation: |
+    Replace with org-specific accounts; centralize via TACACS+/RADIUS.
+  fix_snippet: |
+    no username admin
+    username netops-svc1 privilege 15 role network-admin secret 0 <strong-secret>
+  references:
+    - https://owasp.org/www-community/attacks/Credential_stuffing
+  match_regex:
+    - "(?im)^\\s*username\\s+(admin|cisco|root|test|guest)\\b"
+
+- id: arista-eos-snmp-default-community
+  title: SNMP default community present
+  severity: critical
+  vendor: arista-eos
+  domain: security
+  description: |
+    SNMP community "public" or "private" is configured.
+  remediation: |
+    Migrate to SNMPv3.
+  fix_snippet: |
+    no snmp-server community public
+    no snmp-server community private
+    snmp-server group SC-RO v3 priv
+    snmp-server user nms-ro SC-RO v3 auth sha <strong> priv aes 128 <strong>
+  references:
+    - https://nvd.nist.gov/vuln/detail/CVE-1999-0517
+  match_regex:
+    - "(?im)^\\s*snmp-server\\s+community\\s+(public|private)\\b"
+
+- id: arista-eos-snmp-rw
+  title: SNMP read-write community present
+  severity: critical
+  vendor: arista-eos
+  domain: security
+  description: |
+    Read-write SNMP community allows remote configuration via SET.
+  remediation: |
+    Remove RW; use eAPI over HTTPS for changes instead.
+  fix_snippet: |
+    no snmp-server community <name> rw
+  references:
+    - https://www.arista.com/en/um-eos/eos-section-44-3-snmp
+  match_regex:
+    - "(?im)^\\s*snmp-server\\s+community\\s+\\S+\\s+rw\\b"
+
+- id: arista-eos-no-aaa
+  title: No TACACS+ / RADIUS AAA group configured
+  severity: high
+  vendor: arista-eos
+  domain: security
+  description: |
+    Authentication is local-only.
+  remediation: |
+    Configure tacacs-server / radius-server and use `aaa authentication`.
+  fix_snippet: |
+    tacacs-server host 10.99.0.20 vrf MGMT key 0 <strong>
+    aaa group server tacacs+ TACGRP
+       server 10.99.0.20 vrf MGMT
+    aaa authentication login default group TACGRP local
+  references:
+    - https://www.arista.com/en/um-eos/eos-section-7-1-aaa-overview
+  absent_regex:
+    - "(?im)^\\s*aaa\\s+authentication\\s+login\\s+default"
+
+- id: arista-eos-no-syslog
+  title: No remote syslog destination configured
+  severity: medium
+  vendor: arista-eos
+  domain: security
+  description: |
+    `logging host` is missing.
+  remediation: |
+    Add a remote syslog target.
+  fix_snippet: |
+    logging vrf MGMT host 10.99.0.10
+    logging facility local6
+  references:
+    - https://www.arista.com/en/um-eos/eos-section-44-2-syslog
+  absent_regex:
+    - "(?im)^\\s*logging\\s+(?:vrf\\s+\\S+\\s+)?host\\s+\\S+"
+
+- id: arista-eos-no-ntp
+  title: No NTP server configured
+  severity: medium
+  vendor: arista-eos
+  domain: security
+  description: |
+    No NTP server is configured.
+  remediation: |
+    Add NTP servers, ideally with key authentication.
+  fix_snippet: |
+    ntp server vrf MGMT 10.99.0.5
+    ntp server vrf MGMT 10.99.0.6
+  references:
+    - https://www.arista.com/en/um-eos/eos-section-43-3-ntp
+  absent_regex:
+    - "(?im)^\\s*ntp\\s+server\\s+\\S+"
+
+- id: arista-eos-eapi-http-enabled
+  title: eAPI HTTP enabled (cleartext API)
+  severity: high
+  vendor: arista-eos
+  domain: security
+  description: |
+    `protocol http` is enabled under `management api http-commands`.
+    eAPI accepts authenticated CLI over plain HTTP.
+  remediation: |
+    Disable HTTP and force HTTPS only.
+  fix_snippet: |
+    management api http-commands
+       no protocol http
+       protocol https
+       no shutdown
+  references:
+    - https://www.arista.com/en/um-eos/eos-section-46-1-management-api
+  match_regex:
+    - "(?im)^\\s*management\\s+api\\s+http-commands[\\s\\S]{0,400}?^\\s*protocol\\s+http\\s*$"
+
+- id: arista-eos-no-mgmt-acl
+  title: Management protocols missing IP access-group
+  severity: high
+  vendor: arista-eos
+  domain: security
+  description: |
+    No `ip access-group ... in` is applied to the management ssh /
+    api blocks.
+  remediation: |
+    Apply a management ACL to all `management *` blocks.
+  fix_snippet: |
+    ip access-list standard MGMT-IN
+       10 permit 10.99.0.0/24
+       20 deny any log
+    management ssh
+       ip access-group MGMT-IN in
+  references:
+    - https://www.arista.com/en/um-eos/eos-section-7-2-aaa-configuration
+  custom: |
+    bool(re.search(r"(?im)^\s*management\s+(ssh|api)\b", text)) and not bool(re.search(r"(?im)^\s*ip\s+access-group\s+\S+\s+in", text))
+
+- id: arista-eos-no-bpdu-guard
+  title: BPDU guard not enabled by default
+  severity: medium
+  vendor: arista-eos
+  domain: availability
+  description: |
+    `spanning-tree edge-port bpduguard default` not configured globally.
+  remediation: |
+    Enable global BPDU guard for all PortFast/edge ports.
+  fix_snippet: |
+    spanning-tree edge-port bpduguard default
+  references:
+    - https://www.arista.com/en/um-eos/eos-section-19-3-spanning-tree
+  absent_regex:
+    - "(?im)^\\s*spanning-tree\\s+edge-port\\s+bpduguard\\s+default"

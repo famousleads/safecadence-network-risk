@@ -1,0 +1,67 @@
+---
+- id: gcp-cloud-firewall-permit-ssh-public
+  title: Firewall rule allows SSH (22) from 0.0.0.0/0
+  severity: critical
+  vendor: gcp-cloud
+  domain: security
+  match_regex:
+    - '(?ims)"sourceRanges":\s*\[\s*"0\.0\.0\.0/0"\s*\][\s\S]{0,300}?"ports":\s*\[\s*"22"'
+
+- id: gcp-cloud-firewall-permit-rdp-public
+  title: Firewall rule allows RDP (3389) from 0.0.0.0/0
+  severity: critical
+  vendor: gcp-cloud
+  domain: security
+  match_regex:
+    - '(?ims)"sourceRanges":\s*\[\s*"0\.0\.0\.0/0"\s*\][\s\S]{0,300}?"ports":\s*\[\s*"3389"'
+
+- id: gcp-cloud-bucket-public-allusers
+  title: GCS bucket grants allUsers / allAuthenticatedUsers
+  severity: critical
+  vendor: gcp-cloud
+  domain: security
+  match_regex:
+    - '(?im)"role":\s*"roles/storage\.objectViewer".*"allUsers"'
+    - '(?im)allUsers|allAuthenticatedUsers'
+
+- id: gcp-cloud-bucket-no-uniform-bucket-access
+  title: GCS bucket without uniform bucket-level access
+  severity: medium
+  vendor: gcp-cloud
+  domain: security
+  match_regex:
+    - '(?im)"uniformBucketLevelAccess":\s*\{\s*"enabled":\s*false'
+
+- id: gcp-cloud-gke-no-shielded-nodes
+  title: GKE cluster without Shielded Nodes
+  severity: high
+  vendor: gcp-cloud
+  domain: security
+  match_regex:
+    - '(?im)"shieldedNodes":\s*\{\s*"enabled":\s*false'
+
+- id: gcp-cloud-gke-no-network-policy
+  title: GKE cluster without Network Policy
+  severity: medium
+  vendor: gcp-cloud
+  domain: security
+  match_regex:
+    - '(?im)"networkPolicy":\s*\{\s*"enabled":\s*false'
+
+- id: gcp-cloud-iam-primitive-role
+  title: IAM uses primitive roles (roles/owner, editor, viewer)
+  severity: high
+  vendor: gcp-cloud
+  domain: security
+  description: |
+    Primitive roles violate least-privilege; use predefined or custom roles.
+  match_regex:
+    - '(?im)"role":\s*"roles/(owner|editor)"'
+
+- id: gcp-cloud-default-service-account
+  title: Compute instance running as default service account
+  severity: medium
+  vendor: gcp-cloud
+  domain: security
+  match_regex:
+    - '(?im)compute@developer\.gserviceaccount\.com'

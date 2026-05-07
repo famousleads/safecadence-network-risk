@@ -1,0 +1,18 @@
+# SafeCadence activity log pruner — daily timer
+# v9.53 — drop into /etc/systemd/system/safecadence-activity-prune.timer
+#
+# Pairs with safecadence-activity-prune.service. Runs at 03:30 UTC
+# every day, with persistence so missed runs (machine off, container
+# restart) catch up at next boot.
+
+[Unit]
+Description=Run safecadence-activity-prune daily
+Documentation=https://github.com/safecadence/network-risk
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 UTC
+Persistent=true
+Unit=safecadence-activity-prune.service
+
+[Install]
+WantedBy=timers.target

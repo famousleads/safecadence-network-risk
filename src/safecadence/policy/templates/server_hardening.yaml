@@ -1,0 +1,29 @@
+policy_id: tmpl_server_hardening
+policy_name: Server Hardening Baseline
+description: |
+  Baseline for Linux and Windows servers: patch level, encryption in
+  transit, no default credentials, password policy, MFA for admin
+  access, central logging.
+target_asset_types: [server]
+severity: high
+compliance_frameworks: [nist-800-53, cis, pci-dss]
+enforcement_mode: warn
+controls:
+  - control_id: enforce_patch_level
+    severity: high
+  - control_id: enforce_ssh_v2
+    severity: high
+  - control_id: enforce_encryption_in_transit
+    severity: high
+  - control_id: enforce_password_policy
+    severity: medium
+    parameters:
+      min_length: 14
+  - control_id: enforce_mfa
+    severity: high
+  - control_id: restrict_default_creds
+    severity: critical
+  - control_id: enable_syslog
+    severity: medium
+  - control_id: enable_ntp
+    severity: low

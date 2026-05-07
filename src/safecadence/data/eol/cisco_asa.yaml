@@ -1,0 +1,37 @@
+---
+- os: asa
+  version_prefix: "9.1"
+  end_of_sale:     "2017-08-15"
+  end_of_software: "2019-08-15"
+  end_of_support:  "2022-08-31"
+
+- os: asa
+  version_prefix: "9.4"
+  end_of_sale:     "2018-08-15"
+  end_of_software: "2020-08-15"
+  end_of_support:  "2023-08-31"
+
+- os: asa
+  version_prefix: "9.6"
+  end_of_sale:     "2019-08-15"
+  end_of_software: "2021-08-15"
+  end_of_support:  "2024-08-31"
+
+- os: asa
+  version_prefix: "9.8"
+  end_of_sale:     "2021-08-15"
+  end_of_software: "2023-08-15"
+  end_of_support:  "2026-08-31"
+  notes: "Long-running maintenance train."
+
+- os: asa
+  version_prefix: "9.12"
+  end_of_sale:     ""
+  end_of_software: "2025-08-31"
+  end_of_support:  "2028-08-31"
+
+- os: asa
+  version_prefix: "9.16"
+  end_of_sale:     ""
+  end_of_software: "2027-08-31"
+  end_of_support:  "2030-08-31"

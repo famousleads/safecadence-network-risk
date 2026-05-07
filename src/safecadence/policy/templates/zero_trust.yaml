@@ -1,0 +1,25 @@
+policy_id: tmpl_zero_trust
+policy_name: Zero Trust Baseline
+description: |
+  Identity-centric defaults: no implicit trust, MFA everywhere, least
+  privilege, public exposure blocked unless explicit, central audit
+  logging.
+target_asset_types: [network, server, cloud]
+severity: high
+compliance_frameworks: [nist-800-207, cis, iso-27001]
+enforcement_mode: warn
+controls:
+  - control_id: enforce_mfa
+    severity: high
+  - control_id: enforce_least_privilege
+    severity: high
+  - control_id: restrict_default_creds
+    severity: critical
+  - control_id: block_public_exposure
+    severity: critical
+  - control_id: enforce_encryption_in_transit
+    severity: high
+  - control_id: enforce_logging
+    severity: high
+  - control_id: restrict_management_access
+    severity: high

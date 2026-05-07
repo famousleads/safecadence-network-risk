@@ -1,0 +1,43 @@
+# Don't bloat the Docker build context
+.git
+.github
+.venv
+.venv-*
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+build
+dist
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.DS_Store
+.idea
+.vscode
+
+# Local-only artifacts
+auto-publish-*.sh
+release-*.sh
+SAFE-release-*.sh
+push-workflow.sh
+*.html
+*.pdf
+*.docx
+*.token
+*.pypi-token
+PyPI-Recovery-Codes-*.txt
+launch-followup
+WORDPRESS-PYPI-UPDATE.md
+
+# Test scaffolding
+tests
+docs
+examples
+
+# Specifically include only what the package needs
+!src
+!pyproject.toml
+!README.md
+!LICENSE
+!CHANGELOG.md

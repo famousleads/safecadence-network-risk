@@ -1,0 +1,31 @@
+---
+- os: eos
+  version_prefix: "4.21"
+  end_of_sale:     "2019-04-30"
+  end_of_software: "2020-04-30"
+  end_of_support:  "2023-04-30"
+
+- os: eos
+  version_prefix: "4.24"
+  end_of_sale:     "2020-08-31"
+  end_of_software: "2022-08-31"
+  end_of_support:  "2025-08-31"
+
+- os: eos
+  version_prefix: "4.27"
+  end_of_sale:     "2022-04-30"
+  end_of_software: "2024-04-30"
+  end_of_support:  "2027-04-30"
+
+- os: eos
+  version_prefix: "4.28"
+  end_of_sale:     ""
+  end_of_software: "2025-04-30"
+  end_of_support:  "2028-04-30"
+  notes: "M-train (extended)."
+
+- os: eos
+  version_prefix: "4.31"
+  end_of_sale:     ""
+  end_of_software: "2026-08-31"
+  end_of_support:  "2029-08-31"

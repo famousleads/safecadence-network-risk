@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Network Risk Report — 192.168.4.0/24 — 2026-05-04 00:07 UTC</title>
+<style>
+  *,*::before,*::after { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,sans-serif; color:#0f172a; background:#fff; font-size:14px; line-height:1.5; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .page { max-width:1100px; margin:0 auto; padding:0 32px 50px; }
+  /* COVER */
+  .cover { background:linear-gradient(135deg, #0f172a, #1e3a8a 60%, #1e40af);
+           color:#fff; padding:60px 32px 50px; margin:0 -32px 30px; position:relative; }
+  .cover::after { content:""; position:absolute; bottom:0; left:0; right:0; height:6px; background:linear-gradient(90deg,#dc2626,#d97706,#eab308,#16a34a); }
+  .cover .brand { font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:#94a3b8; font-weight:700; }
+  .cover h1 { font-size:38px; line-height:1.1; margin:14px 0 8px; font-weight:800; letter-spacing:-.01em; }
+  .cover .sub { font-size:16px; color:#cbd5e1; margin-bottom:20px; max-width:780px; }
+  .cover-meta { font-size:13px; color:#94a3b8; }
+  .cover-meta strong { color:#fff; }
+  /* KPI grid */
+  .kpi-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin:24px 0 32px; }
+  .kpi-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px 20px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+  .kpi-label { font-size:10px; text-transform:uppercase; color:#64748b; letter-spacing:.08em; font-weight:700; margin-bottom:4px; }
+  .kpi-value { font-size:32px; font-weight:800; line-height:1; margin-bottom:4px; }
+  .kpi-sub { font-size:11px; color:#64748b; }
+  .kpi-critical .kpi-value { color:#0f172a; }
+  .kpi-critical { background:linear-gradient(135deg, #fff, #fee2e2); border-color:#fecaca; }
+  .kpi-high .kpi-value { color:#dc2626; }
+  .kpi-high { background:linear-gradient(135deg, #fff, #fef3c7); border-color:#fde68a; }
+  .kpi-info .kpi-value { color:#1d4ed8; }
+  .kpi-cve .kpi-value { color:#7c3aed; }
+  .kpi-kev .kpi-value { color:#dc2626; }
+  .kpi-kev { background:linear-gradient(135deg, #fff, #fee2e2); border-color:#fecaca; }
+  /* Headings */
+  h2 { font-size:20px; margin:36px 0 14px; font-weight:700; padding-bottom:6px; border-bottom:2px solid #0f172a; }
+  h3 { font-size:15px; margin:0 0 10px; font-weight:700; color:#1e293b; }
+  h4 { font-size:13px; margin:0 0 6px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:.04em; }
+  /* Layout */
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px 20px; }
+  .legend { display:flex; flex-wrap:wrap; gap:12px; font-size:11px; color:#475569; justify-content:center; }
+  .legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:middle; }
+  /* Tables */
+  table.report-table { width:100%; border-collapse:collapse; font-size:12px; margin:8px 0 18px; }
+  table.report-table th { text-align:left; padding:8px 10px; background:#0f172a; color:#cbd5e1; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
+  table.report-table th:first-child { border-top-left-radius:6px; }
+  table.report-table th:last-child { border-top-right-radius:6px; }
+  table.report-table td { padding:8px 10px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
+  /* Risk band badges */
+  .band { display:inline-block; padding:3px 9px; border-radius:4px; font-size:11px; font-weight:700; min-width:36px; text-align:center; }
+  .band-safe { background:#dcfce7; color:#14532d; }
+  .band-low { background:#dbeafe; color:#1e3a8a; }
+  .band-medium { background:#fef3c7; color:#78350f; }
+  .band-high { background:#fee2e2; color:#7f1d1d; }
+  .band-critical { background:#0f172a; color:#fff; }
+  /* Pills */
+  .pill { display:inline-block; padding:1px 6px; background:#f1f5f9; color:#334155; border-radius:3px; font-size:10px; margin:0 2px 0 0; }
+  .cat-pill { background:#eff6ff; color:#1d4ed8; padding:1px 7px; border-radius:3px; font-size:11px; font-weight:600; }
+  .kev-badge { background:#dc2626; color:#fff; padding:1px 5px; border-radius:3px; font-size:9px; font-weight:700; vertical-align:middle; }
+  .cve-count { background:#fef3c7; color:#78350f; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:600; margin-left:4px; }
+  code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; background:#f8fafc; padding:1px 5px; border-radius:3px; }
+  code.mac { font-size:10px; color:#475569; }
+  code.mini { font-size:10px; padding:0 4px; }
+  .sysd { font-size:10px; color:#64748b; margin-top:4px; font-family:ui-monospace,monospace; max-width:480px; }
+  /* Device cards */
+  .device-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px 22px; margin:12px 0; page-break-inside:avoid; }
+  .device-head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; }
+  .device-ip { font-size:18px; font-weight:700; }
+  .device-meta { font-size:12px; color:#64748b; margin-top:3px; }
+  .device-risk { text-align:right; }
+  .device-score { font-size:24px; font-weight:800; margin-top:6px; color:#0f172a; }
+  .device-score small { font-size:11px; color:#94a3b8; font-weight:500; }
+  .device-body { display:grid; grid-template-columns:1fr 1fr; gap:18px; font-size:12px; padding-top:8px; border-top:1px solid #f1f5f9; }
+  .device-body ul { margin:4px 0 0; padding-left:18px; }
+  .device-body li { margin:3px 0; }
+  .cve-list { margin:4px 0 0; padding-left:18px; font-size:11px; }
+  .cve-list li { margin:3px 0; }
+  /* Compliance section */
+  .compliance-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px; margin:14px 0; }
+  .compliance-card { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:14px 16px; }
+  .compliance-card .name { font-weight:700; color:#1e3a8a; }
+  .compliance-card .gauge { height:8px; background:#e2e8f0; border-radius:4px; margin:8px 0; overflow:hidden; }
+  .compliance-card .gauge-fill { height:100%; background:linear-gradient(90deg,#dc2626,#d97706,#16a34a); }
+  .compliance-card .stat { font-size:11px; color:#64748b; }
+  /* Section dividers */
+  .section-intro { background:#f8fafc; border-left:4px solid #1e3a8a; padding:14px 18px; border-radius:0 6px 6px 0; margin:8px 0 18px; font-size:13px; color:#334155; }
+  /* Print styles */
+  @media print {
+    .cover { padding:40px 24px 32px; }
+    h2 { page-break-after:avoid; }
+    .device-card { page-break-inside:avoid; }
+    .panel { page-break-inside:avoid; }
+  }
+  /* Footer */
+  .footer { margin-top:50px; padding:18px 0; border-top:1px solid #e2e8f0; font-size:11px; color:#64748b; text-align:center; }
+  .toc { background:#f8fafc; border-radius:8px; padding:14px 20px; margin:18px 0 28px; font-size:12px; }
+  .toc h3 { margin:0 0 8px; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#64748b; }
+  .toc ol { margin:0; padding-left:20px; columns:2; }
+  .toc li { padding:1px 0; }
+  .toc a { color:#1d4ed8; text-decoration:none; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- COVER -->
+<div class="cover">
+  <div class="brand">SafeCadence Network Risk · Audit Report</div>
+  <h1>Network Risk Assessment</h1>
+  <div class="sub">Comprehensive identification, vulnerability mapping, and remediation prioritization for 192.168.4.0/24.</div>
+  <div class="cover-meta">
+    Prepared for <strong>test</strong> ·
+    Subnet <strong>192.168.4.0/24</strong> ·
+    Scan mode <strong>lan_deep</strong> ·
+    254 hosts probed in 49.8s ·
+    Generated 2026-05-04 00:07 UTC
+  </div>
+</div>
+
+<!-- TOC -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ol>
+    <li><a href="#exec">Executive Summary</a></li>
+    <li><a href="#risk">Fleet Risk Distribution</a></li>
+    <li><a href="#critical">Devices Requiring Immediate Action</a></li>
+    <li><a href="#vulns">Top Vulnerabilities</a></li>
+    <li><a href="#actions">Top Recommended Actions</a></li>
+    <li><a href="#compliance">Compliance Coverage</a></li>
+    <li><a href="#inventory">Full Asset Inventory</a></li>
+    <li><a href="#methodology">Methodology</a></li>
+  </ol>
+</div>
+
+<!-- EXEC SUMMARY -->
+<h2 id="exec">Executive Summary</h2>
+
+    <div class="kpi-grid">
+      <div class="kpi-card kpi-info">
+        <div class="kpi-label">Devices in scope</div>
+        <div class="kpi-value">40</div>
+        <div class="kpi-sub">discovered on 192.168.4.0/24</div>
+      </div>
+      <div class="kpi-card kpi-critical">
+        <div class="kpi-label">CRITICAL risk</div>
+        <div class="kpi-value">0</div>
+        <div class="kpi-sub">remediate immediately</div>
+      </div>
+      <div class="kpi-card kpi-high">
+        <div class="kpi-label">HIGH risk</div>
+        <div class="kpi-value">0</div>
+        <div class="kpi-sub">remediate this quarter</div>
+      </div>
+      <div class="kpi-card kpi-cve">
+        <div class="kpi-label">Known CVEs matched</div>
+        <div class="kpi-value">0</div>
+        <div class="kpi-sub">0 on CISA KEV catalog</div>
+      </div>
+      <div class="kpi-card kpi-kev">
+        <div class="kpi-label">Devices w/ KEV CVE</div>
+        <div class="kpi-value">0</div>
+        <div class="kpi-sub">actively exploited in the wild</div>
+      </div>
+    </div>
+    
+
+<div class="section-intro">
+This assessment of <code>192.168.4.0/24</code> identified <strong>40 devices</strong>, of which
+<strong>0 (0%)</strong> require remediation action.
+No known-exploited vulnerabilities were matched, but the assessment is heuristic and additional CVEs may apply once devices are positively identified.
+The most impactful remediation priority is detailed in section 5; per-device action plans are in sections 3 and 7.
+</div>
+
+<!-- RISK -->
+<h2 id="risk">Fleet Risk Distribution</h2>
+
+    <div class="grid-2">
+      <div class="panel">
+        <h3>Fleet risk distribution</h3>
+        <div style="text-align:center; margin:14px 0"><svg viewBox="0 0 200 200" width="200" height="200" xmlns="http://www.w3.org/2000/svg"><path d="M 100.00 6.00 A 94.00 94.00 0 0 1 129.05 10.60 L 118.01 44.57 A 58.28 58.28 0 0 0 100.00 41.72 Z" fill="#d97706" /><path d="M 129.05 10.60 A 94.00 94.00 0 0 1 176.05 44.75 L 147.15 65.74 A 58.28 58.28 0 0 0 118.01 44.57 Z" fill="#1d4ed8" /><path d="M 176.05 44.75 A 94.00 94.00 0 1 1 100.00 6.00 L 100.00 41.72 A 58.28 58.28 0 1 0 147.15 65.74 Z" fill="#16a34a" /><text x="100.0" y="100.0" text-anchor="middle" dominant-baseline="central" font-size="22" font-weight="700" fill="#0f172a">40</text></svg></div>
+        <div class="legend">
+          <span><i style="background:#0f172a"></i> Critical 0</span>
+          <span><i style="background:#dc2626"></i> High 0</span>
+          <span><i style="background:#d97706"></i> Medium 2</span>
+          <span><i style="background:#1d4ed8"></i> Low 4</span>
+          <span><i style="background:#16a34a"></i> Safe 34</span>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Device mix</h3>
+        <div style="margin-top:10px"><svg viewBox="0 0 440 88" width="440" height="88" xmlns="http://www.w3.org/2000/svg">
+        <g transform="translate(0,0)">
+          <text x="0" y="14" font-size="12" fill="#475569">unknown</text>
+          <rect x="100" y="3" width="340" height="16" fill="#1e3a8a" rx="2" />
+          <text x="445" y="14" font-size="11" fill="#0f172a" font-weight="600">33</text>
+        </g>
+        <g transform="translate(0,22)">
+          <text x="0" y="14" font-size="12" fill="#475569">iot</text>
+          <rect x="100" y="3" width="51" height="16" fill="#1e3a8a" rx="2" />
+          <text x="156" y="14" font-size="11" fill="#0f172a" font-weight="600">5</text>
+        </g>
+        <g transform="translate(0,44)">
+          <text x="0" y="14" font-size="12" fill="#475569">printer</text>
+          <rect x="100" y="3" width="10" height="16" fill="#1e3a8a" rx="2" />
+          <text x="115" y="14" font-size="11" fill="#0f172a" font-weight="600">1</text>
+        </g>
+        <g transform="translate(0,66)">
+          <text x="0" y="14" font-size="12" fill="#475569">server</text>
+          <rect x="100" y="3" width="10" height="16" fill="#1e3a8a" rx="2" />
+          <text x="115" y="14" font-size="11" fill="#0f172a" font-weight="600">1</text>
+        </g></svg></div>
+      </div>
+    </div>
+    
+
+<!-- SPOTLIGHT -->
+<h2 id="critical">Devices Requiring Immediate Action (0)</h2>
+<p>The 0 devices below carry the highest aggregated risk score across the fleet. Each entry includes findings, recommended remediation actions, and any CVEs matched against the device's identified vendor/version. Prioritize these in your next change window.</p>
+<div class="section-intro" style="border-color:#16a34a; background:#f0fdf4">No devices in the critical or high-risk bands. Continue normal monitoring cadence.</div>
+
+<!-- VULNS -->
+
+
+<!-- ACTIONS -->
+
+        <h2>Top Recommended Actions (across fleet)</h2>
+        <p>Acting on these in order will close the most findings with the least effort.</p>
+        <table class="report-table">
+          <thead><tr><th style="width:30px">#</th><th>Action</th><th style="text-align:right">Devices affected</th></tr></thead>
+          <tbody><tr><td>1</td><td>Identify the device manually and confirm it belongs on this network.</td><td style='text-align:right'>6</td></tr><tr><td>2</td><td>Disable telnet and use SSH (port 22) instead.</td><td style='text-align:right'>1</td></tr><tr><td>3</td><td>Disable UPnP on perimeter devices and segment IoT.</td><td style='text-align:right'>1</td></tr><tr><td>4</td><td>Replace with a CA-signed certificate or document self-signed exception.</td><td style='text-align:right'>1</td></tr></tbody>
+        </table>
+
+<!-- COMPLIANCE -->
+
+    <h2 id="compliance">Compliance Coverage</h2>
+    <p>Findings from this assessment have been auto-mapped to commonly-required compliance frameworks. The bar shows the relative gap (longer = more findings).</p>
+    <div class="compliance-grid">
+        <div class="compliance-card">
+          <div class="name">NIST 800-53</div>
+          <div class="gauge"><div class="gauge-fill" style="width:10%"></div></div>
+          <div class="stat">2 findings mapped · 2 controls touched</div>
+          <div style="margin-top:8px"><span class="pill">AC-17</span> <span class="pill">SC-12</span></div>
+        </div>
+        
+        <div class="compliance-card">
+          <div class="name">CIS Controls v8</div>
+          <div class="gauge"><div class="gauge-fill" style="width:10%"></div></div>
+          <div class="stat">2 findings mapped · 2 controls touched</div>
+          <div style="margin-top:8px"><span class="pill">3.10</span> <span class="pill">4.5</span></div>
+        </div>
+        
+        <div class="compliance-card">
+          <div class="name">PCI-DSS</div>
+          <div class="gauge"><div class="gauge-fill" style="width:10%"></div></div>
+          <div class="stat">2 findings mapped · 2 controls touched</div>
+          <div style="margin-top:8px"><span class="pill">2.3</span> <span class="pill">4.1</span></div>
+        </div>
+        
+        <div class="compliance-card">
+          <div class="name">HIPAA</div>
+          <div class="gauge"><div class="gauge-fill" style="width:10%"></div></div>
+          <div class="stat">2 findings mapped · 2 controls touched</div>
+          <div style="margin-top:8px"><span class="pill">164.312(a)</span> <span class="pill">164.312(e)</span></div>
+        </div>
+        </div>
+    <p style="font-size:11px; color:#64748b; margin-top:8px">
+      Mappings are heuristic — verify against your specific compliance scope.
+      Run <code>safecadence list-rules --vendor &lt;vendor&gt;</code> for the full per-rule
+      compliance tag library.
+    </p>
+    
+
+<!-- INVENTORY -->
+<h2 id="inventory">Full Asset Inventory (40 devices)</h2>
+<table class="report-table">
+  <thead><tr><th>Risk</th><th>IP</th><th>Hostname</th><th>MAC</th><th>Vendor</th><th>Category</th><th>Open ports / CVEs</th></tr></thead>
+  <tbody><tr>
+          <td><span class="band band-medium">40</span></td>
+          <td><code>192.168.4.55</code></td>
+          <td>—</td>
+          <td><code class="mac">f8:da:0c:2e:d0:67</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td><span class="pill">23</span> <span class="pill">80</span> <span class="pill">443</span></td>
+        </tr><tr>
+          <td><span class="band band-medium">20</span></td>
+          <td><code>192.168.4.1</code></td>
+          <td>—</td>
+          <td><code class="mac">24:2d:6c:7b:6f:d4</code></td>
+          <td>—</td>
+          <td>iot</td>
+          <td><span class="pill">53</span> <span class="pill">80</span> <span class="pill">1900</span></td>
+        </tr><tr>
+          <td><span class="band band-low">15</span></td>
+          <td><code>192.168.4.27</code></td>
+          <td>—</td>
+          <td><code class="mac">2c:31:24:cc:26:44</code></td>
+          <td>—</td>
+          <td>iot</td>
+          <td><span class="pill">80</span> <span class="pill">443</span></td>
+        </tr><tr>
+          <td><span class="band band-low">10</span></td>
+          <td><code>192.168.4.31</code></td>
+          <td>—</td>
+          <td><code class="mac">cc:6a:10:6d:09:69</code></td>
+          <td>—</td>
+          <td>iot</td>
+          <td><span class="pill">80</span> <span class="pill">443</span></td>
+        </tr><tr>
+          <td><span class="band band-low">10</span></td>
+          <td><code>192.168.4.57</code></td>
+          <td>—</td>
+          <td><code class="mac">24:4c:ab:1a:c6:b0</code></td>
+          <td>—</td>
+          <td>iot</td>
+          <td><span class="pill">80</span></td>
+        </tr><tr>
+          <td><span class="band band-low">10</span></td>
+          <td><code>192.168.4.85</code></td>
+          <td>—</td>
+          <td><code class="mac">bc:f4:d4:7b:ad:59</code></td>
+          <td>—</td>
+          <td>printer</td>
+          <td><span class="pill">80</span> <span class="pill">443</span> <span class="pill">631</span></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.20</code></td>
+          <td>—</td>
+          <td><code class="mac">24:2d:6c:79:ec:d4</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td><span class="pill">53</span></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.26</code></td>
+          <td>—</td>
+          <td><code class="mac">ac:b6:87:0d:fb:8c</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.28</code></td>
+          <td>—</td>
+          <td><code class="mac">80:5b:65:c1:36:c0</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.33</code></td>
+          <td>—</td>
+          <td><code class="mac">9c:1c:37:b8:c5:67</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.34</code></td>
+          <td>—</td>
+          <td><code class="mac">90:23:5b:af:e0:73</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.35</code></td>
+          <td>—</td>
+          <td><code class="mac">7c:63:05:e4:63:a5</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.36</code></td>
+          <td>—</td>
+          <td><code class="mac">50:fd:d5:d3:b1:d0</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.40</code></td>
+          <td>—</td>
+          <td><code class="mac">60:1d:9d:24:60:f4</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.41</code></td>
+          <td>—</td>
+          <td><code class="mac">cc:8c:bf:6f:26:44</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.43</code></td>
+          <td>—</td>
+          <td><code class="mac">cc:8c:bf:23:f1:fc</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.44</code></td>
+          <td>—</td>
+          <td><code class="mac">3c:7a:aa:89:83:59</code></td>
+          <td>Linux</td>
+          <td>server</td>
+          <td><span class="pill">22</span></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.49</code></td>
+          <td>—</td>
+          <td><code class="mac">5c:c5:63:42:3e:62</code></td>
+          <td>HTTP:Forbidden</td>
+          <td>iot</td>
+          <td><span class="pill">80</span></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.51</code></td>
+          <td>—</td>
+          <td><code class="mac">d6:d1:a2:ba:0e:2c</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.52</code></td>
+          <td>—</td>
+          <td><code class="mac">d8:28:c9:bf:c6:68</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.53</code></td>
+          <td>—</td>
+          <td><code class="mac">d8:28:c9:c2:61:f9</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.54</code></td>
+          <td>—</td>
+          <td><code class="mac">b2:e8:76:0f:47:6f</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.60</code></td>
+          <td>—</td>
+          <td><code class="mac">c4:35:d9:9f:8f:70</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.63</code></td>
+          <td>—</td>
+          <td><code class="mac">20:0b:cf:e6:85:c5</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.64</code></td>
+          <td>—</td>
+          <td><code class="mac">e6:c0:5a:3c:86:5c</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.69</code></td>
+          <td>—</td>
+          <td><code class="mac">68:c6:ac:82:45:7e</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.71</code></td>
+          <td>—</td>
+          <td><code class="mac">ae:c2:ad:53:98:ae</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.91</code></td>
+          <td>—</td>
+          <td><code class="mac">aa:05:a2:64:54:8b</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.100</code></td>
+          <td>—</td>
+          <td><code class="mac">ac:ec:85:c8:86:eb</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td><span class="pill">53</span></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.101</code></td>
+          <td>—</td>
+          <td><code class="mac">08:1a:1e:82:79:0c</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.103</code></td>
+          <td>—</td>
+          <td><code class="mac">34:2f:bd:90:c4:f5</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.106</code></td>
+          <td>—</td>
+          <td><code class="mac">a6:e1:2b:25:3e:5b</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.117</code></td>
+          <td>—</td>
+          <td><code class="mac">08:1a:1e:a8:08:f0</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.118</code></td>
+          <td>—</td>
+          <td><code class="mac">5a:70:32:81:43:fc</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.119</code></td>
+          <td>—</td>
+          <td><code class="mac">1c:1d:d3:e8:03:a9</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.121</code></td>
+          <td>—</td>
+          <td><code class="mac">7a:76:57:5d:9c:04</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.131</code></td>
+          <td>—</td>
+          <td><code class="mac">fa:01:60:ec:0e:0f</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.133</code></td>
+          <td>—</td>
+          <td><code class="mac">46:84:59:a0:6d:d9</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.136</code></td>
+          <td>—</td>
+          <td><code class="mac">b2:0b:b2:5e:d9:0b</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr><tr>
+          <td><span class="band band-safe">0</span></td>
+          <td><code>192.168.4.203</code></td>
+          <td>—</td>
+          <td><code class="mac">e2:65:1c:ed:c2:9c</code></td>
+          <td>—</td>
+          <td>unknown</td>
+          <td></td>
+        </tr></tbody>
+</table>
+
+<!-- METHODOLOGY -->
+<h2 id="methodology">Methodology &amp; Disclosure</h2>
+<p style="font-size:12px; color:#475569">
+  This assessment was generated by <code>safecadence-netrisk</code> (open-source, MIT-licensed) running locally on the
+  auditor's workstation. <strong>No data was transmitted to any third party.</strong> Discovery used five concurrent
+  identification techniques: TCP port probing on 27 management ports, ARP cache reading for L2-adjacent devices,
+  mDNS/Bonjour multicast listener for self-announcing devices, SNMP v2c sysDescr GET with common community strings
+  (only when port 161 was already detected open), and TLS certificate subject extraction with HTTP page-title scraping.
+  Risk scores combine port-based heuristics, default-credential detection, and known-vulnerability matching against
+  the bundled CVE database (cross-referenced with the CISA Known Exploited Vulnerabilities catalog as of 2026-05-04 00:07 UTC).
+  CVE matching is best-effort; results may miss CVEs for devices not positively identified by vendor + version.
+  This report should be reviewed by a qualified network security engineer before initiating remediation work.
+</p>
+<p style="font-size:11px; color:#94a3b8; margin-top:18px">
+  Tool: <a href="https://pypi.org/project/safecadence-netrisk/" style="color:#1d4ed8">safecadence-netrisk</a> ·
+  Source: <a href="https://github.com/famousleads/safecadence-network-risk" style="color:#1d4ed8">github.com/famousleads/safecadence-network-risk</a> ·
+  Engagement support: <a href="mailto:hello@safecadence.com" style="color:#1d4ed8">hello@safecadence.com</a>
+</p>
+
+<div class="footer">
+  Generated by SafeCadence Network Risk · 2026-05-04 00:07 UTC · MIT licensed · 100% local · Bring-your-own-AI
+</div>
+
+</div>
+</body>
+</html>

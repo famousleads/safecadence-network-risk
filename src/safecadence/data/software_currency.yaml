@@ -1,0 +1,116 @@
+# SafeCadence v9.26 — software currency reference.
+#
+# Maps (vendor, product_family) to a recommended-version table. The
+# evaluator compares the asset's running version against this table
+# and emits a status: current / supported / behind / eol / kev_vulnerable.
+#
+# Maintenance notes:
+#   * `recommended` is the current "safe" version (latest stable -
+#     N for stability where applicable).
+#   * `min_supported` is the floor below which we mark the asset
+#     "behind" — usually one major below recommended.
+#   * `eol` is the version after which vendor support is dead.
+#   * `known_kev_versions` is a list of version strings (or regexes)
+#     that contain unpatched KEV CVEs. Stronger signal than "behind".
+#
+# This file is community-maintainable. Vendor announcements move it.
+# When a real CVE lands a new entry should be added here AND in the
+# main CVE bundle so the score reflects it twice (currency + risk).
+
+cisco-ios:
+  product_families:
+    - "Cisco IOS"
+    - "Cisco IOS Software"
+    - "ios"
+  recommended: "15.9(3)M9"
+  min_supported: "15.7"
+  eol: "15.0"
+  known_kev_versions:
+    - "12.2"
+    - "12.4"
+
+cisco-ios-xe:
+  product_families:
+    - "Cisco IOS XE Software"
+    - "Cisco IOS-XE"
+    - "iosxe"
+  recommended: "17.12.4"
+  min_supported: "17.6"
+  eol: "16.6"
+  known_kev_versions: []
+
+cisco-nxos:
+  product_families:
+    - "Cisco NX-OS"
+    - "nxos"
+  recommended: "10.3(4a)M"
+  min_supported: "9.3"
+  eol: "7.0"
+  known_kev_versions: []
+
+cisco-asa:
+  product_families:
+    - "Cisco ASA"
+    - "asa"
+  recommended: "9.20.3"
+  min_supported: "9.16"
+  eol: "9.8"
+  known_kev_versions: []
+
+juniper-junos:
+  product_families:
+    - "Juniper JUNOS"
+    - "JUNOS"
+    - "junos"
+  recommended: "23.4R1"
+  min_supported: "21.4"
+  eol: "18.0"
+  known_kev_versions: []
+
+arista-eos:
+  product_families:
+    - "Arista EOS"
+    - "eos"
+  recommended: "4.32.2F"
+  min_supported: "4.28"
+  eol: "4.20"
+  known_kev_versions: []
+
+paloalto-panos:
+  product_families:
+    - "PAN-OS"
+    - "Palo Alto PAN-OS"
+    - "panos"
+  recommended: "11.1.4-h7"
+  min_supported: "10.2"
+  eol: "9.1"
+  known_kev_versions:
+    # CVE-2024-3400 — pre-patch chain
+    - "10.2.0"
+    - "10.2.1"
+    - "10.2.2"
+    - "10.2.3"
+    - "10.2.4"
+
+fortinet-fortios:
+  product_families:
+    - "FortiOS"
+    - "fortios"
+  recommended: "7.4.4"
+  min_supported: "7.2"
+  eol: "6.4"
+  known_kev_versions:
+    # CVE-2022-42475 (heap overflow), CVE-2024-21762 (out-of-bounds)
+    - "7.0.0"
+    - "7.0.1"
+    - "7.0.2"
+    - "7.0.3"
+
+aruba-aoscx:
+  product_families:
+    - "Aruba AOS-CX"
+    - "aoscx"
+  recommended: "10.13.1010"
+  min_supported: "10.10"
+  eol: "10.07"
+  known_kev_versions: []

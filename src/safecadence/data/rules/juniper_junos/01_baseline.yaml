@@ -1,0 +1,166 @@
+---
+- id: juniper-junos-telnet-allowed
+  title: Telnet management enabled
+  severity: critical
+  vendor: juniper-junos
+  domain: security
+  description: |
+    `system services telnet` is set. Telnet sends credentials in cleartext.
+  remediation: |
+    Disable telnet, force SSH only.
+  fix_snippet: |
+    delete system services telnet
+    set system services ssh protocol-version v2
+  references:
+    - https://www.juniper.net/documentation/us/en/software/junos/security/index.html
+  match_regex:
+    - "(?im)^\\s*set\\s+system\\s+services\\s+telnet"
+    - "(?im)^\\s+telnet\\b"
+
+- id: juniper-junos-no-ssh-v2
+  title: SSH not restricted to v2
+  severity: high
+  vendor: juniper-junos
+  domain: security
+  description: |
+    Junos may allow SSH v1 unless explicitly restricted to v2.
+  remediation: |
+    Restrict SSH to v2 only.
+  fix_snippet: |
+    set system services ssh protocol-version v2
+  references:
+    - https://datatracker.ietf.org/doc/html/rfc4251
+  absent_regex:
+    - "(?im)protocol-version\\s+v2"
+
+- id: juniper-junos-snmp-default-community
+  title: SNMP default community present
+  severity: critical
+  vendor: juniper-junos
+  domain: security
+  description: |
+    Default SNMP community ("public" / "private") in use.
+  remediation: |
+    Migrate to SNMPv3.
+  fix_snippet: |
+    delete snmp community public
+    delete snmp community private
+    set snmp v3 usm local-engine user nms-ro authentication-sha authentication-password "<strong>" privacy-aes128 privacy-password "<strong>"
+  references:
+    - https://nvd.nist.gov/vuln/detail/CVE-1999-0517
+  match_regex:
+    - "(?im)^\\s*set\\s+snmp\\s+community\\s+(public|private)\\b"
+    - "(?im)community\\s+(public|private)\\b"
+
+- id: juniper-junos-no-aaa
+  title: No TACACS+ / RADIUS configured
+  severity: high
+  vendor: juniper-junos
+  domain: security
+  description: |
+    Authentication is local-only; no TACACS+ / RADIUS for centralized identity.
+  remediation: |
+    Configure tacplus-server and authentication-order.
+  fix_snippet: |
+    set system tacplus-server 10.99.0.20 secret "<strong>"
+    set system authentication-order [ tacplus password ]
+  references:
+    - https://www.juniper.net/documentation/us/en/software/junos/aaa/topics/index.html
+  absent_regex:
+    - "(?im)tacplus-server|radius-server"
+
+- id: juniper-junos-no-syslog-host
+  title: No remote syslog host configured
+  severity: medium
+  vendor: juniper-junos
+  domain: security
+  description: |
+    No `syslog host` directive present.
+  remediation: |
+    Forward all logs to a centralized syslog target.
+  fix_snippet: |
+    set system syslog host 10.99.0.10 any info
+  references:
+    - https://www.juniper.net/documentation/us/en/software/junos/system-mgmt/topics/index.html
+  absent_regex:
+    - "(?im)^\\s*set\\s+system\\s+syslog\\s+host\\s+\\S+"
+    - "(?im)host\\s+\\S+\\s*\\{[^\\}]*any"
+
+- id: juniper-junos-no-ntp
+  title: No NTP server configured
+  severity: medium
+  vendor: juniper-junos
+  domain: security
+  description: |
+    No `ntp server` configured.
+  remediation: |
+    Add NTP source(s).
+  fix_snippet: |
+    set system ntp server 10.99.0.5
+    set system ntp server 10.99.0.6
+  absent_regex:
+    - "(?im)^\\s*set\\s+system\\s+ntp\\s+server\\s+\\S+"
+    - "(?im)ntp\\s*\\{[^\\}]*server"
+
+- id: juniper-junos-default-root-password
+  title: Default or weak root password
+  severity: critical
+  vendor: juniper-junos
+  domain: security
+  description: |
+    `root-authentication` block uses a weak / default password.
+  remediation: |
+    Set a strong root password using SHA512 hash.
+  fix_snippet: |
+    set system root-authentication encrypted-password "$6$..."
+  references:
+    - https://owasp.org/www-community/attacks/Credential_stuffing
+  match_regex:
+    - "(?im)plain-text-password\\s*;\\s*$"
+
+- id: juniper-junos-no-login-class-restrictions
+  title: No login class restrictions defined
+  severity: medium
+  vendor: juniper-junos
+  domain: security
+  description: |
+    No custom login classes restricting permissions to least privilege.
+  remediation: |
+    Define a `read-only` and an `ops` class with explicit permissions.
+  fix_snippet: |
+    set system login class ops permissions [ view view-configuration ]
+  absent_regex:
+    - "(?im)^\\s*set\\s+system\\s+login\\s+class\\s+\\S+"
+
+- id: juniper-junos-bgp-no-md5
+  title: BGP neighbors without MD5 authentication
+  severity: high
+  vendor: juniper-junos
+  domain: security
+  description: |
+    A BGP neighbor is configured without authentication-key.
+  remediation: |
+    Apply MD5 (or TCP-AO) auth key per neighbor.
+  fix_snippet: |
+    set protocols bgp group EXT neighbor 198.51.100.1 authentication-key "<strong>"
+  references:
+    - https://www.juniper.net/documentation/us/en/software/junos/bgp/index.html
+  custom: |
+    bool(re.search(r"(?im)set\s+protocols\s+bgp\b|protocols\s*\{[^\}]*bgp", text)) and not bool(re.search(r"(?im)authentication-key|authentication-algorithm\s+hmac", text))
+
+- id: juniper-junos-http-server-enabled
+  title: J-Web HTTP enabled (cleartext)
+  severity: high
+  vendor: juniper-junos
+  domain: security
+  description: |
+    `system services web-management http` is configured. Use HTTPS only.
+  remediation: |
+    Disable HTTP and restrict HTTPS.
+  fix_snippet: |
+    delete system services web-management http
+    set system services web-management https system-generated-certificate
+  references:
+    - https://www.juniper.net/documentation/us/en/software/junos/cli-reference/index.html
+  match_regex:
+    - "(?im)set\\s+system\\s+services\\s+web-management\\s+http\\b(?!s)"

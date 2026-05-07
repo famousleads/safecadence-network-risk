@@ -1,0 +1,63 @@
+Capability codes:
+    (R) Router, (B) Bridge, (T) Telephone, (C) DOCSIS Cable Device
+    (W) WLAN Access Point, (P) Repeater, (S) Station, (O) Other
+
+------------------------------------------------
+Local Intf: GigabitEthernet0/1
+Chassis id: aabb.cc01.1234
+Port id: GigabitEthernet1/0/24
+Port Description: UPLINK_TO_CORE
+System Name: DC-CORE-01
+System Description:
+Cisco IOS Software, IOS-XE Software, Catalyst L3 Switch Software
+(CAT9K_IOSXE), Version 17.06.04, RELEASE SOFTWARE
+Time remaining: 105 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 10.99.0.10
+Auto Negotiation - supported, enabled
+------------------------------------------------
+Local Intf: GigabitEthernet0/2
+Chassis id: 0050.5612.34cd
+Port id: Ethernet1/12
+Port Description: SPINE_LINK
+System Name: SPINE-01
+System Description:
+Arista Networks EOS version 4.28.3M running on an Arista Networks
+DCS-7050SX-72Q
+Time remaining: 121 seconds
+System Capabilities: B
+Enabled Capabilities: B
+Management Addresses:
+    IP: 10.99.0.30
+Auto Negotiation - supported, enabled
+------------------------------------------------
+Local Intf: GigabitEthernet0/3
+Chassis id: 60d2.4801.1111
+Port id: 1/1/48
+Port Description: ARUBA_UPLINK
+System Name: CAMPUS-CORE-01
+System Description:
+ArubaOS-CX (8320), Version 10.10.1000
+Time remaining: 117 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 10.99.0.20
+Auto Negotiation - supported, enabled
+------------------------------------------------
+Local Intf: GigabitEthernet0/24
+Chassis id: 0018.ba12.3456
+Port id: 1
+Port Description: meraki-ap-01
+System Name: MR42-OFFICE-01
+System Description:
+Meraki MR42 Cloud-Managed Wireless Access Point
+Time remaining: 95 seconds
+System Capabilities: W
+Enabled Capabilities: W
+Management Addresses:
+    IP: 10.99.5.42
+------------------------------------------------
+Total entries displayed: 4

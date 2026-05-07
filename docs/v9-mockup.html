@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SafeCadence v9 mockup</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --panel: #121a33;
+    --panel-2: #1a2447;
+    --border: #26315b;
+    --text: #e7ecf5;
+    --muted: #8b95b1;
+    --accent: #7c5cff;
+    --accent-soft: rgba(124, 92, 255, 0.15);
+    --bad: #ef4444;
+    --warn: #f59e0b;
+    --med: #fde68a;
+    --ok: #10b981;
+    --info: #3b82f6;
+  }
+  body[data-theme="light"] {
+    --bg: #f8fafc;
+    --panel: #ffffff;
+    --panel-2: #f1f5f9;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --muted: #64748b;
+    --accent: #6d28d9;
+    --accent-soft: rgba(109, 40, 217, 0.1);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font: 14px/1.55 -apple-system, "Segoe UI", Inter, sans-serif;
+    background: var(--bg); color: var(--text); display: flex;
+    min-height: 100vh;
+  }
+
+  /* ========== SIDEBAR ========== */
+  aside {
+    width: 240px; background: var(--panel); border-right: 1px solid var(--border);
+    padding: 14px 12px; flex-shrink: 0; display: flex; flex-direction: column;
+    height: 100vh; position: sticky; top: 0;
+  }
+  aside .logo {
+    font-weight: 800; font-size: 15px; padding: 4px 8px; margin-bottom: 12px;
+  }
+  aside .logo .dot { color: var(--accent); }
+  aside .search {
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 10px; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+  }
+  aside .search input {
+    background: transparent; border: 0; color: var(--text); font: inherit;
+    flex: 1; outline: 0; cursor: pointer;
+  }
+  aside .search kbd {
+    background: var(--bg); padding: 2px 6px; border-radius: 4px;
+    font-size: 11px; color: var(--muted); border: 1px solid var(--border);
+  }
+  aside .group { margin-top: 10px; }
+  aside .group-title {
+    font-size: 11px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.5px; padding: 4px 8px;
+  }
+  aside .nav-item {
+    display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+    border-radius: 6px; cursor: pointer; font-size: 13px;
+    color: var(--text);
+  }
+  aside .nav-item:hover { background: var(--panel-2); }
+  aside .nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  aside .nav-item .icon { width: 18px; text-align: center; }
+  aside .sub {
+    font-size: 12px; padding: 4px 8px 4px 32px; color: var(--muted);
+    cursor: pointer; border-radius: 4px;
+  }
+  aside .sub:hover { color: var(--text); background: var(--panel-2); }
+  aside .sub.active { color: var(--accent); background: var(--accent-soft); }
+  aside .footer {
+    margin-top: auto; padding: 10px 8px; border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--muted); display: flex;
+    align-items: center; justify-content: space-between;
+  }
+  aside .footer .actions { display: flex; gap: 8px; }
+  aside .footer button {
+    background: transparent; border: 0; color: var(--muted); cursor: pointer;
+    font-size: 14px;
+  }
+  aside .footer button:hover { color: var(--text); }
+
+  /* ========== MAIN ========== */
+  main { flex: 1; min-width: 0; }
+  .topbar {
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    padding: 10px 24px; display: flex; align-items: center; gap: 16px;
+    position: sticky; top: 0; z-index: 5;
+  }
+  .topbar .breadcrumb { font-size: 13px; color: var(--muted); flex: 1; }
+  .topbar .breadcrumb strong { color: var(--text); }
+  .topbar .iconbtn {
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 14px;
+    color: var(--text); position: relative;
+  }
+  .topbar .iconbtn:hover { border-color: var(--accent); }
+  .topbar .iconbtn .badge {
+    position: absolute; top: -4px; right: -4px; background: var(--bad);
+    color: white; font-size: 10px; padding: 1px 5px; border-radius: 8px;
+    font-weight: 700;
+  }
+  .page { padding: 24px 28px; max-width: 1280px; }
+  .page-title { font-size: 22px; margin: 0 0 4px; }
+  .page-subtitle { color: var(--muted); margin: 0 0 20px; font-size: 13px; }
+
+  /* ========== HOME HERO ========== */
+  .hero {
+    background: linear-gradient(135deg, var(--panel), var(--panel-2));
+    border: 1px solid var(--border); border-radius: 16px;
+    padding: 28px; margin-bottom: 16px; display: flex;
+    align-items: center; gap: 28px;
+  }
+  .hero .score-circle {
+    width: 130px; height: 130px; border-radius: 50%;
+    background: conic-gradient(var(--ok) 0% 87%, var(--panel) 87% 100%);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; position: relative;
+  }
+  .hero .score-circle::before {
+    content: ""; position: absolute; inset: 8px;
+    border-radius: 50%; background: var(--panel);
+  }
+  .hero .score-circle .num {
+    font-size: 32px; font-weight: 800; position: relative;
+  }
+  .hero .score-circle .num small { font-size: 14px; color: var(--muted); }
+  .hero .info { flex: 1; }
+  .hero h1 { margin: 0 0 4px; font-size: 18px; }
+  .hero .trend {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    background: rgba(16, 185, 129, 0.15); color: var(--ok);
+    font-size: 11px; margin-left: 8px;
+  }
+  .hero .demo-pill {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    background: rgba(245, 158, 11, 0.15); color: var(--warn);
+    font-size: 10px; font-weight: 700; margin-left: 8px;
+  }
+  .hero .meta { color: var(--muted); font-size: 13px; }
+
+  /* ========== STAT CARDS ========== */
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+  .stat-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 20px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .stat-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .stat-card .num { font-size: 32px; font-weight: 800; }
+  .stat-card .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+  .stat-card .spark { margin-top: 8px; height: 24px; }
+  .stat-card.crit .num { color: var(--bad); }
+  .stat-card.warn .num { color: var(--warn); }
+  .stat-card.ok .num { color: var(--ok); }
+
+  /* ========== TWO-COL ========== */
+  .two-col { display: grid; grid-template-columns: 1fr 360px; gap: 16px; }
+  .col-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 20px;
+  }
+  .col-card h2 { font-size: 15px; margin: 0 0 12px; }
+
+  /* ========== ACTION ROWS ========== */
+  .action-row {
+    display: flex; align-items: center; gap: 12px; padding: 12px 0;
+    border-bottom: 1px solid var(--border); cursor: pointer;
+  }
+  .action-row:last-child { border-bottom: 0; }
+  .action-row:hover { background: var(--panel-2); margin: 0 -8px; padding: 12px 8px; border-radius: 8px; }
+  .action-row .num { width: 24px; height: 24px; border-radius: 6px;
+                      background: var(--accent-soft); color: var(--accent);
+                      display: flex; align-items: center; justify-content: center;
+                      font-weight: 700; font-size: 12px; flex-shrink: 0; }
+  .action-row .body { flex: 1; min-width: 0; }
+  .action-row .title { font-size: 13px; font-weight: 600; }
+  .action-row .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .action-row .pill { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .pill-crit { background: rgba(239, 68, 68, 0.15); color: var(--bad); }
+  .pill-high { background: rgba(245, 158, 11, 0.15); color: var(--warn); }
+  .pill-med  { background: rgba(253, 230, 138, 0.15); color: var(--med); }
+  .pill-ok   { background: rgba(16, 185, 129, 0.15); color: var(--ok); }
+  .pill-info { background: rgba(59, 130, 246, 0.15); color: var(--info); }
+
+  /* ========== ACTIVITY ========== */
+  .activity-row {
+    padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px;
+  }
+  .activity-row:last-child { border-bottom: 0; }
+  .activity-row .when { color: var(--muted); font-size: 11px; }
+  .activity-row .live-dot {
+    display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--ok); margin-right: 6px; animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ========== AI BOX ========== */
+  .ai-box {
+    margin-top: 12px; padding: 10px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; display: flex; gap: 8px; align-items: center;
+  }
+  .ai-box input {
+    background: transparent; border: 0; color: var(--text); flex: 1;
+    font: inherit; outline: 0;
+  }
+  .ai-box .ai-btn {
+    background: var(--accent); color: white; border: 0; padding: 5px 12px;
+    border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;
+  }
+
+  /* ========== LIST VIEW ========== */
+  .filters {
+    display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center;
+  }
+  .filter {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 12px; font-size: 12px;
+    color: var(--muted); cursor: pointer;
+  }
+  .filter:hover, .filter.active {
+    border-color: var(--accent); color: var(--text);
+  }
+  .filter.active { background: var(--accent-soft); color: var(--accent); }
+  .saved-view {
+    margin-left: auto; font-size: 12px; color: var(--muted);
+  }
+  .list { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .list .row {
+    display: flex; align-items: center; gap: 16px; padding: 14px 18px;
+    border-bottom: 1px solid var(--border); cursor: pointer;
+  }
+  .list .row:last-child { border-bottom: 0; }
+  .list .row:hover { background: var(--panel-2); }
+  .list .row .body { flex: 1; min-width: 0; }
+  .list .row .title { font-weight: 600; font-size: 14px; }
+  .list .row .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .list .row .right { text-align: right; }
+  .list .row .right .secondary { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+  /* ========== SLIDE-OVER ========== */
+  .slideover-bg {
+    display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4);
+    z-index: 100;
+  }
+  .slideover-bg.open { display: block; }
+  .slideover {
+    display: none; position: fixed; top: 0; right: 0; bottom: 0;
+    width: 480px; background: var(--panel); border-left: 1px solid var(--border);
+    z-index: 101; padding: 20px 24px; overflow: auto;
+    animation: slidein 0.18s ease-out;
+  }
+  @keyframes slidein {
+    from { transform: translateX(20px); opacity: 0; }
+    to   { transform: translateX(0); opacity: 1; }
+  }
+  .slideover.open { display: block; }
+  .slideover .so-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .slideover h2 { margin: 0; font-size: 16px; }
+  .slideover .so-close {
+    background: transparent; border: 0; color: var(--muted); cursor: pointer;
+    font-size: 18px;
+  }
+
+  /* ========== COMMAND PALETTE ========== */
+  .palette-bg {
+    display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55);
+    z-index: 200; backdrop-filter: blur(2px);
+  }
+  .palette-bg.open { display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; }
+  .palette {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; width: 540px; max-width: 90vw;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  }
+  .palette input {
+    width: 100%; padding: 14px 18px; background: transparent;
+    border: 0; border-bottom: 1px solid var(--border); color: var(--text);
+    font: inherit; outline: 0; font-size: 15px;
+  }
+  .palette .results { padding: 8px 0; max-height: 60vh; overflow: auto; }
+  .palette .pgroup-title {
+    font-size: 11px; color: var(--muted); padding: 6px 18px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .palette .presult {
+    padding: 10px 18px; cursor: pointer; font-size: 13px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .palette .presult:hover, .palette .presult.selected {
+    background: var(--accent-soft);
+  }
+  .palette .presult .icon { width: 18px; }
+  .palette .presult .meta { color: var(--muted); font-size: 11px; margin-left: auto; }
+
+  /* ========== EMPTY STATE ========== */
+  .empty {
+    text-align: center; padding: 48px 24px;
+    background: var(--panel); border: 2px dashed var(--border);
+    border-radius: 12px;
+  }
+  .empty .icon { font-size: 36px; }
+  .empty h3 { margin: 12px 0 4px; }
+  .empty p { color: var(--muted); margin: 0; }
+  .empty .cta {
+    margin-top: 16px; display: inline-block; background: var(--accent);
+    color: white; padding: 8px 18px; border-radius: 8px; cursor: pointer;
+    font-weight: 600; font-size: 13px;
+  }
+
+  /* ========== BUTTONS ========== */
+  button.primary {
+    background: var(--accent); color: white; border: 0;
+    padding: 8px 16px; border-radius: 8px; cursor: pointer;
+    font-size: 13px; font-weight: 600;
+  }
+  button.primary:hover { opacity: 0.9; }
+  button.alt {
+    background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--text); padding: 8px 16px; border-radius: 8px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+  }
+
+  /* ========== TABS ========== */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .tab {
+    padding: 8px 14px; cursor: pointer; font-size: 13px; color: var(--muted);
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+  /* ========== MOBILE ========== */
+  @media (max-width: 720px) {
+    body { flex-direction: column; }
+    aside {
+      position: fixed; bottom: 0; top: auto; width: 100%; height: 60px;
+      flex-direction: row; padding: 6px; border-right: 0;
+      border-top: 1px solid var(--border); z-index: 50;
+    }
+    aside .logo, aside .search, aside .group-title, aside .footer { display: none; }
+    aside .group { display: flex; flex: 1; }
+    aside .nav-item {
+      flex: 1; flex-direction: column; gap: 2px; font-size: 10px; padding: 4px;
+      text-align: center;
+    }
+    aside .sub { display: none; }
+    main { padding-bottom: 64px; width: 100%; }
+    .topbar { padding: 10px 12px; }
+    .page { padding: 14px; }
+    .stat-row { grid-template-columns: 1fr; }
+    .two-col { grid-template-columns: 1fr; }
+    .hero { flex-direction: column; text-align: center; }
+    .slideover { width: 100%; }
+  }
+</style>
+</head>
+<body data-theme="dark">
+
+<!-- ========== SIDEBAR ========== -->
+<aside>
+  <div class="logo">SafeCadence<span class="dot">.</span></div>
+  <div class="search" onclick="openPalette()">
+    <span style="color:var(--muted)">🔎</span>
+    <input placeholder="Search…" readonly />
+    <kbd>⌘K</kbd>
+  </div>
+
+  <div class="nav-item active" onclick="goto('home')">
+    <span class="icon">🏠</span> Home
+  </div>
+
+  <div class="group">
+    <div class="group-title">Discover</div>
+    <div class="sub" onclick="goto('inventory')">Inventory</div>
+    <div class="sub">Topology</div>
+    <div class="sub">Auto-discover</div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Compliance</div>
+    <div class="sub">Policies</div>
+    <div class="sub" onclick="goto('findings')">Findings</div>
+    <div class="sub">Drift</div>
+    <div class="sub">Per-device diff</div>
+    <div class="sub">Evidence</div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Identity</div>
+    <div class="sub" onclick="goto('identity')">Translator</div>
+    <div class="sub">Effective permissions</div>
+    <div class="sub">JIT grants</div>
+    <div class="sub">Attack paths</div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Execute</div>
+    <div class="sub">Builder</div>
+    <div class="sub">Approvals</div>
+    <div class="sub">Queue</div>
+    <div class="sub">Rollback</div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Automation</div>
+    <div class="sub">Rules</div>
+    <div class="sub">Watchlists</div>
+    <div class="sub">Briefings</div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Audit</div>
+    <div class="sub">Timeline</div>
+    <div class="sub">Evidence packs</div>
+    <div class="sub">Public shares</div>
+  </div>
+
+  <div class="footer">
+    <div>👤 admin</div>
+    <div class="actions">
+      <button onclick="toggleTheme()" title="toggle theme">🌗</button>
+      <button title="shortcuts">⌨</button>
+    </div>
+  </div>
+</aside>
+
+<!-- ========== MAIN ========== -->
+<main>
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="breadcrumb" id="breadcrumb">
+      <strong>Home</strong>
+    </div>
+    <button class="iconbtn" onclick="openPalette()">⌘K</button>
+    <button class="iconbtn" onclick="alert('AI assistant slide-over (mocked)')">🤖 Ask AI</button>
+    <button class="iconbtn" onclick="alert('Notifications drawer (mocked)')">
+      🔔<span class="badge">3</span>
+    </button>
+    <button class="iconbtn">👤</button>
+  </div>
+
+  <!-- ========== HOME PAGE ========== -->
+  <div class="page" id="page-home">
+
+    <!-- Hero -->
+    <div class="hero">
+      <div class="score-circle">
+        <div class="num">87<small>%</small></div>
+      </div>
+      <div class="info">
+        <h1>Compliance score
+          <span class="trend">↑ +3% week</span>
+          <span class="demo-pill">DEMO DATA</span>
+        </h1>
+        <div class="meta">31 assets monitored · 6 controls evaluated · last cycle 12 min ago</div>
+      </div>
+    </div>
+
+    <!-- Stat row -->
+    <div class="stat-row">
+      <div class="stat-card crit" onclick="goto('findings')">
+        <div class="num">4</div>
+        <div class="label">Critical findings</div>
+      </div>
+      <div class="stat-card warn" onclick="alert('Attack paths (mocked)')">
+        <div class="num">2</div>
+        <div class="label">Open attack paths</div>
+      </div>
+      <div class="stat-card ok" onclick="alert('JIT grants (mocked)')">
+        <div class="num">1</div>
+        <div class="label">Active JIT grants</div>
+      </div>
+    </div>
+
+    <!-- Two col -->
+    <div class="two-col">
+      <div class="col-card">
+        <h2>⚡ Your next 3 actions</h2>
+        <div class="action-row" onclick="openSlide('path')">
+          <div class="num">1</div>
+          <div class="body">
+            <div class="title">Remediate path: alice → BuildBot → AdminRole → prod-db</div>
+            <div class="meta">Risk score 8.4 · ~2 minutes · 4 systems involved</div>
+          </div>
+          <span class="pill pill-crit">CRIT</span>
+        </div>
+        <div class="action-row" onclick="openSlide('finding')">
+          <div class="num">2</div>
+          <div class="body">
+            <div class="title">Rotate stale NHI: nhi-legacy-importer</div>
+            <div class="meta">Last used 180 days ago · ~1 minute · auto-fix available</div>
+          </div>
+          <span class="pill pill-high">HIGH</span>
+        </div>
+        <div class="action-row" onclick="alert('Policy detail (mocked)')">
+          <div class="num">3</div>
+          <div class="body">
+            <div class="title">Fix policy "MFA on Domain Admins"</div>
+            <div class="meta">Failing on 3 hosts · ~5 minutes · network adapters</div>
+          </div>
+          <span class="pill pill-high">HIGH</span>
+        </div>
+      </div>
+
+      <div class="col-card">
+        <h2><span style="color:var(--ok)">●</span> Live activity</h2>
+        <div class="activity-row">
+          <div><strong>finding</strong> · stale_nhi detected — nhi-build-bot</div>
+          <div class="when">2 min ago · daemon</div>
+        </div>
+        <div class="activity-row">
+          <div><strong>jit</strong> · grant created — alice@x → ssh prod-db (4h)</div>
+          <div class="when">8 min ago · alice@x</div>
+        </div>
+        <div class="activity-row">
+          <div><strong>audit</strong> · policy "MFA on admins" approved</div>
+          <div class="when">12 min ago · bob@x</div>
+        </div>
+        <div class="activity-row">
+          <div><strong>automation</strong> · rule "auto-fix-stale" fired (1)</div>
+          <div class="when">25 min ago · system</div>
+        </div>
+
+        <div class="ai-box">
+          <span style="color:var(--accent)">🤖</span>
+          <input placeholder="Ask anything about your fleet…" />
+          <button class="ai-btn">Ask</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== INVENTORY PAGE ========== -->
+  <div class="page" id="page-inventory" style="display:none">
+    <h1 class="page-title">Inventory</h1>
+    <p class="page-subtitle">31 assets across 5 sites · 3 NHIs</p>
+
+    <div class="filters">
+      <div class="filter active">All (31)</div>
+      <div class="filter">Network (12)</div>
+      <div class="filter">Servers (8)</div>
+      <div class="filter">Identity (5)</div>
+      <div class="filter">NHIs (3)</div>
+      <div class="filter">Crown jewels (4)</div>
+      <div class="saved-view">Saved view: <strong>My queue</strong> ▾</div>
+    </div>
+
+    <div class="list">
+      <div class="row" onclick="openSlide('asset')">
+        <span style="color:var(--ok)">●</span>
+        <div class="body">
+          <div class="title">dc-01.acme.local</div>
+          <div class="meta">microsoft · server · prod · DC1 · owner: ivan.devops</div>
+        </div>
+        <div class="right">
+          <span class="pill pill-crit">crown-jewel</span>
+          <div class="secondary">grade C · 0 KEV</div>
+        </div>
+      </div>
+      <div class="row" onclick="openSlide('asset')">
+        <span style="color:var(--bad)">●</span>
+        <div class="body">
+          <div class="title">crm-prod-01.acme.local</div>
+          <div class="meta">cisco · network · prod · DC1</div>
+        </div>
+        <div class="right">
+          <span class="pill pill-high">high</span>
+          <div class="secondary">grade D · 3 KEV</div>
+        </div>
+      </div>
+      <div class="row" onclick="openSlide('asset')">
+        <span style="color:var(--warn)">●</span>
+        <div class="body">
+          <div class="title">nhi-build-bot</div>
+          <div class="meta">okta · service_account · owner: ivan.devops · 2 years old</div>
+        </div>
+        <div class="right">
+          <span class="pill pill-warn">never rotated</span>
+          <div class="secondary">last used today</div>
+        </div>
+      </div>
+      <div class="row" onclick="openSlide('asset')">
+        <span style="color:var(--ok)">●</span>
+        <div class="body">
+          <div class="title">veeam-prod-01</div>
+          <div class="meta">veeam · backup · prod · DC1</div>
+        </div>
+        <div class="right">
+          <span class="pill pill-ok">healthy</span>
+          <div class="secondary">grade B · 14d immutable</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== FINDINGS PAGE ========== -->
+  <div class="page" id="page-findings" style="display:none">
+    <h1 class="page-title">Findings</h1>
+    <p class="page-subtitle">7 open · 4 critical · 2 high</p>
+
+    <div class="filters">
+      <div class="filter active">All (7)</div>
+      <div class="filter">Critical (4)</div>
+      <div class="filter">High (2)</div>
+      <div class="filter">Assigned to me (3)</div>
+      <div class="saved-view">Saved view: <strong>My queue</strong> ▾</div>
+    </div>
+
+    <div class="list">
+      <div class="row" onclick="openSlide('finding')">
+        <span class="pill pill-crit">CRIT</span>
+        <div class="body">
+          <div class="title">Orphan service account: nhi-legacy-importer</div>
+          <div class="meta">Owner henry.former departed · provider: AD · created 3 years ago</div>
+        </div>
+        <div class="right"><span class="pill pill-info">auto-fix available</span></div>
+      </div>
+      <div class="row" onclick="openSlide('finding')">
+        <span class="pill pill-high">HIGH</span>
+        <div class="body">
+          <div class="title">NHI never rotated: nhi-build-bot</div>
+          <div class="meta">2 years since rotation · service_account · client_secret</div>
+        </div>
+        <div class="right"><span class="pill pill-info">auto-fix available</span></div>
+      </div>
+      <div class="row" onclick="openSlide('finding')">
+        <span class="pill pill-high">HIGH</span>
+        <div class="body">
+          <div class="title">Tenant has users without MFA: ad-acme-local</div>
+          <div class="meta">13 users in Domain Admins, none enrolled · provider: AD</div>
+        </div>
+        <div class="right"><span class="pill pill-info">requires review</span></div>
+      </div>
+      <div class="row" onclick="openSlide('finding')">
+        <span class="pill pill-med">MED</span>
+        <div class="body">
+          <div class="title">Over-privileged: alice.admin@acme.local</div>
+          <div class="meta">In 6 groups (threshold 5) — Domain Admins, Helpdesk, Engineering, …</div>
+        </div>
+        <div class="right"><span class="pill pill-info">manual review</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== IDENTITY TRANSLATOR ========== -->
+  <div class="page" id="page-identity" style="display:none">
+    <h1 class="page-title">Identity translator</h1>
+    <p class="page-subtitle">Plain-English → unified policy → applied across 5 IdPs</p>
+
+    <div class="tabs">
+      <div class="tab active">1. Translate</div>
+      <div class="tab">2. Preview</div>
+      <div class="tab">3. Apply</div>
+    </div>
+
+    <div class="col-card" style="margin-bottom:12px">
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px">
+        <input style="flex:1; padding:10px; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text);"
+               placeholder="contractors without MFA cannot SSH to prod" value="contractors without MFA cannot SSH to prod" />
+        <button class="primary">🤖 AI translate</button>
+        <button class="alt">Guided form</button>
+      </div>
+      <div class="meta" style="color:var(--muted); font-size:12px">
+        Try also: "engineers can RDP staging with trusted device" · "rotate any AWS role unused 60 days"
+      </div>
+    </div>
+
+    <div class="col-card">
+      <h2>Per-system change preview</h2>
+      <div class="action-row">
+        <div class="num">🔐</div>
+        <div class="body">
+          <div class="title">Okta — group rule: sc-deny-contractors-no-mfa</div>
+          <div class="meta">moves matched users to SafeCadence-Quarantine · 1 op</div>
+        </div>
+        <span class="pill pill-ok">ready</span>
+      </div>
+      <div class="action-row">
+        <div class="num">🌐</div>
+        <div class="body">
+          <div class="title">Cisco ISE — authz rule</div>
+          <div class="meta">profile=DenyAccess · scoped to Contractors group</div>
+        </div>
+        <span class="pill pill-ok">ready</span>
+      </div>
+      <div class="action-row">
+        <div class="num">🪟</div>
+        <div class="body">
+          <div class="title">Active Directory — group membership change</div>
+          <div class="meta">add to SafeCadence-Quarantined · 13 principals affected</div>
+        </div>
+        <span class="pill pill-ok">ready</span>
+      </div>
+      <div class="action-row">
+        <div class="num">☁️</div>
+        <div class="body">
+          <div class="title">Entra ID — Conditional Access policy</div>
+          <div class="meta">block grant control · enabled state</div>
+        </div>
+        <span class="pill pill-ok">ready</span>
+      </div>
+      <div class="action-row">
+        <div class="num">🛜</div>
+        <div class="body">
+          <div class="title">ClearPass — enforcement profile + policy</div>
+          <div class="meta">RADIUS:Reject · scoped role</div>
+        </div>
+        <span class="pill pill-ok">ready</span>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:14px;">
+        <button class="primary">Run dry-run on all 5</button>
+        <button class="alt">Apply with rollback</button>
+        <button class="alt">Save to Library</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty state demo -->
+  <!-- <div class="empty">
+    <div class="icon">🎉</div>
+    <h3>No critical findings</h3>
+    <p>Your fleet is healthy. Set up an automation rule that alerts you when one appears.</p>
+    <div class="cta">Set up automation →</div>
+  </div> -->
+
+</main>
+
+<!-- ========== SLIDE-OVER ========== -->
+<div class="slideover-bg" onclick="closeSlide()"></div>
+<div class="slideover" id="slideover">
+  <div class="so-head">
+    <h2 id="so-title">—</h2>
+    <button class="so-close" onclick="closeSlide()">✕</button>
+  </div>
+  <div id="so-body"></div>
+</div>
+
+<!-- ========== COMMAND PALETTE ========== -->
+<div class="palette-bg" id="palette-bg" onclick="closePaletteBg(event)">
+  <div class="palette" onclick="event.stopPropagation()">
+    <input id="palette-input" placeholder="Search assets, tools, findings, runs…" autofocus />
+    <div class="results" id="palette-results">
+      <div class="pgroup-title">Recent</div>
+      <div class="presult" onclick="goto('findings'); closePalette()">
+        <span class="icon">🚩</span> Findings <span class="meta">3 new</span>
+      </div>
+      <div class="presult" onclick="goto('inventory'); closePalette()">
+        <span class="icon">📋</span> Inventory <span class="meta">31 assets</span>
+      </div>
+      <div class="pgroup-title">Tools</div>
+      <div class="presult" onclick="goto('identity'); closePalette()">
+        <span class="icon">🔐</span> Identity translator
+      </div>
+      <div class="presult"><span class="icon">🔮</span> What-if simulator</div>
+      <div class="presult"><span class="icon">📰</span> Morning briefing</div>
+      <div class="presult"><span class="icon">⏱️</span> Timeline</div>
+      <div class="pgroup-title">Recent assets</div>
+      <div class="presult"><span class="icon">🖥️</span> dc-01.acme.local</div>
+      <div class="presult"><span class="icon">🖥️</span> nhi-build-bot</div>
+      <div class="pgroup-title">Ask AI</div>
+      <div class="presult"><span class="icon">🤖</span> Ask: "..." <span class="meta">⏎</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ---------- Routing ----------
+  const PAGES = ["home", "inventory", "findings", "identity"];
+  function goto(name) {
+    PAGES.forEach(p => {
+      document.getElementById("page-" + p).style.display =
+        (p === name) ? "block" : "none";
+    });
+    document.querySelectorAll("aside .nav-item, aside .sub").forEach(el => {
+      el.classList.remove("active");
+    });
+    if (name === "home") document.querySelector("aside .nav-item").classList.add("active");
+    const labels = { inventory:"Discover › Inventory", findings:"Compliance › Findings",
+                      identity:"Identity › Translator", home:"Home" };
+    document.getElementById("breadcrumb").innerHTML =
+      "<strong>" + labels[name] + "</strong>";
+    closeSlide();
+  }
+
+  // ---------- Slide-over ----------
+  function openSlide(kind) {
+    const so = document.getElementById("slideover");
+    const bg = document.querySelector(".slideover-bg");
+    const body = document.getElementById("so-body");
+    const title = document.getElementById("so-title");
+    if (kind === "finding") {
+      title.textContent = "Finding · stale_nhi";
+      body.innerHTML = `
+        <span class="pill pill-high">HIGH</span>
+        <h3 style="margin:8px 0">NHI nhi-build-bot has not been rotated</h3>
+        <div class="meta" style="color:var(--muted)">last_rotated_at: 2 years ago · subtype: service_account · provider: okta</div>
+        <div style="margin-top:14px">
+          <h4>Suggested remediation</h4>
+          <p style="font-size:13px">Rotate the credential in Okta Workflows API. Auto-fix
+             will run dry-run by default.</p>
+          <button class="primary">Preview IR</button>
+          <button class="alt">Auto-fix</button>
+        </div>
+        <div style="margin-top:14px">
+          <h4>Comments</h4>
+          <p style="font-size:13px; color:var(--muted)">No comments yet — add one to assign or note context.</p>
+          <textarea placeholder="Add a comment…" rows="2"
+            style="width:100%; padding:8px; background:var(--bg); border:1px solid var(--border);
+                   border-radius:6px; color:var(--text)"></textarea>
+        </div>
+      `;
+    } else if (kind === "asset") {
+      title.textContent = "Asset · dc-01.acme.local";
+      body.innerHTML = `
+        <span class="pill pill-crit">crown-jewel</span>
+        <h3 style="margin:8px 0">dc-01.acme.local</h3>
+        <div class="meta" style="color:var(--muted)">microsoft · server · prod · ivan.devops</div>
+        <div style="margin-top:14px">
+          <h4>Health</h4>
+          <p style="font-size:13px">Grade C · 0 KEV CVEs · 1 finding open</p>
+        </div>
+        <div style="margin-top:14px">
+          <h4>Findings on this asset</h4>
+          <div class="action-row" style="border-bottom:0; padding:6px 0">
+            <span class="pill pill-high">HIGH</span>
+            <div class="body"><div class="title">No MFA on Domain Admins</div></div>
+          </div>
+        </div>
+        <div style="margin-top:14px">
+          <h4>Attack paths terminating here</h4>
+          <p style="font-size:13px; color:var(--muted)">1 path involves this asset.</p>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:14px">
+          <button class="primary">+ Watchlist</button>
+          <button class="alt">Comment</button>
+          <button class="alt">View raw</button>
+        </div>
+      `;
+    } else if (kind === "path") {
+      title.textContent = "Attack path";
+      body.innerHTML = `
+        <span class="pill pill-crit">RISK 8.4</span>
+        <h3 style="margin:8px 0">alice → BuildEngineers → BuildBot → AdminRole → prod-db</h3>
+        <div style="margin-top:14px">
+          <h4>Why it matters</h4>
+          <p style="font-size:13px">Path includes principal impersonation and terminates at a crown-jewel asset.</p>
+        </div>
+        <div style="margin-top:14px">
+          <h4>Severing remediation</h4>
+          <p style="font-size:13px; color:var(--muted)">Generated IR denies alice from BuildEngineers OR removes BuildBot's AdminRole assumption.</p>
+          <button class="primary">Generate severing IR</button>
+        </div>
+      `;
+    }
+    so.classList.add("open");
+    bg.classList.add("open");
+  }
+  function closeSlide() {
+    document.getElementById("slideover").classList.remove("open");
+    document.querySelector(".slideover-bg").classList.remove("open");
+  }
+
+  // ---------- Command palette ----------
+  function openPalette() {
+    document.getElementById("palette-bg").classList.add("open");
+    setTimeout(() => document.getElementById("palette-input").focus(), 50);
+  }
+  function closePalette() {
+    document.getElementById("palette-bg").classList.remove("open");
+  }
+  function closePaletteBg(e) {
+    if (e.target.id === "palette-bg") closePalette();
+  }
+
+  // ---------- Theme ----------
+  function toggleTheme() {
+    const cur = document.body.getAttribute("data-theme");
+    document.body.setAttribute("data-theme", cur === "dark" ? "light" : "dark");
+  }
+
+  // ---------- Keyboard ----------
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      e.preventDefault();
+      openPalette();
+    }
+    if (e.key === "Escape") {
+      closePalette();
+      closeSlide();
+    }
+    if (e.key === "/" && e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
+      e.preventDefault();
+      openPalette();
+    }
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,208 @@
+# Cisco ASA — Baseline hardening rules
+---
+- id: cisco-asa-telnet-allowed
+  title: Telnet management allowed
+  severity: critical
+  vendor: cisco-asa
+  domain: security
+  description: |
+    `telnet` lines are configured allowing cleartext management.
+  remediation: |
+    Remove all telnet entries; permit only ssh from a tightly-scoped
+    management range.
+  fix_snippet: |
+    no telnet 0.0.0.0 0.0.0.0 inside
+    ssh 10.99.0.0 255.255.255.0 management
+    ssh version 2
+    ssh cipher encryption high
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/security/asa/asa912/configuration/general/asa-912-general-config.html
+  match_regex:
+    - "(?im)^\\s*telnet\\s+\\d+\\.\\d+\\.\\d+\\.\\d+\\s+\\d+\\.\\d+\\.\\d+\\.\\d+\\s+\\S+"
+
+- id: cisco-asa-ssh-version-1
+  title: SSH version 1 allowed
+  severity: high
+  vendor: cisco-asa
+  domain: security
+  description: |
+    SSH v1 has known cryptographic weaknesses.
+  remediation: |
+    Force SSH v2 explicitly.
+  fix_snippet: |
+    ssh version 2
+  references:
+    - https://datatracker.ietf.org/doc/html/rfc4251
+  match_regex:
+    - "(?im)^\\s*ssh\\s+version\\s+1\\s*$"
+
+- id: cisco-asa-no-ssh-restriction
+  title: SSH allowed from any source (0.0.0.0/0)
+  severity: critical
+  vendor: cisco-asa
+  domain: security
+  description: |
+    SSH is permitted from 0.0.0.0/0 — the firewall management plane is
+    exposed to anyone reachable on the named interface.
+  remediation: |
+    Restrict to your bastion / jump host range only.
+  fix_snippet: |
+    no ssh 0.0.0.0 0.0.0.0 outside
+    ssh 198.51.100.10 255.255.255.255 outside
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/security/asa/asa912/configuration/general/asa-912-general-config.html
+  match_regex:
+    - "(?im)^\\s*ssh\\s+0\\.0\\.0\\.0\\s+0\\.0\\.0\\.0\\s+\\S+"
+
+- id: cisco-asa-http-server-on
+  title: HTTP/ASDM server enabled with permissive ACL
+  severity: high
+  vendor: cisco-asa
+  domain: security
+  description: |
+    HTTP/ASDM management is enabled and reachable from broad source ranges.
+  remediation: |
+    Either disable HTTP server or restrict to specific management IPs.
+  fix_snippet: |
+    no http server enable
+    ! or
+    http 10.99.0.0 255.255.255.0 management
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/security/asa/asa912/configuration/general/asa-912-general-config.html
+  match_regex:
+    - "(?im)^\\s*http\\s+0\\.0\\.0\\.0\\s+0\\.0\\.0\\.0\\s+\\S+"
+
+- id: cisco-asa-default-enable-password
+  title: Default enable password unchanged
+  severity: critical
+  vendor: cisco-asa
+  domain: security
+  description: |
+    The "cisco" default enable password is in use, or the password is
+    type-0 (cleartext).
+  remediation: |
+    Replace with PBKDF2 (type 8).
+  fix_snippet: |
+    enable password <strong-secret> pbkdf2
+  references:
+    - https://www.cisco.com/c/en/us/support/docs/security-vpn/secure-shell-ssh/107061-upgrade-pwd.html
+  match_regex:
+    - "(?im)^\\s*enable\\s+password\\s+(cisco|admin|password)\\b"
+
+- id: cisco-asa-snmp-default-community
+  title: SNMP default community present
+  severity: critical
+  vendor: cisco-asa
+  domain: security
+  description: |
+    "public" / "private" SNMP communities are scanner-trivial.
+  remediation: |
+    Remove and migrate to SNMPv3.
+  fix_snippet: |
+    no snmp-server community public
+    no snmp-server community private
+    snmp-server group SC-RO v3 priv
+    snmp-server user nms-ro SC-RO v3 auth sha <strong> priv aes 128 <strong>
+  references:
+    - https://nvd.nist.gov/vuln/detail/CVE-1999-0517
+  match_regex:
+    - "(?im)^\\s*snmp-server\\s+community\\s+(public|private)\\b"
+
+- id: cisco-asa-permit-any-any
+  title: Overly broad permit any any rule
+  severity: high
+  vendor: cisco-asa
+  domain: security
+  description: |
+    An access-list permits any source to any destination on any port,
+    defeating the purpose of the firewall on that interface.
+  remediation: |
+    Replace with least-privilege rules. Use object-group networks and
+    services for maintainability.
+  fix_snippet: |
+    no access-list outside-in extended permit ip any any
+    object-group network ALLOWED-CLIENTS
+     network-object 198.51.100.0 255.255.255.0
+    access-list outside-in extended permit tcp object-group ALLOWED-CLIENTS any eq 443
+    access-group outside-in in interface outside
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/security/asa/asa912/configuration/firewall/asa-912-firewall-config.html
+  match_regex:
+    - "(?im)^\\s*access-list\\s+\\S+\\s+extended\\s+permit\\s+ip\\s+any\\s+any\\s*$"
+
+- id: cisco-asa-no-icmp-inspection
+  title: ICMP inspection not enabled
+  severity: low
+  vendor: cisco-asa
+  domain: availability
+  description: |
+    Without ICMP inspection, return ICMP from inside hosts to inside
+    pings of outside resources may be dropped.
+  remediation: |
+    Add ICMP to the global inspect policy-map.
+  fix_snippet: |
+    policy-map global_policy
+     class inspection_default
+      inspect icmp
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/security/asa/asa912/configuration/firewall/asa-912-firewall-config.html
+  absent_regex:
+    - "(?im)inspect\\s+icmp"
+
+- id: cisco-asa-no-aaa
+  title: No AAA authentication for management
+  severity: high
+  vendor: cisco-asa
+  domain: security
+  description: |
+    Management uses local users only; no TACACS+/RADIUS for centralized
+    identity, MFA, and audit.
+  remediation: |
+    Configure AAA server group and use it for ssh / enable / http auth.
+  fix_snippet: |
+    aaa-server TACGRP protocol tacacs+
+    aaa-server TACGRP (management) host 10.99.0.20 key <strong>
+    aaa authentication ssh console TACGRP LOCAL
+    aaa authentication enable console TACGRP LOCAL
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/security/asa/asa912/configuration/general/asa-912-general-config.html
+  absent_regex:
+    - "(?im)aaa\\s+authentication\\s+\\S+\\s+console"
+
+- id: cisco-asa-no-logging
+  title: No logging host configured
+  severity: medium
+  vendor: cisco-asa
+  domain: security
+  description: |
+    No remote syslog destination configured. Without it, ASA logs are
+    inaccessible during compromise.
+  remediation: |
+    Add a logging host on the management interface.
+  fix_snippet: |
+    logging enable
+    logging timestamp
+    logging host management 10.99.0.10
+    logging trap informational
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/security/asa/asa912/configuration/general/asa-912-general-config.html
+  absent_regex:
+    - "(?im)^\\s*logging\\s+host\\s+\\S+"
+
+- id: cisco-asa-no-vpn-strong-crypto
+  title: VPN crypto map allows DES / 3DES / MD5
+  severity: high
+  vendor: cisco-asa
+  domain: security
+  description: |
+    A crypto map references DES, 3DES, or MD5 — all considered broken.
+  remediation: |
+    Remove weak transforms; use AES-256-GCM and SHA-256/SHA-384.
+  fix_snippet: |
+    crypto ipsec ikev2 ipsec-proposal AES256GCM
+     protocol esp encryption aes-256-gcm
+     protocol esp integrity null
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/security/asa/asa912/configuration/vpn/asa-912-vpn-config.html
+  match_regex:
+    - "(?im)^\\s*crypto\\s+(ipsec|isakmp)[\\s\\S]{0,200}?(des|3des|md5)\\b"

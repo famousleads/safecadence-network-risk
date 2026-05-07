@@ -1,0 +1,35 @@
+==== esxcli system version get ====
+Product: VMware ESXi
+Version: 6.7.0
+Build: Releasebuild-20502893
+Update: 3
+Patch: 0
+
+==== esxcli system hostname get ====
+HostName: dc-esxi-01
+DomainName: lab.local
+FullyQualifiedDomainName: dc-esxi-01.lab.local
+
+==== Service status ====
+Service TSM-SSH is running
+TSM-SSH
+   Policy: on
+
+==== esxcli network firewall get ====
+Default Action: PASS
+Enabled: false
+Loaded: true
+
+==== Lockdown Mode: Disabled ====
+
+==== esxcli system snmp get ====
+Communities: public
+Enable: true
+EngineID: 0000000000000000
+
+==== esxcli software acceptance get ====
+Host Acceptance Level: CommunitySupported
+
+==== esxcli software vib list (excerpt) ====
+Name                           Version                Vendor  Acceptance Level
+esx-base                       6.7.0-3.190.20502893   VMware  PartnerSupported

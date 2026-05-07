@@ -1,0 +1,66 @@
+# Cisco IOS / IOS-XE end-of-support data.
+# Sourced from cisco.com EoL announcements + endoflife.date.
+---
+- os: ios
+  version_prefix: "12.4"
+  end_of_sale:     "2014-09-29"
+  end_of_software: "2015-09-30"
+  end_of_support:  "2019-09-30"
+  notes: "Classic IOS, fully end-of-life."
+
+- os: ios
+  version_prefix: "15.0"
+  end_of_sale:     "2014-08-04"
+  end_of_software: "2015-08-04"
+  end_of_support:  "2019-08-04"
+
+- os: ios
+  version_prefix: "15.1"
+  end_of_sale:     "2015-09-29"
+  end_of_software: "2017-09-30"
+  end_of_support:  "2020-09-30"
+
+- os: ios
+  version_prefix: "15.2"
+  end_of_sale:     "2020-09-26"
+  end_of_software: "2022-09-30"
+  end_of_support:  "2025-09-30"
+  notes: "ISR G2, Cat 3K — last maintenance release in 2022."
+
+- os: ios
+  version_prefix: "15.6"
+  end_of_sale:     "2022-12-30"
+  end_of_software: "2024-12-30"
+  end_of_support:  "2027-12-30"
+
+- os: ios-xe
+  version_prefix: "16.6"
+  end_of_sale:     "2022-04-30"
+  end_of_software: "2023-04-30"
+  end_of_support:  "2025-04-30"
+
+- os: ios-xe
+  version_prefix: "16.9"
+  end_of_sale:     "2023-12-31"
+  end_of_software: "2024-12-31"
+  end_of_support:  "2026-12-31"
+
+- os: ios-xe
+  version_prefix: "16.12"
+  end_of_sale:     "2024-12-31"
+  end_of_software: "2025-12-31"
+  end_of_support:  "2027-12-31"
+
+- os: ios-xe
+  version_prefix: "17.3"
+  end_of_sale:     ""
+  end_of_software: "2027-12-31"
+  end_of_support:  "2030-12-31"
+  notes: "LTS train."
+
+- os: ios-xe
+  version_prefix: "17.9"
+  end_of_sale:     ""
+  end_of_software: "2028-12-31"
+  end_of_support:  "2031-12-31"
+  notes: "Current LTS."

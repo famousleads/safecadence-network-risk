@@ -1,0 +1,182 @@
+---
+- id: fortinet-fortigate-default-admin-password
+  title: Default admin password unchanged (admin / no password)
+  severity: critical
+  vendor: fortinet-fortigate
+  domain: security
+  description: |
+    The default `admin` user has an empty or unchanged password.
+  remediation: |
+    Set a strong password and rotate.
+  fix_snippet: |
+    config system admin
+      edit "admin"
+        set password <strong-password>
+      next
+    end
+  references:
+    - https://docs.fortinet.com/document/fortigate/
+  match_regex:
+    - "(?im)edit\\s+\"admin\"[\\s\\S]*?set\\s+password\\s+(\"\"|''|\\s*$)"
+
+- id: fortinet-fortigate-http-enabled
+  title: HTTP web management enabled (cleartext)
+  severity: high
+  vendor: fortinet-fortigate
+  domain: security
+  description: |
+    `set allowaccess http` is configured on a management interface.
+  remediation: |
+    Allow HTTPS only; remove HTTP.
+  fix_snippet: |
+    config system interface
+      edit "mgmt1"
+        set allowaccess ping https ssh
+      next
+    end
+  references:
+    - https://docs.fortinet.com/document/fortigate/
+  match_regex:
+    - "(?im)set\\s+allowaccess\\s+[^\\n]*\\bhttp\\b(?!s)"
+
+- id: fortinet-fortigate-telnet-enabled
+  title: Telnet management enabled
+  severity: critical
+  vendor: fortinet-fortigate
+  domain: security
+  description: |
+    Telnet is in `allowaccess`. Cleartext credentials.
+  remediation: |
+    Remove telnet from allowaccess on every interface.
+  fix_snippet: |
+    config system interface
+      edit "mgmt1"
+        unset allowaccess telnet
+      next
+    end
+  match_regex:
+    - "(?im)set\\s+allowaccess\\s+[^\\n]*\\btelnet\\b"
+
+- id: fortinet-fortigate-snmp-default-community
+  title: SNMP default community present
+  severity: critical
+  vendor: fortinet-fortigate
+  domain: security
+  description: |
+    SNMP community "public" or "private" configured.
+  remediation: |
+    Migrate to SNMPv3.
+  fix_snippet: |
+    config system snmp community
+      delete <id>
+    end
+    config system snmp user
+      edit "nms-ro"
+        set security-level auth-priv
+        set auth-proto sha
+        set priv-proto aes128
+      next
+    end
+  references:
+    - https://nvd.nist.gov/vuln/detail/CVE-1999-0517
+  match_regex:
+    - "(?im)set\\s+name\\s+\"(public|private)\"\\s*$"
+
+- id: fortinet-fortigate-permit-any-any
+  title: Firewall policy permits any source to any destination
+  severity: high
+  vendor: fortinet-fortigate
+  domain: security
+  description: |
+    A firewall policy allows `srcaddr all` and `dstaddr all` and `service ALL`.
+  remediation: |
+    Replace with least-privilege policies referencing specific addresses /
+    services / users.
+  fix_snippet: |
+    config firewall policy
+      edit <id>
+        set srcaddr "EXTERNAL_USERS"
+        set dstaddr "WEB_SERVERS"
+        set service "HTTPS"
+      next
+    end
+  references:
+    - https://docs.fortinet.com/document/fortigate/
+  custom: |
+    bool(re.search(r'(?ims)config\s+firewall\s+policy[\s\S]*?set\s+srcaddr\s+"all"[\s\S]{0,300}?set\s+dstaddr\s+"all"[\s\S]{0,300}?set\s+service\s+"ALL"', text))
+
+- id: fortinet-fortigate-no-2fa
+  title: No two-factor authentication configured for admins
+  severity: high
+  vendor: fortinet-fortigate
+  domain: security
+  description: |
+    No `set two-factor` directive present in any system admin entry.
+  remediation: |
+    Enable FortiToken / TOTP for admin accounts.
+  fix_snippet: |
+    config system admin
+      edit "admin"
+        set two-factor fortitoken
+        set fortitoken <serial>
+      next
+    end
+  absent_regex:
+    - "(?im)set\\s+two-factor\\s+\\S+"
+
+- id: fortinet-fortigate-no-fortianalyzer
+  title: No FortiAnalyzer / syslog destination configured
+  severity: medium
+  vendor: fortinet-fortigate
+  domain: security
+  description: |
+    No remote logging destination is configured.
+  remediation: |
+    Forward logs to FortiAnalyzer or a remote syslog server.
+  fix_snippet: |
+    config log fortianalyzer setting
+      set status enable
+      set server 10.99.0.10
+    end
+  absent_regex:
+    - "(?im)config\\s+log\\s+(fortianalyzer|syslogd)\\s+setting[\\s\\S]*?set\\s+status\\s+enable"
+
+- id: fortinet-fortigate-no-ntp
+  title: No NTP server configured
+  severity: medium
+  vendor: fortinet-fortigate
+  domain: security
+  description: |
+    No `config system ntp` block configured.
+  remediation: |
+    Configure trusted NTP servers.
+  fix_snippet: |
+    config system ntp
+      set ntpsync enable
+      config ntpserver
+        edit 1
+          set server "10.99.0.5"
+        next
+      end
+    end
+  absent_regex:
+    - "(?ims)config\\s+system\\s+ntp[\\s\\S]*?set\\s+ntpsync\\s+enable"
+
+- id: fortinet-fortigate-mgmt-trusted-host-missing
+  title: Admin user without trusted-host source restriction
+  severity: high
+  vendor: fortinet-fortigate
+  domain: security
+  description: |
+    An admin user has no `set trusthost1` restriction — management plane
+    is reachable from any source IP.
+  remediation: |
+    Restrict each admin to specific source subnets.
+  fix_snippet: |
+    config system admin
+      edit "admin"
+        set trusthost1 10.99.0.0 255.255.255.0
+      next
+    end
+  custom: |
+    bool(re.search(r"(?ims)config\s+system\s+admin[\s\S]*?edit\s+\"\S+\"[\s\S]*?next", text)) and not bool(re.search(r"(?im)set\s+trusthost\d", text))

@@ -1,0 +1,176 @@
+name: "SafeCadence Network Risk"
+description: "Audit network device configurations for security risks, CVEs, and compliance gaps as part of CI/CD."
+author: "SafeCadence"
+branding:
+  icon: "shield"
+  color: "blue"
+
+inputs:
+  config-path:
+    description: "Path to config file or directory of config files to audit."
+    required: true
+
+  vendor:
+    description: "Override vendor detection (cisco_ios, cisco_nxos, cisco_asa, aruba_cx, arista_eos, etc.). Auto-detect if blank."
+    required: false
+    default: ""
+
+  fail-on:
+    description: "Severity threshold to fail the build: critical, high, medium, low, never."
+    required: false
+    default: "high"
+
+  output-format:
+    description: "Output format: terminal, markdown, json, html, sarif."
+    required: false
+    default: "json"
+
+  output-file:
+    description: "Path to write the report file. If blank, prints to stdout."
+    required: false
+    default: ""
+
+  upload-sarif:
+    description: "Upload SARIF results to GitHub Code Scanning. Requires permissions: security-events: write."
+    required: false
+    default: "false"
+
+  ai-explain:
+    description: "Generate an AI-powered remediation briefing (requires AI_API_KEY env)."
+    required: false
+    default: "false"
+
+  ai-provider:
+    description: "AI provider: openai, anthropic, ollama."
+    required: false
+    default: "openai"
+
+outputs:
+  total-findings:
+    description: "Total number of findings across all severities."
+    value: ${{ steps.scan.outputs.total-findings }}
+  critical-count:
+    description: "Number of critical findings."
+    value: ${{ steps.scan.outputs.critical-count }}
+  high-count:
+    description: "Number of high-severity findings."
+    value: ${{ steps.scan.outputs.high-count }}
+  health-score:
+    description: "Computed health score (0-100, higher = better)."
+    value: ${{ steps.scan.outputs.health-score }}
+  risk-score:
+    description: "Computed risk score (0-100, higher = worse)."
+    value: ${{ steps.scan.outputs.risk-score }}
+  report-path:
+    description: "Path to the generated report file."
+    value: ${{ steps.scan.outputs.report-path }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install safecadence-netrisk
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        if [[ "${{ inputs.ai-explain }}" == "true" ]]; then
+          python -m pip install 'safecadence-netrisk[ai]'
+        else
+          python -m pip install safecadence-netrisk
+        fi
+
+    - name: Run safecadence scan
+      id: scan
+      shell: bash
+      env:
+        AI_API_KEY: ${{ env.AI_API_KEY }}
+      run: |
+        set -e
+        CONFIG_PATH='${{ inputs.config-path }}'
+        OUTPUT_FILE='${{ inputs.output-file }}'
+        VENDOR_FLAG=""
+        if [[ -n '${{ inputs.vendor }}' ]]; then
+          VENDOR_FLAG="--vendor ${{ inputs.vendor }}"
+        fi
+
+        # Determine output flag based on format
+        case "${{ inputs.output-format }}" in
+          json)     FORMAT_FLAG="--json ${OUTPUT_FILE:-safecadence-report.json}"; OUT="${OUTPUT_FILE:-safecadence-report.json}" ;;
+          html)     FORMAT_FLAG="--html ${OUTPUT_FILE:-safecadence-report.html}"; OUT="${OUTPUT_FILE:-safecadence-report.html}" ;;
+          markdown) FORMAT_FLAG="--output ${OUTPUT_FILE:-safecadence-report.md}";  OUT="${OUTPUT_FILE:-safecadence-report.md}" ;;
+          sarif)    FORMAT_FLAG="--json ${OUTPUT_FILE:-safecadence-results.sarif}"; OUT="${OUTPUT_FILE:-safecadence-results.sarif}" ;;
+          *)        FORMAT_FLAG=""; OUT="" ;;
+        esac
+
+        # Scan: single file or directory
+        if [[ -d "$CONFIG_PATH" ]]; then
+          safecadence scan --dir "$CONFIG_PATH" $VENDOR_FLAG $FORMAT_FLAG
+        else
+          safecadence scan "$CONFIG_PATH" $VENDOR_FLAG $FORMAT_FLAG
+        fi
+
+        # Extract counts from JSON output (supports both single + bulk scan output)
+        if [[ -n "$OUT" && -f "$OUT" ]]; then
+          if [[ "${{ inputs.output-format }}" == "json" ]]; then
+            python3 <<EOF
+        import json, os
+        with open("$OUT") as fh:
+            data = json.load(fh)
+        # Support single + bulk scan formats
+        results = data if isinstance(data, list) else [data]
+        total = sum(len(r.get("findings", [])) for r in results)
+        crit = sum(1 for r in results for f in r.get("findings", []) if f.get("severity") == "critical")
+        high = sum(1 for r in results for f in r.get("findings", []) if f.get("severity") == "high")
+        # First-result scoring (or average if bulk)
+        if results:
+            health = sum(r.get("health_score", 0) for r in results) // len(results)
+            risk   = sum(r.get("risk_score", 0)   for r in results) // len(results)
+        else:
+            health = risk = 0
+        with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+            out.write(f"total-findings={total}\n")
+            out.write(f"critical-count={crit}\n")
+            out.write(f"high-count={high}\n")
+            out.write(f"health-score={health}\n")
+            out.write(f"risk-score={risk}\n")
+            out.write(f"report-path=$OUT\n")
+        print(f"Scan results: {total} findings ({crit} critical, {high} high)")
+        print(f"Health: {health}/100 · Risk: {risk}/100")
+        EOF
+          fi
+        fi
+
+    - name: Generate AI remediation briefing
+      if: inputs.ai-explain == 'true' && env.AI_API_KEY != ''
+      shell: bash
+      env:
+        AI_API_KEY: ${{ env.AI_API_KEY }}
+      run: |
+        if [[ -d '${{ inputs.config-path }}' ]]; then
+          safecadence ai-explain --dir '${{ inputs.config-path }}' --provider ${{ inputs.ai-provider }} --api-key "$AI_API_KEY"
+        else
+          safecadence ai-explain '${{ inputs.config-path }}' --provider ${{ inputs.ai-provider }} --api-key "$AI_API_KEY"
+        fi
+
+    - name: Upload SARIF to Code Scanning
+      if: inputs.upload-sarif == 'true' && inputs.output-format == 'sarif'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ steps.scan.outputs.report-path }}
+
+    - name: Fail on severity threshold
+      shell: bash
+      run: |
+        FAIL_ON='${{ inputs.fail-on }}'
+        CRIT='${{ steps.scan.outputs.critical-count }}'
+        HIGH='${{ steps.scan.outputs.high-count }}'
+        case "$FAIL_ON" in
+          critical) [[ "$CRIT" -gt 0 ]] && echo "::error::$CRIT critical finding(s) — failing per fail-on=critical" && exit 1 ;;
+          high)     [[ "$CRIT" -gt 0 || "$HIGH" -gt 0 ]] && echo "::error::Critical+high findings exceed threshold" && exit 1 ;;
+          medium|low|never) ;;
+        esac
+        echo "::notice::Audit passed under fail-on=$FAIL_ON threshold."

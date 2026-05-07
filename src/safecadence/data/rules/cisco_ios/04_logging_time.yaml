@@ -1,0 +1,85 @@
+# Cisco IOS — Logging, NTP, and audit trail
+---
+- id: cisco-ios-no-syslog-server
+  title: No remote syslog server configured
+  severity: medium
+  vendor: cisco-ios
+  domain: security
+  description: |
+    Local logs are wiped on reboot and inaccessible during a
+    compromise. Without remote syslog, post-incident forensics is
+    severely limited.
+  remediation: |
+    Forward logs to a SIEM / centralized syslog cluster, ideally
+    over TLS.
+  fix_snippet: |
+    logging host 10.99.0.10 transport tcp port 6514
+    logging trap informational
+    logging facility local6
+    service timestamps log datetime msec localtime show-timezone
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/bsm/configuration/15-mt/bsm-15-mt-book.html
+  absent_regex:
+    - "(?im)^\\s*logging\\s+(host|server)\\s+\\S+"
+
+- id: cisco-ios-no-ntp
+  title: No NTP server configured
+  severity: medium
+  vendor: cisco-ios
+  domain: security
+  description: |
+    Inaccurate clocks invalidate log timestamps, break Kerberos /
+    AAA, and make incident timelines unreliable.
+  remediation: |
+    Configure at least two trusted NTP sources with authentication.
+  fix_snippet: |
+    ntp authentication-key 1 md5 <strong-key>
+    ntp authenticate
+    ntp trusted-key 1
+    ntp server 10.99.0.5 key 1
+    ntp server 10.99.0.6 key 1
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/bsm/configuration/15-mt/bsm-15-mt-book.html
+  absent_regex:
+    - "(?im)^\\s*ntp\\s+server\\s+\\S+"
+
+- id: cisco-ios-no-archive
+  title: Configuration archive / change tracking not enabled
+  severity: low
+  vendor: cisco-ios
+  domain: security
+  description: |
+    Without `archive log config`, local change history is not
+    captured. This breaks change management auditability.
+  remediation: |
+    Enable archive logging and ship snapshots to a TFTP/SCP server.
+  fix_snippet: |
+    archive
+     log config
+      logging enable
+      notify syslog contenttype plaintext
+      hidekeys
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/csa/configuration/15-mt/csa-15-mt-book.html
+  absent_regex:
+    - "(?im)^\\s*archive\\s*$"
+
+- id: cisco-ios-no-login-banner
+  title: No legal-warning login banner
+  severity: low
+  vendor: cisco-ios
+  domain: security
+  description: |
+    Many jurisdictions require an explicit "authorized use only"
+    banner for prosecution of unauthorized access.
+  remediation: |
+    Configure a legal banner approved by your counsel.
+  fix_snippet: |
+    banner login ^
+    *** AUTHORIZED USE ONLY ***
+    All activity may be monitored and recorded.
+    ^
+  references:
+    - https://www.justice.gov/sites/default/files/criminal-ccips/legacy/2015/01/14/ccmanual.pdf
+  absent_regex:
+    - "(?im)^\\s*banner\\s+(login|motd|exec)\\s"

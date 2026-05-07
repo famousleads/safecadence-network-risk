@@ -1,0 +1,43 @@
+{
+  "project": "acme-prod",
+
+  "firewalls": [
+    {
+      "name": "allow-ssh-public",
+      "sourceRanges": ["0.0.0.0/0"],
+      "allowed": [{"IPProtocol": "tcp", "ports": ["22"]}]
+    },
+    {
+      "name": "allow-rdp-public",
+      "sourceRanges": ["0.0.0.0/0"],
+      "allowed": [{"IPProtocol": "tcp", "ports": ["3389"]}]
+    }
+  ],
+
+  "buckets": [
+    {
+      "name": "acme-public-data",
+      "iamConfiguration": {"uniformBucketLevelAccess": {"enabled": false}},
+      "iamPolicy": {"bindings": [
+        {"role": "roles/storage.objectViewer", "members": ["allUsers"]}
+      ]}
+    }
+  ],
+
+  "gke": [
+    {
+      "name": "prod-cluster",
+      "shieldedNodes": {"enabled": false},
+      "networkPolicy": {"enabled": false}
+    }
+  ],
+
+  "iam": [
+    {"role": "roles/owner", "member": "user:alice@example.com"},
+    {"role": "roles/editor", "member": "serviceAccount:default-compute@developer.gserviceaccount.com"}
+  ],
+
+  "instances": [
+    {"name": "vm-1", "serviceAccount": "123456-compute@developer.gserviceaccount.com"}
+  ]
+}

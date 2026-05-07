@@ -1,0 +1,40 @@
+!Version ArubaOS-CX 10.10.1000
+
+hostname CAMPUS-CORE-01
+
+user admin group administrators password plaintext admin123
+
+telnet-server
+
+snmp-server community public
+snmp-server community private
+
+vlan 1
+vlan 10
+    name USERS
+vlan 20
+    name VOICE
+
+interface mgmt
+    no shutdown
+    ip static 10.99.0.20/24
+    default-gateway 10.99.0.1
+
+interface 1/1/1
+    no shutdown
+    description USER_PORT_1
+    vlan access 10
+
+interface 1/1/2
+    no shutdown
+    description USER_PORT_2
+    vlan access 10
+
+interface 1/1/48
+    no shutdown
+    description UPLINK
+    vlan trunk allowed all
+
+https-server rest access-mode read-write
+
+end

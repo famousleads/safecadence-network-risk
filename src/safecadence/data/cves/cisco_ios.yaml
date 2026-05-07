@@ -1,0 +1,105 @@
+# Cisco IOS / IOS-XE — high-impact CVEs
+# Curated subset; not exhaustive. v0.2 will ship a NVD-feed refresher.
+---
+- cve_id: CVE-2023-20198
+  severity: critical
+  cvss: 10.0
+  os: ios-xe
+  affects: ">=16.0,<17.10"
+  fixed_in: "17.9.4a, 17.10.1b, 17.11.1a"
+  title: "IOS XE Web UI privilege escalation (Storm-0558)"
+  description: |
+    A vulnerability in the web UI feature of Cisco IOS XE allows an
+    unauthenticated remote attacker to create an account with privilege
+    level 15 access (full administrative). Actively exploited in the wild;
+    listed in CISA KEV.
+  workaround: |
+    Disable the HTTP/HTTPS server: 'no ip http server' / 'no ip http secure-server'.
+  references:
+    - https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-iosxe-webui-privesc-j22SaA4z
+    - https://nvd.nist.gov/vuln/detail/CVE-2023-20198
+  published: "2023-10-16"
+  kev: true
+
+- cve_id: CVE-2023-20273
+  severity: high
+  cvss: 7.2
+  os: ios-xe
+  affects: ">=16.0,<17.10"
+  fixed_in: "17.9.4a, 17.10.1b"
+  title: "IOS XE Web UI command injection (paired with CVE-2023-20198)"
+  description: |
+    Allows an authenticated user to inject commands as root. Chained with
+    CVE-2023-20198 to achieve unauthenticated root code execution.
+  references:
+    - https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-iosxe-webui-cmdinj-MCnYwx5y
+  published: "2023-10-23"
+  kev: true
+
+- cve_id: CVE-2018-0171
+  severity: critical
+  cvss: 9.8
+  os: ios
+  affects: "<15.6"
+  fixed_in: "15.6(1)T or later"
+  title: "Smart Install RCE (SIET / Embedi disclosure)"
+  description: |
+    The Smart Install client allows remote, unauthenticated attackers to
+    trigger a buffer overflow leading to RCE or DoS. Internet-facing
+    Smart Install ports were widely exploited.
+  workaround: |
+    Disable Smart Install: 'no vstack'.
+  references:
+    - https://tools.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-20180328-smi2
+    - https://nvd.nist.gov/vuln/detail/CVE-2018-0171
+  published: "2018-03-28"
+  kev: true
+
+- cve_id: CVE-2017-3881
+  severity: critical
+  cvss: 9.8
+  os: ios
+  affects: "any"
+  fixed_in: "15.7(3)M or later"
+  title: "Cluster Management Protocol RCE (Vault 7)"
+  description: |
+    The CMP processing of telnet options allows an unauthenticated attacker
+    to execute arbitrary code or reload the device. Disclosed in WikiLeaks
+    Vault 7 dump.
+  workaround: |
+    Disable telnet on all VTY lines.
+  references:
+    - https://tools.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-20170317-cmp
+  published: "2017-03-17"
+  kev: true
+
+- cve_id: CVE-2019-1862
+  severity: high
+  cvss: 7.2
+  os: ios-xe
+  affects: ">=16.0,<17.0"
+  fixed_in: "16.11.1 or later"
+  title: "IOS XE web UI auth bypass via crafted HTTP"
+  description: |
+    A vulnerability in the IOS XE web management interface allows
+    authenticated users to escalate privileges to root via crafted HTTP.
+  references:
+    - https://tools.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-20190501-iosxe-cmdinj
+  published: "2019-05-01"
+
+- cve_id: CVE-2017-6736
+  severity: critical
+  cvss: 9.8
+  os: ios
+  affects: "any"
+  fixed_in: "15.7(3)M2 or later"
+  title: "SNMP subsystem buffer overflow (multiple OIDs)"
+  description: |
+    The SNMP daemon in IOS / IOS XE contains buffer overflows triggerable
+    by an SNMP request with a valid community string. Affects v1, v2c, v3.
+  workaround: |
+    Restrict SNMP via management ACL; migrate to SNMPv3.
+  references:
+    - https://tools.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-20170629-snmp
+  published: "2017-06-29"
+  kev: true

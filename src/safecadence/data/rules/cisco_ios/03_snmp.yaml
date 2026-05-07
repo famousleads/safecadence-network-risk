@@ -1,0 +1,62 @@
+# Cisco IOS — SNMP hardening
+---
+- id: cisco-ios-snmp-v1-v2-enabled
+  title: SNMP v1 / v2c communities present
+  severity: high
+  vendor: cisco-ios
+  domain: security
+  description: |
+    SNMP v1 and v2c send community strings in cleartext and have no
+    integrity protection. Anyone on the management path can sniff or
+    forge them.
+  remediation: |
+    Migrate to SNMPv3 with authPriv (SHA + AES).
+  fix_snippet: |
+    no snmp-server community public
+    no snmp-server community private
+    snmp-server group SC-RO v3 priv
+    snmp-server user nms-ro SC-RO v3 auth sha <strong-pass> priv aes 128 <strong-pass>
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/snmp/configuration/15-mt/snmp-15-mt-book.html
+  match_regex:
+    - "(?im)^\\s*snmp-server\\s+community\\s+\\S+"
+
+- id: cisco-ios-snmp-default-community
+  title: SNMP default community string (public/private)
+  severity: critical
+  vendor: cisco-ios
+  domain: security
+  description: |
+    Communities named "public" or "private" are universally known and
+    used by every scanning toolkit (e.g. snmp-check, Onesixtyone).
+    Read access usually exposes neighbor topology, ARP tables, and
+    routing data; write access is full device compromise.
+  remediation: |
+    Remove default communities immediately and migrate to SNMPv3.
+  fix_snippet: |
+    no snmp-server community public
+    no snmp-server community private
+  references:
+    - https://nvd.nist.gov/vuln/detail/CVE-1999-0517
+    - https://nvd.nist.gov/vuln/detail/CVE-1999-0186
+  match_regex:
+    - "(?im)^\\s*snmp-server\\s+community\\s+(public|private)\\b"
+
+- id: cisco-ios-snmp-rw-community
+  title: SNMP read-write community present
+  severity: critical
+  vendor: cisco-ios
+  domain: security
+  description: |
+    Read-write SNMP communities allow remote configuration changes
+    via SNMP SET. Combined with v1/v2c cleartext, this is a remote
+    code execution path.
+  remediation: |
+    Convert to read-only SNMPv3 user. Use a separate orchestration
+    channel (NETCONF / RESTCONF over TLS) for writes.
+  fix_snippet: |
+    no snmp-server community <community> RW
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/snmp/configuration/15-mt/snmp-15-mt-book.html
+  match_regex:
+    - "(?im)^\\s*snmp-server\\s+community\\s+\\S+\\s+RW\\b"

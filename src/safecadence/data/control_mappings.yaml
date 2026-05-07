@@ -1,0 +1,413 @@
+# SafeCadence v9.27 — control framework mappings.
+#
+# Each entry: a SafeCadence control id (matches policy/controls/*.py)
+# mapped to its equivalent control IDs in the major frameworks.
+#
+# Schema:
+#   <control_id>:
+#     description     short label for the coverage page
+#     domain          network | server | identity | cloud | backup | storage
+#     nist_800_53     list of NIST 800-53 r5 sub-control IDs (AC-2, etc.)
+#     cis_v8          list of CIS Critical Security Controls v8 (1.1, 4.6, ...)
+#     pci_dss_4       list of PCI-DSS 4.0 requirement numbers
+#     hipaa           list of HIPAA Safeguard citations (164.308(a)(1), ...)
+#     iso_27001_2022  list of Annex A control numbers (A.5.1, A.8.16, ...)
+#     soc2_tsc        list of SOC 2 Trust Services Criteria (CC6.1, CC7.2, ...)
+#     owner_default   role expected to own this control (when unset on policy)
+#     sla_severity_days  default time-to-remediate by severity, e.g. critical=7
+#     frequency       continuous | daily | weekly | monthly | quarterly | annual
+#     evidence_type   config_snapshot | log_review | screenshot | csv | api_pull
+#
+# Maintenance: when a new SafeCadence control lands in
+# policy/controls/, add a row here. The /compliance page will surface
+# it as "covered" against any framework it cites.
+
+# ============================================================ NETWORK
+
+disable_telnet:
+  description: Disable telnet — SSH-only mgmt
+  domain: network
+  nist_800_53: [AC-17, SC-8, SC-23]
+  cis_v8: ["4.6", "12.6"]
+  pci_dss_4: ["2.2.7", "8.2.1"]
+  hipaa: ["164.312(e)(1)"]
+  iso_27001_2022: [A.8.20, A.8.21]
+  soc2_tsc: [CC6.1, CC6.7]
+  owner_default: network_eng
+  sla_severity_days: {critical: 1, high: 7, medium: 30, low: 90}
+  frequency: continuous
+  evidence_type: config_snapshot
+
+enforce_ssh_v2:
+  description: SSH version 2 enforced on management plane
+  domain: network
+  nist_800_53: [SC-8, SC-13, IA-2]
+  cis_v8: ["4.6", "12.6"]
+  pci_dss_4: ["2.2.7", "4.2.1"]
+  hipaa: ["164.312(e)(2)(ii)"]
+  iso_27001_2022: [A.8.20, A.8.24]
+  soc2_tsc: [CC6.1, CC6.7]
+  owner_default: network_eng
+  sla_severity_days: {critical: 7, high: 30, medium: 90, low: 180}
+  frequency: continuous
+  evidence_type: config_snapshot
+
+require_aaa:
+  description: Centralized AAA (TACACS+/RADIUS) for device auth
+  domain: network
+  nist_800_53: [AC-2, AC-3, IA-2, AU-2]
+  cis_v8: ["6.1", "6.2", "6.7"]
+  pci_dss_4: ["7.2.1", "8.2.1", "10.2.1"]
+  hipaa: ["164.308(a)(4)", "164.312(a)(2)(i)"]
+  iso_27001_2022: [A.8.2, A.8.3, A.8.5]
+  soc2_tsc: [CC6.1, CC6.2, CC6.3]
+  owner_default: network_eng
+  sla_severity_days: {critical: 7, high: 30, medium: 90, low: 180}
+  frequency: continuous
+  evidence_type: config_snapshot
+
+enforce_snmpv3:
+  description: SNMP v3 only — no v1/v2c communities
+  domain: network
+  nist_800_53: [AC-3, SC-8, SC-13]
+  cis_v8: ["4.6", "12.6"]
+  pci_dss_4: ["2.2.5", "4.2.1"]
+  hipaa: ["164.312(e)(1)"]
+  iso_27001_2022: [A.8.20, A.8.24]
+  soc2_tsc: [CC6.1, CC6.7]
+  owner_default: network_eng
+  sla_severity_days: {critical: 14, high: 60, medium: 180, low: 365}
+  frequency: continuous
+  evidence_type: config_snapshot
+
+enable_syslog:
+  description: Logging shipped to a SIEM / syslog target
+  domain: network
+  nist_800_53: [AU-2, AU-3, AU-6, AU-12]
+  cis_v8: ["8.2", "8.5", "8.9"]
+  pci_dss_4: ["10.2.1", "10.4.1", "10.5.1"]
+  hipaa: ["164.308(a)(1)(ii)(D)", "164.312(b)"]
+  iso_27001_2022: [A.8.15, A.8.16]
+  soc2_tsc: [CC7.2, CC7.3]
+  owner_default: secops
+  sla_severity_days: {critical: 7, high: 30, medium: 90, low: 180}
+  frequency: continuous
+  evidence_type: config_snapshot
+
+enable_ntp:
+  description: NTP source configured — accurate timestamps for forensics
+  domain: network
+  nist_800_53: [AU-8]
+  cis_v8: ["8.4"]
+  pci_dss_4: ["10.6.1"]
+  hipaa: ["164.312(b)"]
+  iso_27001_2022: [A.8.17]
+  soc2_tsc: [CC7.2]
+  owner_default: network_eng
+  sla_severity_days: {critical: 14, high: 60, medium: 180, low: 365}
+  frequency: continuous
+  evidence_type: config_snapshot
+
+block_insecure_crypto:
+  description: Block weak ciphers/protocols (DES, RC4, SSLv3, TLS 1.0/1.1)
+  domain: network
+  nist_800_53: [SC-8, SC-13]
+  cis_v8: ["3.10", "12.6"]
+  pci_dss_4: ["2.2.7", "4.2.1"]
+  hipaa: ["164.312(e)(2)(ii)"]
+  iso_27001_2022: [A.8.24]
+  soc2_tsc: [CC6.7]
+  owner_default: network_eng
+  sla_severity_days: {critical: 7, high: 30, medium: 90, low: 180}
+  frequency: continuous
+  evidence_type: config_snapshot
+
+restrict_management_access:
+  description: Mgmt plane reachable only from a defined ACL/jump host
+  domain: network
+  nist_800_53: [AC-3, AC-6, SC-7]
+  cis_v8: ["4.4", "12.6"]
+  pci_dss_4: ["1.4.2", "8.2.1"]
+  hipaa: ["164.308(a)(4)"]
+  iso_27001_2022: [A.8.20, A.8.22]
+  soc2_tsc: [CC6.1, CC6.6]
+  owner_default: network_eng
+  sla_severity_days: {critical: 1, high: 7, medium: 30, low: 90}
+  frequency: continuous
+  evidence_type: config_snapshot
+
+# ============================================================ SERVER
+
+enforce_patch_level:
+  description: OS patches current within policy window
+  domain: server
+  nist_800_53: [SI-2, RA-5, CM-3]
+  cis_v8: ["7.1", "7.3", "7.4", "7.7"]
+  pci_dss_4: ["6.3.3", "6.3.1"]
+  hipaa: ["164.308(a)(5)(ii)(B)"]
+  iso_27001_2022: [A.8.8, A.8.9]
+  soc2_tsc: [CC7.1, CC8.1]
+  owner_default: sysadmin
+  sla_severity_days: {critical: 7, high: 30, medium: 60, low: 90}
+  frequency: weekly
+  evidence_type: api_pull
+
+enforce_encryption_at_rest:
+  description: Storage encrypted (BitLocker / FileVault / LUKS / KMS)
+  domain: server
+  nist_800_53: [SC-28, MP-5]
+  cis_v8: ["3.6", "3.11"]
+  pci_dss_4: ["3.5.1"]
+  hipaa: ["164.312(a)(2)(iv)"]
+  iso_27001_2022: [A.8.24, A.5.33]
+  soc2_tsc: [CC6.1]
+  owner_default: sysadmin
+  sla_severity_days: {critical: 14, high: 30, medium: 90, low: 180}
+  frequency: monthly
+  evidence_type: api_pull
+
+enforce_encryption_in_transit:
+  description: All sensitive traffic uses TLS 1.2+ / IPsec
+  domain: server
+  nist_800_53: [SC-8, SC-13]
+  cis_v8: ["3.10"]
+  pci_dss_4: ["4.2.1"]
+  hipaa: ["164.312(e)(1)", "164.312(e)(2)(ii)"]
+  iso_27001_2022: [A.8.20, A.8.24]
+  soc2_tsc: [CC6.1, CC6.7]
+  owner_default: sysadmin
+  sla_severity_days: {critical: 7, high: 30, medium: 90, low: 180}
+  frequency: monthly
+  evidence_type: config_snapshot
+
+restrict_default_creds:
+  description: No default / vendor-shipped credentials in use
+  domain: server
+  nist_800_53: [IA-5, AC-6]
+  cis_v8: ["4.7", "5.2"]
+  pci_dss_4: ["2.3.1", "8.3.5"]
+  hipaa: ["164.308(a)(5)(ii)(D)"]
+  iso_27001_2022: [A.8.5, A.5.17]
+  soc2_tsc: [CC6.1]
+  owner_default: secops
+  sla_severity_days: {critical: 1, high: 7, medium: 14, low: 30}
+  frequency: monthly
+  evidence_type: csv
+
+enforce_password_policy:
+  description: Password complexity + rotation policy enforced
+  domain: server
+  nist_800_53: [IA-5]
+  cis_v8: ["5.2", "5.3"]
+  pci_dss_4: ["8.3.6", "8.3.7"]
+  hipaa: ["164.308(a)(5)(ii)(D)"]
+  iso_27001_2022: [A.5.17, A.8.5]
+  soc2_tsc: [CC6.1]
+  owner_default: secops
+  sla_severity_days: {critical: 30, high: 60, medium: 90, low: 180}
+  frequency: monthly
+  evidence_type: api_pull
+
+enforce_mfa:
+  description: MFA required for all human accounts (especially privileged)
+  domain: server
+  nist_800_53: [IA-2, AC-7]
+  cis_v8: ["6.3", "6.4", "6.5"]
+  pci_dss_4: ["8.4.1", "8.5.1"]
+  hipaa: ["164.312(d)"]
+  iso_27001_2022: [A.5.17, A.8.5]
+  soc2_tsc: [CC6.1, CC6.6]
+  owner_default: secops
+  sla_severity_days: {critical: 7, high: 14, medium: 30, low: 60}
+  frequency: continuous
+  evidence_type: api_pull
+
+enforce_least_privilege:
+  description: Account permissions follow least-privilege baseline
+  domain: server
+  nist_800_53: [AC-6, AC-2]
+  cis_v8: ["5.4", "6.8"]
+  pci_dss_4: ["7.2.1", "7.2.2"]
+  hipaa: ["164.308(a)(3)(ii)(A)", "164.308(a)(4)"]
+  iso_27001_2022: [A.5.15, A.8.2, A.8.3]
+  soc2_tsc: [CC6.1, CC6.3]
+  owner_default: secops
+  sla_severity_days: {critical: 14, high: 30, medium: 90, low: 180}
+  frequency: quarterly
+  evidence_type: csv
+
+# ============================================================ IDENTITY
+
+idp_require_mfa_for_admins:
+  description: MFA required for every privileged identity in the IdP
+  domain: identity
+  nist_800_53: [IA-2(1), IA-2(2)]
+  cis_v8: ["6.5"]
+  pci_dss_4: ["8.5.1"]
+  hipaa: ["164.312(d)"]
+  iso_27001_2022: [A.5.17, A.5.15]
+  soc2_tsc: [CC6.1, CC6.6]
+  owner_default: iam_admin
+  sla_severity_days: {critical: 1, high: 7, medium: 14, low: 30}
+  frequency: continuous
+  evidence_type: api_pull
+
+idp_disable_dormant_accounts:
+  description: Accounts unused for 90+ days are disabled
+  domain: identity
+  nist_800_53: [AC-2(3)]
+  cis_v8: ["5.3"]
+  pci_dss_4: ["8.2.6"]
+  hipaa: ["164.308(a)(3)(ii)(C)"]
+  iso_27001_2022: [A.5.16, A.5.18]
+  soc2_tsc: [CC6.2, CC6.3]
+  owner_default: iam_admin
+  sla_severity_days: {critical: 30, high: 60, medium: 90, low: 180}
+  frequency: monthly
+  evidence_type: csv
+
+idp_password_complexity:
+  description: Password complexity meets policy (length, classes)
+  domain: identity
+  nist_800_53: [IA-5(1)]
+  cis_v8: ["5.2"]
+  pci_dss_4: ["8.3.6"]
+  hipaa: ["164.308(a)(5)(ii)(D)"]
+  iso_27001_2022: [A.5.17]
+  soc2_tsc: [CC6.1]
+  owner_default: iam_admin
+  sla_severity_days: {critical: 30, high: 60, medium: 90, low: 180}
+  frequency: monthly
+  evidence_type: api_pull
+
+idp_conditional_access:
+  description: Conditional Access / sign-in policy applied to risky logins
+  domain: identity
+  nist_800_53: [AC-2, IA-2(12)]
+  cis_v8: ["6.5", "6.7"]
+  pci_dss_4: ["8.5.1"]
+  hipaa: ["164.312(a)(1)"]
+  iso_27001_2022: [A.5.15, A.8.5]
+  soc2_tsc: [CC6.1, CC6.6]
+  owner_default: iam_admin
+  sla_severity_days: {critical: 14, high: 30, medium: 90, low: 180}
+  frequency: continuous
+  evidence_type: api_pull
+
+idp_privileged_role_review:
+  description: Privileged role memberships reviewed quarterly
+  domain: identity
+  nist_800_53: [AC-2(7), AC-6(7)]
+  cis_v8: ["5.1", "6.8"]
+  pci_dss_4: ["7.2.4"]
+  hipaa: ["164.308(a)(3)(ii)(B)"]
+  iso_27001_2022: [A.5.18, A.8.2]
+  soc2_tsc: [CC6.2, CC6.3]
+  owner_default: iam_admin
+  sla_severity_days: {critical: 90, high: 90, medium: 180, low: 365}
+  frequency: quarterly
+  evidence_type: csv
+
+# ============================================================ CLOUD
+
+block_public_exposure:
+  description: No unintended public exposure (S3, blobs, public IPs)
+  domain: cloud
+  nist_800_53: [AC-3, SC-7]
+  cis_v8: ["3.3", "12.4"]
+  pci_dss_4: ["1.4.4", "1.3.4"]
+  hipaa: ["164.308(a)(4)"]
+  iso_27001_2022: [A.8.20, A.8.22]
+  soc2_tsc: [CC6.1, CC6.6]
+  owner_default: cloud_eng
+  sla_severity_days: {critical: 1, high: 7, medium: 14, low: 30}
+  frequency: continuous
+  evidence_type: api_pull
+
+enforce_cloud_iam:
+  description: Cloud IAM follows least-privilege + role separation
+  domain: cloud
+  nist_800_53: [AC-6, AC-2]
+  cis_v8: ["6.8", "5.4"]
+  pci_dss_4: ["7.2.1"]
+  hipaa: ["164.308(a)(4)"]
+  iso_27001_2022: [A.5.15, A.8.2]
+  soc2_tsc: [CC6.1, CC6.3]
+  owner_default: cloud_eng
+  sla_severity_days: {critical: 14, high: 30, medium: 90, low: 180}
+  frequency: monthly
+  evidence_type: csv
+
+enforce_logging:
+  description: CloudTrail / Audit log / Activity log enabled and shipped
+  domain: cloud
+  nist_800_53: [AU-2, AU-3, AU-6, AU-12]
+  cis_v8: ["8.2", "8.5", "8.9"]
+  pci_dss_4: ["10.2.1", "10.5.1"]
+  hipaa: ["164.308(a)(1)(ii)(D)", "164.312(b)"]
+  iso_27001_2022: [A.8.15, A.8.16]
+  soc2_tsc: [CC7.2, CC7.3]
+  owner_default: secops
+  sla_severity_days: {critical: 7, high: 14, medium: 30, low: 90}
+  frequency: continuous
+  evidence_type: api_pull
+
+# ============================================================ BACKUP
+
+enforce_backup_retention:
+  description: Backups retained per policy (regulatory minimums met)
+  domain: backup
+  nist_800_53: [CP-9, CP-10]
+  cis_v8: ["11.2", "11.4"]
+  pci_dss_4: ["9.5.1.2", "12.10.1"]
+  hipaa: ["164.308(a)(7)(ii)(A)"]
+  iso_27001_2022: [A.8.13]
+  soc2_tsc: [A1.2, A1.3]
+  owner_default: sysadmin
+  sla_severity_days: {critical: 30, high: 60, medium: 90, low: 180}
+  frequency: monthly
+  evidence_type: api_pull
+
+enforce_immutability:
+  description: Backups have an immutable / object-locked copy
+  domain: backup
+  nist_800_53: [CP-9(5), SI-7]
+  cis_v8: ["11.4"]
+  pci_dss_4: ["9.5.1.2"]
+  hipaa: ["164.308(a)(7)(ii)(B)"]
+  iso_27001_2022: [A.8.13]
+  soc2_tsc: [A1.2]
+  owner_default: sysadmin
+  sla_severity_days: {critical: 30, high: 60, medium: 180, low: 365}
+  frequency: monthly
+  evidence_type: api_pull
+
+enforce_air_gap:
+  description: Off-network or logically air-gapped backup tier
+  domain: backup
+  nist_800_53: [CP-9(8)]
+  cis_v8: ["11.4"]
+  pci_dss_4: ["9.5.1.2"]
+  hipaa: ["164.308(a)(7)(ii)(B)"]
+  iso_27001_2022: [A.8.13]
+  soc2_tsc: [A1.2]
+  owner_default: sysadmin
+  sla_severity_days: {critical: 60, high: 90, medium: 180, low: 365}
+  frequency: quarterly
+  evidence_type: screenshot
+
+# ============================================================ STORAGE
+
+replication_enabled:
+  description: Critical storage replicated cross-AZ / cross-region
+  domain: storage
+  nist_800_53: [CP-7, CP-9]
+  cis_v8: ["11.1", "11.2"]
+  pci_dss_4: ["9.5.1"]
+  hipaa: ["164.308(a)(7)(ii)(A)"]
+  iso_27001_2022: [A.8.13, A.8.14]
+  soc2_tsc: [A1.2, A1.3]
+  owner_default: storage_admin
+  sla_severity_days: {critical: 30, high: 60, medium: 180, low: 365}
+  frequency: monthly
+  evidence_type: api_pull

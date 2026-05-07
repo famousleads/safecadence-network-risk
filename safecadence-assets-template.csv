@@ -1,0 +1,2 @@
+asset_id,asset_type,vendor,hostname,model,criticality,site,environment,owner,team,country,city,campus,building,floor,rack,support_contract,ip,public_ip,vlan,subnet,zone,cloud_account,cloud_region,os_type,os_version,tags
+edge-rtr-01.acme.local,network,cisco,edge-rtr-01.acme.local,ASR-1001-X,high,dc-east-1,prod,netops,Network Operations,US,Ashburn,DC1,B1,2,R12,SmartNet-2026,10.0.0.1,203.0.113.42,100,10.0.0.0/24,edge,,,ios-xe,16.9.4,"core,internet-facing"

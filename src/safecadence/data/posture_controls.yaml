@@ -1,0 +1,209 @@
+# SafeCadence v9.26 — Posture controls pack.
+#
+# Each control is a *positive* signal: when satisfied, it ADDS points
+# to the asset's Safe Score (capped at +20 fleet-wide). This is the
+# Microsoft Secure Score / ISE Posture analog — reward protection
+# rather than only penalize problems.
+#
+# Schema:
+#   id          unique slug (kebab-case)
+#   category    endpoint | identity | network | cloud | backup
+#   applies_to  list of asset_type values; * means all
+#   weight      points awarded when check passes (1-5 typical)
+#   description short human-readable label for the cockpit
+#   source_hint where the operator should plumb data in
+#   check:
+#     field     dotted path inside the unified asset dict
+#     op        eq | ne | in | not_in | truthy | gte | lte | regex
+#     value     comparand (omitted for `truthy`)
+#
+# The evaluator (scores/posture.py) is intentionally simple — no
+# arbitrary code execution, no eval(), no callbacks. Adding a new
+# control is a YAML edit, not a code change.
+
+# ============================================================ ENDPOINT
+
+- id: endpoint-disk-encryption
+  category: endpoint
+  applies_to: [server, laptop, workstation, endpoint]
+  weight: 5
+  description: Full-disk encryption enabled (BitLocker / FileVault / dm-crypt)
+  source_hint: MDM (Intune/Jamf), TPM attestation, OS query
+  check:
+    field: os.disk_encryption
+    op: in
+    value: [enabled, on, true, bitlocker, filevault, dm-crypt, luks]
+
+- id: endpoint-edr-present
+  category: endpoint
+  applies_to: [server, laptop, workstation, endpoint]
+  weight: 5
+  description: EDR / endpoint protection installed and reporting
+  source_hint: CrowdStrike, SentinelOne, Defender for Endpoint API
+  check:
+    field: security.edr_vendor
+    op: in
+    value: [crowdstrike, sentinelone, defender, defender_for_endpoint, sophos, carbonblack]
+
+- id: endpoint-os-patches-current
+  category: endpoint
+  applies_to: [server, laptop, workstation, endpoint]
+  weight: 4
+  description: OS patches applied within the last 30 days
+  source_hint: WSUS, Intune, Jamf, package manager state
+  check:
+    field: lifecycle.os_patches_age_days
+    op: lte
+    value: 30
+
+- id: endpoint-host-firewall
+  category: endpoint
+  applies_to: [server, laptop, workstation, endpoint]
+  weight: 2
+  description: Host-based firewall enabled
+  source_hint: OS query, MDM
+  check:
+    field: security.host_firewall_enabled
+    op: truthy
+
+- id: endpoint-secure-boot
+  category: endpoint
+  applies_to: [server, laptop, workstation, endpoint]
+  weight: 3
+  description: Secure Boot / measured boot active
+  source_hint: TPM attestation, UEFI inspection, MDM
+  check:
+    field: security.secure_boot
+    op: truthy
+
+# ============================================================ IDENTITY
+
+- id: identity-mfa-enforced
+  category: identity
+  applies_to: [user, nhi, service_account, identity]
+  weight: 5
+  description: Multi-factor auth enforced for this principal
+  source_hint: Entra ID Conditional Access, Okta MFA policy, AD FGPP
+  check:
+    field: identity.mfa_enforced
+    op: truthy
+
+- id: identity-conditional-access
+  category: identity
+  applies_to: [user, identity]
+  weight: 3
+  description: Conditional Access / sign-in policy applied
+  source_hint: Entra Conditional Access, Okta Sign-On Policy
+  check:
+    field: identity.conditional_access
+    op: truthy
+
+- id: identity-jit-bound
+  category: identity
+  applies_to: [user, nhi, identity]
+  weight: 5
+  description: Privileged grants are time-bounded (JIT) rather than standing
+  source_hint: SafeCadence JIT module, PIM, Okta privileged access
+  check:
+    field: identity.jit_only
+    op: truthy
+
+# ============================================================ NETWORK GEAR
+
+- id: network-mgmt-https-only
+  category: network
+  applies_to: [network, firewall, switch, router, wlan_controller]
+  weight: 2
+  description: Mgmt plane reachable via HTTPS only (HTTP disabled)
+  source_hint: Running config inspection
+  check:
+    field: network_security.mgmt_https_only
+    op: truthy
+
+- id: network-ssh-key-auth
+  category: network
+  applies_to: [network, firewall, switch, router]
+  weight: 3
+  description: SSH key-based auth (no password-only logins on mgmt)
+  source_hint: Running config / aaa configuration
+  check:
+    field: network_security.ssh_key_auth_only
+    op: truthy
+
+- id: network-snmpv3-only
+  category: network
+  applies_to: [network, switch, router, wlan_controller]
+  weight: 2
+  description: SNMP v3 in use (v1/v2c disabled)
+  source_hint: Running config snmp-server section
+  check:
+    field: network_security.snmp_version
+    op: in
+    value: [v3, "3"]
+
+- id: network-logging-shipped
+  category: network
+  applies_to: [network, firewall, switch, router]
+  weight: 3
+  description: Logging configured and shipping to a SIEM/syslog target
+  source_hint: Running config logging stanza
+  check:
+    field: logs.syslog_targets_count
+    op: gte
+    value: 1
+
+# ============================================================ CLOUD
+
+- id: cloud-imdsv2-enforced
+  category: cloud
+  applies_to: [cloud, ec2, vm]
+  weight: 4
+  description: IMDSv2 enforced (AWS) or equivalent metadata-service hardening
+  source_hint: AWS describe-instances HttpTokens=required
+  check:
+    field: cloud.imdsv2_enforced
+    op: truthy
+
+- id: cloud-public-exposure-absent
+  category: cloud
+  applies_to: [cloud, ec2, vm, storage, bucket]
+  weight: 3
+  description: No public IP / no public bucket policy
+  source_hint: AWS/Azure/GCP API
+  check:
+    field: cloud.public_exposure
+    op: ne
+    value: true
+
+- id: cloud-encryption-at-rest
+  category: cloud
+  applies_to: [cloud, storage, bucket, database, vm]
+  weight: 3
+  description: Storage encrypted at rest (KMS-managed where possible)
+  source_hint: AWS/Azure/GCP API
+  check:
+    field: cloud.encryption_at_rest
+    op: truthy
+
+# ============================================================ BACKUP
+
+- id: backup-recent-success
+  category: backup
+  applies_to: [server, vm, database, storage]
+  weight: 3
+  description: Backup completed successfully in the last 30 days
+  source_hint: Veeam, AWS Backup, Azure Backup, GCP backup APIs
+  check:
+    field: backup.last_success_age_days
+    op: lte
+    value: 30
+
+- id: backup-immutable
+  category: backup
+  applies_to: [server, vm, database, storage]
+  weight: 2
+  description: Immutable / object-locked backup copy exists
+  source_hint: AWS S3 Object Lock, Azure Blob immutability, Veeam ImmFlag
+  check:
+    field: backup.immutable_copy
+    op: truthy

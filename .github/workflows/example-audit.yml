@@ -1,0 +1,56 @@
+# Example: how to use the SafeCadence Network Risk action in your own repos
+# Copy this file to .github/workflows/network-audit.yml in YOUR repo.
+#
+# Triggers a network config audit on every PR + nightly + manually.
+
+name: Network Config Audit
+
+on:
+  pull_request:
+    paths:
+      - "**/*.cfg"
+      - "**/*.txt"
+      - "configs/**"
+  schedule:
+    - cron: "0 6 * * *"  # daily at 6 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write  # for SARIF upload to Code Scanning
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run SafeCadence Network Risk audit
+        id: safecadence
+        uses: famousleads/safecadence-network-risk@v2.9.0
+        with:
+          config-path: configs/
+          fail-on: high
+          output-format: json
+          output-file: safecadence-report.json
+          # Optional AI briefing — set AI_API_KEY in repo secrets
+          ai-explain: ${{ secrets.AI_API_KEY != '' }}
+          ai-provider: openai
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+
+      - name: Print summary
+        run: |
+          echo "Findings: ${{ steps.safecadence.outputs.total-findings }}"
+          echo "Critical: ${{ steps.safecadence.outputs.critical-count }}"
+          echo "High:     ${{ steps.safecadence.outputs.high-count }}"
+          echo "Health:   ${{ steps.safecadence.outputs.health-score }}/100"
+          echo "Risk:     ${{ steps.safecadence.outputs.risk-score }}/100"
+
+      - name: Upload report as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: safecadence-network-audit
+          path: safecadence-report.json
+          retention-days: 30

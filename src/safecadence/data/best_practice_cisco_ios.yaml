@@ -1,0 +1,127 @@
+# SafeCadence v9.26 — Cisco IOS / IOS-XE hardening checks.
+#
+# Each check inspects the running config we already collected and
+# answers: is this device hardened in line with the Cisco hardening
+# guide + CIS Benchmarks? Reference points:
+#   * Cisco IOS 15+ Hardening Guide
+#   * CIS Cisco IOS 15 Benchmark v4
+#   * NIST 800-53 SC, AC, IA, AU control families
+#
+# Schema (mirrors posture_controls.yaml but with regex/contains ops
+# tuned for config text):
+#   id          unique slug
+#   weight      points awarded when check passes
+#   description short label
+#   reference   doc citation (CIS section, hardening-guide bullet, etc.)
+#   match:
+#     regex     pattern that must appear in running config (passes)
+#     -or- absent_regex  pattern that must NOT appear
+#     -or- both: line must match A and not match B
+
+- id: cisco-ios-aaa-enabled
+  weight: 4
+  description: AAA new-model enabled (centralised auth instead of local-only)
+  reference: CIS 1.1.1 / Cisco hardening §3.2
+  match:
+    regex: '^aaa new-model'
+
+- id: cisco-ios-no-telnet
+  weight: 4
+  description: Telnet disabled on VTY (transport input ssh-only)
+  reference: CIS 2.2.4
+  match:
+    line_regex: '^line vty'
+    section_regex: 'transport input ssh\b'
+    section_must_not_match: 'transport input.*telnet'
+
+- id: cisco-ios-ssh-v2
+  weight: 3
+  description: SSH version 2 forced (ip ssh version 2)
+  reference: CIS 1.5.6
+  match:
+    regex: '^ip ssh version 2'
+
+- id: cisco-ios-no-http-server
+  weight: 3
+  description: HTTP server disabled (use HTTPS or none)
+  reference: CIS 1.5.4
+  match:
+    regex: '^no ip http server'
+
+- id: cisco-ios-https-secure-server
+  weight: 2
+  description: HTTPS only when web mgmt is needed
+  reference: CIS 1.5.5
+  match:
+    regex: '^ip http secure-server'
+
+- id: cisco-ios-logging-host
+  weight: 3
+  description: Syslog target configured (logging host x.x.x.x)
+  reference: CIS 4.1
+  match:
+    regex: '^logging (host|server) '
+
+- id: cisco-ios-ntp-configured
+  weight: 2
+  description: NTP server configured (accurate timestamps for forensics)
+  reference: CIS 4.5
+  match:
+    regex: '^ntp server '
+
+- id: cisco-ios-no-ip-source-route
+  weight: 2
+  description: Source-routing disabled (no ip source-route)
+  reference: CIS 3.1.1
+  match:
+    regex: '^no ip source-route'
+
+- id: cisco-ios-service-password-encryption
+  weight: 2
+  description: Service password-encryption enabled (avoid type-0 plaintext)
+  reference: CIS 1.1.5
+  match:
+    regex: '^service password-encryption'
+
+- id: cisco-ios-no-snmp-community-public
+  weight: 5
+  description: Default SNMP communities (public, private) absent
+  reference: CIS 2.3.2 / known credential
+  match:
+    absent_regex: '^snmp-server community (public|private)\b'
+
+- id: cisco-ios-snmpv3
+  weight: 3
+  description: SNMP v3 user defined (preferred over v2c)
+  reference: CIS 2.3.3
+  match:
+    regex: '^snmp-server (group|user) .* v3'
+
+- id: cisco-ios-login-block
+  weight: 2
+  description: Login attempt rate-limiting (login block-for ...)
+  reference: CIS 2.1.1
+  match:
+    regex: '^login block-for '
+
+- id: cisco-ios-enable-secret
+  weight: 4
+  description: Privileged mode protected by enable secret (not enable password)
+  reference: CIS 1.1.3
+  match:
+    regex: '^enable secret '
+
+- id: cisco-ios-banner-motd
+  weight: 1
+  description: Login banner / MOTD set (legal warning)
+  reference: CIS 1.1.10
+  match:
+    regex: '^banner (motd|login) '
+
+- id: cisco-ios-no-cdp-globally
+  weight: 1
+  description: CDP disabled globally on internet-facing devices
+  reference: CIS 3.1.4 (context-dependent)
+  match:
+    regex: '^no cdp run'
+    optional: true   # don't penalize; many internal devices keep CDP on

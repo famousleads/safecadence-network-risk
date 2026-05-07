@@ -1,0 +1,20 @@
+policy_id: tmpl_identity_access_control
+policy_name: Identity & Access Control
+description: AAA, MFA, password policy, least privilege, no default creds.
+target_asset_types: [network, server, cloud]
+severity: high
+compliance_frameworks: [nist-800-53, cis, pci-dss, iso-27001]
+enforcement_mode: warn
+controls:
+  - control_id: require_aaa
+    severity: high
+  - control_id: enforce_mfa
+    severity: high
+  - control_id: enforce_password_policy
+    severity: medium
+    parameters:
+      min_length: 12
+  - control_id: enforce_least_privilege
+    severity: medium
+  - control_id: restrict_default_creds
+    severity: critical

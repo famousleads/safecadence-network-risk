@@ -1,0 +1,64 @@
+## Last commit: 2026-04-15 14:33:21 UTC by admin
+## Image name: junos-install-ex-x86-64-21.4R3.15.tgz Junos: 21.4R3.15
+
+system {
+    host-name DC-EDGE-01;
+    root-authentication {
+        plain-text-password;
+    }
+    services {
+        ssh;
+        telnet;
+        web-management {
+            http {
+                interface fxp0.0;
+            }
+        }
+    }
+    syslog {
+        file messages {
+            any notice;
+        }
+    }
+}
+snmp {
+    community public {
+        authorization read-only;
+    }
+    community private {
+        authorization read-write;
+    }
+}
+interfaces {
+    ge-0/0/0 {
+        description "WAN_UPLINK";
+        unit 0 {
+            family inet {
+                address 203.0.113.10/30;
+            }
+        }
+    }
+    ge-0/0/1 {
+        description "LAN_USERS";
+        unit 0 {
+            family inet {
+                address 10.10.10.1/24;
+            }
+        }
+    }
+    fxp0 {
+        unit 0 {
+            family inet {
+                address 10.99.0.40/24;
+            }
+        }
+    }
+}
+protocols {
+    bgp {
+        group EXTERNAL {
+            peer-as 65001;
+            neighbor 198.51.100.1;
+        }
+    }
+}

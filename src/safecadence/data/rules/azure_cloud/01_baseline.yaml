@@ -1,0 +1,65 @@
+---
+- id: azure-cloud-nsg-permit-ssh-public
+  title: NSG rule allows SSH (22) from any source
+  severity: critical
+  vendor: azure-cloud
+  domain: security
+  match_regex:
+    - '(?ims)"destinationPortRange":\s*"22"[\s\S]{0,300}?"sourceAddressPrefix":\s*"(\*|0\.0\.0\.0/0|Internet)"'
+
+- id: azure-cloud-nsg-permit-rdp-public
+  title: NSG rule allows RDP (3389) from any source
+  severity: critical
+  vendor: azure-cloud
+  domain: security
+  match_regex:
+    - '(?ims)"destinationPortRange":\s*"3389"[\s\S]{0,300}?"sourceAddressPrefix":\s*"(\*|0\.0\.0\.0/0|Internet)"'
+
+- id: azure-cloud-storage-public-blob
+  title: Storage account allows anonymous blob access
+  severity: critical
+  vendor: azure-cloud
+  domain: security
+  match_regex:
+    - '(?im)"allowBlobPublicAccess":\s*true'
+
+- id: azure-cloud-storage-no-https-only
+  title: Storage account allows non-HTTPS access
+  severity: high
+  vendor: azure-cloud
+  domain: security
+  match_regex:
+    - '(?im)"supportsHttpsTrafficOnly":\s*false'
+    - '(?im)"enableHttpsTrafficOnly":\s*false'
+
+- id: azure-cloud-no-defender-for-cloud
+  title: Microsoft Defender for Cloud not enabled
+  severity: high
+  vendor: azure-cloud
+  domain: security
+  absent_regex:
+    - '(?im)"pricingTier":\s*"Standard"'
+
+- id: azure-cloud-keyvault-soft-delete-disabled
+  title: Key Vault soft-delete disabled
+  severity: high
+  vendor: azure-cloud
+  domain: security
+  match_regex:
+    - '(?im)"enableSoftDelete":\s*false'
+
+- id: azure-cloud-aks-rbac-disabled
+  title: AKS cluster has Kubernetes RBAC disabled
+  severity: high
+  vendor: azure-cloud
+  domain: security
+  match_regex:
+    - '(?im)"enableRBAC":\s*false'
+
+- id: azure-cloud-no-mfa-conditional-access
+  title: No Conditional Access policy enforcing MFA on admins
+  severity: high
+  vendor: azure-cloud
+  domain: security
+  absent_regex:
+    - '(?im)conditionalAccessPolicy[\s\S]{0,500}?multifactorAuth'

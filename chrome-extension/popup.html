@@ -1,0 +1,126 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>SafeCadence Quick Console</title>
+  <style>
+    :root {
+      --bg: #0b1220; --panel: #111827; --text: #e5e7eb;
+      --muted: #9ca3af; --accent: #6366f1; --bad: #ef4444;
+      --good: #10b981; --warn: #f59e0b; --border: #1f2937;
+    }
+    body {
+      width: 380px; min-height: 480px; margin: 0;
+      background: var(--bg); color: var(--text);
+      font: 13px/1.4 -apple-system, "SF Pro", system-ui, sans-serif;
+    }
+    header {
+      padding: 12px 14px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
+    }
+    header h1 { margin: 0; font-size: 14px; font-weight: 700; }
+    header .pill {
+      margin-left: auto; padding: 2px 8px; border-radius: 8px;
+      background: rgba(99,102,241,0.15); color: #a5b4fc;
+      font-size: 10px;
+    }
+    main { padding: 12px 14px; }
+    .field { margin-bottom: 10px; }
+    label { display: block; color: var(--muted); font-size: 11px;
+            margin-bottom: 4px; }
+    input {
+      width: 100%; box-sizing: border-box; padding: 7px 9px;
+      background: var(--panel); color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      font-family: ui-monospace, monospace; font-size: 11px;
+    }
+    .btn {
+      display: inline-block; padding: 7px 12px;
+      background: var(--accent); color: #fff; border: none;
+      border-radius: 6px; cursor: pointer; font-weight: 600;
+      font-size: 12px;
+    }
+    .btn.secondary { background: var(--panel); color: var(--text);
+                     border: 1px solid var(--border); }
+    .btn:hover { filter: brightness(1.15); }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px; margin: 10px 0;
+    }
+    .stat {
+      display: flex; align-items: baseline; gap: 8px;
+      margin-bottom: 6px;
+    }
+    .stat .v { font-size: 20px; font-weight: 700; }
+    .stat .l { color: var(--muted); font-size: 11px; }
+    .stat.bad .v { color: var(--bad); }
+    .stat.warn .v { color: var(--warn); }
+    .stat.good .v { color: var(--good); }
+    .empty { color: var(--muted); font-style: italic; padding: 12px 0; }
+    pre {
+      background: var(--bg); padding: 8px; border-radius: 5px;
+      font-size: 10px; overflow: auto; max-height: 140px;
+    }
+    .footer {
+      padding: 8px 14px; border-top: 1px solid var(--border);
+      color: var(--muted); font-size: 10px; text-align: center;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>🛡 SafeCadence</h1>
+  <span class="pill" id="version">v7.1.0</span>
+</header>
+
+<main>
+  <!-- Setup view: shown when host or token is missing -->
+  <div id="setup">
+    <div class="field">
+      <label>SafeCadence host</label>
+      <input id="host" placeholder="http://localhost:8765"
+             value="http://localhost:8765" />
+    </div>
+    <div class="field">
+      <label>Bearer token</label>
+      <input id="token" type="password" placeholder="paste JWT here" />
+    </div>
+    <div class="row">
+      <button class="btn" id="connect">Connect</button>
+      <button class="btn secondary" id="testHealth">Test /api/health</button>
+    </div>
+  </div>
+
+  <!-- Quick view: shown when connected -->
+  <div id="quick" class="hidden">
+    <div class="card" id="card-status"><div class="empty">⏳</div></div>
+
+    <div class="row">
+      <button class="btn" data-action="open-ui">Open full UI</button>
+      <button class="btn secondary" data-action="briefing">Briefing</button>
+      <button class="btn secondary" data-action="drift">Drift</button>
+      <button class="btn secondary" data-action="audit">Audit</button>
+    </div>
+
+    <div class="card" id="card-action">
+      <label>Quick command (read-only intent)</label>
+      <input id="intent" placeholder="e.g. check version on cisco routers" />
+      <div style="margin-top:6px">
+        <button class="btn" id="planBtn">Plan</button>
+        <button class="btn secondary" id="forgetBtn">Disconnect</button>
+      </div>
+      <pre id="planOut" class="hidden"></pre>
+    </div>
+  </div>
+</main>
+
+<div class="footer">
+  Local-only — data never leaves your device. Source:
+  github.com/famousleads/safecadence-network-risk
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>

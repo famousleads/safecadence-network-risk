@@ -1,0 +1,148 @@
+# Cisco IOS — Risky / unnecessary services
+---
+- id: cisco-ios-tcp-small-servers
+  title: TCP small servers enabled (echo / discard / chargen)
+  severity: medium
+  vendor: cisco-ios
+  domain: security
+  description: |
+    TCP small servers expose echo/chargen which are commonly used in
+    UDP/TCP amplification attacks. Disabled by default in modern IOS,
+    but explicitly enabled here.
+  remediation: |
+    Disable both small-servers families.
+  fix_snippet: |
+    no service tcp-small-servers
+    no service udp-small-servers
+  references:
+    - https://www.cisco.com/c/en/us/support/docs/ip/access-lists/13608-21.html
+  match_regex:
+    - "(?im)^\\s*service\\s+(tcp|udp)-small-servers\\s*$"
+
+- id: cisco-ios-finger-enabled
+  title: Finger service enabled
+  severity: medium
+  vendor: cisco-ios
+  domain: security
+  description: |
+    The finger service exposes logged-in user information remotely.
+    It is obsolete and unnecessary.
+  remediation: |
+    Disable finger / IP finger.
+  fix_snippet: |
+    no service finger
+    no ip finger
+  references:
+    - https://www.cisco.com/c/en/us/support/docs/ip/access-lists/13608-21.html
+  match_regex:
+    - "(?im)^\\s*(service\\s+finger|ip\\s+finger)\\s*$"
+
+- id: cisco-ios-ip-source-route
+  title: IP source routing enabled
+  severity: high
+  vendor: cisco-ios
+  domain: security
+  description: |
+    Source-routed packets let attackers steer traffic through
+    arbitrary intermediate hops, bypassing routing policy and
+    enabling reflection attacks.
+  remediation: |
+    Disable IP source routing globally.
+  fix_snippet: |
+    no ip source-route
+  references:
+    - https://www.cisco.com/c/en/us/support/docs/ip/access-lists/13608-21.html
+  absent_regex:
+    - "(?im)^\\s*no\\s+ip\\s+source-route\\s*$"
+
+- id: cisco-ios-proxy-arp
+  title: Proxy ARP enabled (default-on)
+  severity: low
+  vendor: cisco-ios
+  domain: security
+  description: |
+    Proxy ARP can be abused for MITM and ARP-spoofing escalation.
+    It is on by default for IOS interfaces unless explicitly disabled.
+  remediation: |
+    Disable proxy ARP on every L3 interface.
+  fix_snippet: |
+    interface GigabitEthernet0/0
+     no ip proxy-arp
+  references:
+    - https://www.cisco.com/c/en/us/support/docs/ip/dynamic-address-allocation-resolution/13718-5.html
+  absent_regex:
+    - "(?im)^\\s*no\\s+ip\\s+proxy-arp\\s*$"
+
+- id: cisco-ios-icmp-redirects
+  title: ICMP redirects allowed
+  severity: low
+  vendor: cisco-ios
+  domain: security
+  description: |
+    ICMP redirects can be used by attackers to alter routing tables
+    on connected hosts.
+  remediation: |
+    Disable IP redirects on user-facing interfaces.
+  fix_snippet: |
+    interface GigabitEthernet0/0
+     no ip redirects
+  references:
+    - https://www.cisco.com/c/en/us/support/docs/ip/access-lists/13608-21.html
+  absent_regex:
+    - "(?im)^\\s*no\\s+ip\\s+redirects\\s*$"
+
+- id: cisco-ios-bootp-server
+  title: BOOTP / IP BOOTP server enabled
+  severity: low
+  vendor: cisco-ios
+  domain: security
+  description: |
+    Legacy BOOTP service should be disabled if not actively used.
+  remediation: |
+    Disable IP BOOTP server.
+  fix_snippet: |
+    no ip bootp server
+  references:
+    - https://www.cisco.com/c/en/us/support/docs/ip/access-lists/13608-21.html
+  absent_regex:
+    - "(?im)^\\s*no\\s+ip\\s+bootp\\s+server\\s*$"
+
+- id: cisco-ios-no-vty-timeout
+  title: VTY exec-timeout missing or set too high
+  severity: low
+  vendor: cisco-ios
+  domain: security
+  description: |
+    Without an exec-timeout, abandoned management sessions can be
+    hijacked.
+  remediation: |
+    Set exec-timeout to no more than 10 minutes on VTY and console.
+  fix_snippet: |
+    line vty 0 15
+     exec-timeout 10 0
+    line con 0
+     exec-timeout 10 0
+  references:
+    - https://www.cisco.com/c/en/us/support/docs/ios-nx-os-software/ios-software-releases-122-mainline/15068-aaa-http.html
+  custom: |
+    not bool(re.search(r"(?im)^line\s+vty[\s\S]{0,400}?exec-timeout\s+[1-9]\b", text))
+
+- id: cisco-ios-no-management-vrf
+  title: No management VRF in use
+  severity: low
+  vendor: cisco-ios
+  domain: security
+  description: |
+    Putting SNMP / SSH / TACACS into a dedicated management VRF
+    isolates them from data-plane reachability.
+  remediation: |
+    Move all management protocols into the Mgmt-vrf or a custom VRF.
+  fix_snippet: |
+    vrf definition Mgmt-vrf
+     address-family ipv4
+    interface GigabitEthernet0/0
+     vrf forwarding Mgmt-vrf
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/iproute_pi/configuration/15-mt/iri-15-mt-book.html
+  absent_regex:
+    - "(?im)vrf\\s+definition\\s+\\S+"

@@ -1,0 +1,15 @@
+policy_id: tmpl_router_switch_baseline
+policy_name: Router & Switch Baseline
+description: Hardening profile for routers and switches.
+target_asset_types: [network]
+severity: high
+compliance_frameworks: [nist-800-53, cis]
+enforcement_mode: warn
+controls:
+  - control_id: disable_telnet
+  - control_id: enforce_ssh_v2
+  - control_id: require_aaa
+  - control_id: enforce_snmpv3
+  - control_id: enable_syslog
+  - control_id: enable_ntp
+  - control_id: restrict_management_access

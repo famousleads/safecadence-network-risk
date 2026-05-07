@@ -1,0 +1,30 @@
+---
+- os: aos-cx
+  version_prefix: "10.4"
+  end_of_sale:     "2021-04-30"
+  end_of_software: "2022-04-30"
+  end_of_support:  "2025-04-30"
+
+- os: aos-cx
+  version_prefix: "10.6"
+  end_of_sale:     "2022-04-30"
+  end_of_software: "2023-04-30"
+  end_of_support:  "2026-04-30"
+
+- os: aos-cx
+  version_prefix: "10.8"
+  end_of_sale:     "2023-04-30"
+  end_of_software: "2024-04-30"
+  end_of_support:  "2027-04-30"
+
+- os: aos-cx
+  version_prefix: "10.10"
+  end_of_sale:     ""
+  end_of_software: "2025-04-30"
+  end_of_support:  "2028-04-30"
+
+- os: aos-cx
+  version_prefix: "10.13"
+  end_of_sale:     ""
+  end_of_software: "2027-04-30"
+  end_of_support:  "2030-04-30"

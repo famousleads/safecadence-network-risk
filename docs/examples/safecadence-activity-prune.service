@@ -1,0 +1,22 @@
+# SafeCadence activity log pruner — systemd alternative to logrotate
+# v9.53 — drop into /etc/systemd/system/safecadence-activity-prune.service
+#
+# Use this when logrotate isn't available (containers, minimal
+# distros). Pair with the .timer unit so it runs daily.
+#
+# enable + start with:
+#   sudo systemctl enable --now safecadence-activity-prune.timer
+
+[Unit]
+Description=SafeCadence — prune activity logs older than 90 days
+Documentation=https://github.com/safecadence/network-risk
+
+[Service]
+Type=oneshot
+User=safecadence
+Group=safecadence
+# Keep 90 days. Tune to match your audit retention policy.
+ExecStart=/usr/bin/find /opt/safecadence/data/activity/ \
+    -name "*.jsonl" -type f -mtime +90 -delete
+# Best-effort — exit 0 even on missing directory (fresh install case)
+ExecStartPost=/bin/true

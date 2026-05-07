@@ -1,0 +1,123 @@
+---
+- id: palo-alto-panos-default-admin
+  title: Default admin / "admin" account in use
+  severity: critical
+  vendor: palo-alto-panos
+  domain: security
+  description: |
+    The default `admin` user is configured. Default credentials are
+    universally targeted by automated scanners.
+  remediation: |
+    Rename and rotate; integrate Panorama / RADIUS / SAML for SSO.
+  fix_snippet: |
+    set mgt-config users netops-svc1 permissions role-based superuser yes
+    set mgt-config users netops-svc1 password
+    delete mgt-config users admin
+  references:
+    - https://docs.paloaltonetworks.com/pan-os
+  match_regex:
+    - "(?im)^\\s*set\\s+mgt-config\\s+users\\s+admin\\b"
+
+- id: palo-alto-panos-no-mgmt-trusted-host
+  title: Management interface allows access from any source
+  severity: high
+  vendor: palo-alto-panos
+  domain: security
+  description: |
+    No `permitted-ip` restrictions on the management interface.
+  remediation: |
+    Restrict management to specific source IPs via permitted-ip.
+  fix_snippet: |
+    set deviceconfig system permitted-ip 10.99.0.0/24
+  references:
+    - https://docs.paloaltonetworks.com/pan-os
+  absent_regex:
+    - "(?im)set\\s+deviceconfig\\s+system\\s+permitted-ip\\s+\\S+"
+
+- id: palo-alto-panos-snmp-default-community
+  title: SNMP default community present
+  severity: critical
+  vendor: palo-alto-panos
+  domain: security
+  description: |
+    Default SNMP community ("public" / "private") configured.
+  remediation: |
+    Migrate to SNMPv3 with auth + privacy.
+  fix_snippet: |
+    set deviceconfig system snmp-setting access-setting version v3
+  match_regex:
+    - "(?im)snmp-community-string\\s+(public|private)\\b"
+
+- id: palo-alto-panos-no-syslog-server
+  title: No remote syslog server configured
+  severity: medium
+  vendor: palo-alto-panos
+  domain: security
+  description: |
+    No `set log-settings syslog` server configured.
+  remediation: |
+    Forward all logs to a SIEM.
+  fix_snippet: |
+    set shared log-settings syslog SIEM server 10.99.0.10 transport TCP port 514
+  absent_regex:
+    - "(?im)log-settings\\s+syslog\\s+\\S+\\s+server"
+
+- id: palo-alto-panos-no-ntp
+  title: No NTP server configured
+  severity: medium
+  vendor: palo-alto-panos
+  domain: security
+  description: |
+    No primary NTP server in deviceconfig.
+  remediation: |
+    Configure two NTP servers, ideally with auth-key.
+  fix_snippet: |
+    set deviceconfig system ntp-servers primary-ntp-server ntp-server-address 10.99.0.5
+    set deviceconfig system ntp-servers secondary-ntp-server ntp-server-address 10.99.0.6
+  absent_regex:
+    - "(?im)ntp-server-address\\s+\\S+"
+
+- id: palo-alto-panos-permit-any-any
+  title: Security rule allows any source / any destination / any application
+  severity: high
+  vendor: palo-alto-panos
+  domain: security
+  description: |
+    A security rule with source any / destination any / application any
+    + action allow effectively passes everything.
+  remediation: |
+    Replace with App-ID + User-ID + zone-scoped rules.
+  fix_snippet: |
+    set rulebase security rules ALLOW-WEB action allow application web-browsing
+    set rulebase security rules ALLOW-WEB source-user "domain\\users"
+  custom: |
+    bool(re.search(r"(?ims)set\s+rulebase\s+security\s+rules\s+\S+[\s\S]{0,500}?from\s+any[\s\S]{0,300}?to\s+any[\s\S]{0,300}?application\s+any[\s\S]{0,300}?action\s+allow", text))
+
+- id: palo-alto-panos-no-threat-prevention
+  title: No threat-prevention profile applied
+  severity: high
+  vendor: palo-alto-panos
+  domain: security
+  description: |
+    No security rule references a threat-prevention / vulnerability /
+    anti-spyware / wildfire profile-group.
+  remediation: |
+    Apply at minimum a baseline profile-group to internet-bound rules.
+  fix_snippet: |
+    set rulebase security rules ALLOW-WEB profile-setting group default
+  absent_regex:
+    - "(?im)profile-(setting|group)|vulnerability|anti-spyware|wildfire-analysis"
+
+- id: palo-alto-panos-no-2fa
+  title: No 2FA / SAML / MFA configured for admin access
+  severity: high
+  vendor: palo-alto-panos
+  domain: security
+  description: |
+    Admin authentication uses local password only.
+  remediation: |
+    Configure SAML / RADIUS with MFA for admin login.
+  fix_snippet: |
+    set authentication-profile MFA method saml
+  absent_regex:
+    - "(?im)authentication-profile\\s+\\S+\\s+method\\s+(saml|radius|tacplus)"

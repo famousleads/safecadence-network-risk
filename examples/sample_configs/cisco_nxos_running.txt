@@ -1,0 +1,43 @@
+!Command: show running-config
+!Time: Fri Apr 24 14:33:21 2026
+
+version 9.3(8)
+hostname DC-LEAF-01
+
+feature telnet
+no feature ssh
+
+username admin password 5 $1$abcdef$xxxxxxxxxxxxxxxxxxxx role network-admin
+
+snmp-server community public group network-operator
+snmp-server community private group network-admin
+snmp-server community netmon-rw rw
+
+vlan 1,10,20,30
+vrf context management
+  ip route 0.0.0.0/0 10.99.0.1
+
+interface mgmt0
+  vrf member management
+  ip address 10.99.0.10/24
+
+interface Ethernet1/1
+  description SERVER-1
+  switchport access vlan 10
+  no shutdown
+
+interface Ethernet1/2
+  description SERVER-2
+  switchport access vlan 20
+  no shutdown
+
+interface Ethernet1/48
+  description UPLINK
+  switchport mode trunk
+  no shutdown
+
+vpc domain 10
+  peer-keepalive destination 10.99.0.11
+
+line vty
+end

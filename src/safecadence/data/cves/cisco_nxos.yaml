@@ -1,0 +1,32 @@
+---
+- cve_id: CVE-2024-20399
+  severity: medium
+  cvss: 6.0
+  os: nxos
+  affects: "<10.4"
+  fixed_in: "10.4(2)F or later"
+  title: "NX-OS CLI command injection (Velvet Ant APT)"
+  description: |
+    A vulnerability in the CLI of Cisco NX-OS Software allows an
+    authenticated, local attacker with admin privileges to execute
+    arbitrary commands on the underlying OS. Exploited by China-nexus
+    Velvet Ant group.
+  references:
+    - https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-nxos-cmd-injection-xD9OhyOP
+  published: "2024-07-01"
+  kev: true
+
+- cve_id: CVE-2018-0104
+  severity: high
+  cvss: 8.6
+  os: nxos
+  affects: "<7.3"
+  fixed_in: "7.3(3)D1 or later"
+  title: "NX-OS bash shell privilege escalation"
+  description: |
+    A vulnerability in the bash shell implementation of Cisco NX-OS
+    Software could allow an authenticated, local attacker to escape
+    bash and gain elevated privileges.
+  references:
+    - https://tools.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-20180328-nxos
+  published: "2018-03-28"

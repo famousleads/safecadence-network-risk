@@ -1,0 +1,34 @@
+---
+- cve_id: CVE-2024-3400
+  severity: critical
+  cvss: 10.0
+  os: panos
+  affects: ">=10.2,<11.1.2"
+  fixed_in: "11.1.2-h3, 11.0.4-h1, 10.2.9-h1"
+  title: "GlobalProtect command injection (pre-auth RCE)"
+  description: |
+    A command-injection vulnerability in GlobalProtect feature allows
+    unauthenticated remote attackers to execute arbitrary code with
+    root privileges. Mass-exploited; CISA KEV.
+  workaround: |
+    Disable telemetry features; apply threat-prevention sig 95187.
+  references:
+    - https://security.paloaltonetworks.com/CVE-2024-3400
+  published: "2024-04-12"
+  kev: true
+
+- cve_id: CVE-2024-0012
+  severity: critical
+  cvss: 9.8
+  os: panos
+  affects: ">=10.2,<11.2.4"
+  fixed_in: "11.2.4-h1, 11.1.5-h1, 11.0.6-h1, 10.2.12-h2"
+  title: "PAN-OS web management interface auth bypass"
+  description: |
+    An authentication bypass in the Palo Alto Networks PAN-OS web
+    management interface allows attackers to obtain administrator
+    privileges remotely.
+  references:
+    - https://security.paloaltonetworks.com/CVE-2024-0012
+  published: "2024-11-18"
+  kev: true

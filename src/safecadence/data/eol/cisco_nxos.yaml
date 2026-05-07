@@ -1,0 +1,36 @@
+---
+- os: nxos
+  version_prefix: "6.0"
+  end_of_sale:     "2017-04-30"
+  end_of_software: "2019-04-30"
+  end_of_support:  "2022-04-30"
+
+- os: nxos
+  version_prefix: "7.0"
+  end_of_sale:     "2018-12-30"
+  end_of_software: "2020-12-30"
+  end_of_support:  "2023-12-30"
+
+- os: nxos
+  version_prefix: "7.3"
+  end_of_sale:     "2020-12-31"
+  end_of_software: "2022-12-31"
+  end_of_support:  "2025-12-31"
+
+- os: nxos
+  version_prefix: "9.2"
+  end_of_sale:     "2022-04-30"
+  end_of_software: "2024-04-30"
+  end_of_support:  "2027-04-30"
+
+- os: nxos
+  version_prefix: "9.3"
+  end_of_sale:     ""
+  end_of_software: "2026-08-31"
+  end_of_support:  "2029-08-31"
+
+- os: nxos
+  version_prefix: "10.2"
+  end_of_sale:     ""
+  end_of_software: "2027-12-31"
+  end_of_support:  "2030-12-31"

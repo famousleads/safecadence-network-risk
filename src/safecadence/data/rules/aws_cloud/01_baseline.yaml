@@ -1,0 +1,104 @@
+---
+- id: aws-cloud-sg-permit-ssh-public
+  title: Security group exposes SSH (22) to 0.0.0.0/0
+  severity: critical
+  vendor: aws-cloud
+  domain: security
+  description: |
+    A security-group ingress rule allows tcp/22 from anywhere on the internet.
+  remediation: |
+    Restrict source to bastion / corporate IP range and require SSO/MFA.
+  fix_snippet: |
+    aws ec2 revoke-security-group-ingress --group-id sg-xxxx \\
+      --protocol tcp --port 22 --cidr 0.0.0.0/0
+  match_regex:
+    - '(?ims)"FromPort":\s*22[\s\S]{0,300}?"CidrIp":\s*"0\.0\.0\.0/0"'
+
+- id: aws-cloud-sg-permit-rdp-public
+  title: Security group exposes RDP (3389) to 0.0.0.0/0
+  severity: critical
+  vendor: aws-cloud
+  domain: security
+  match_regex:
+    - '(?ims)"FromPort":\s*3389[\s\S]{0,300}?"CidrIp":\s*"0\.0\.0\.0/0"'
+
+- id: aws-cloud-s3-bucket-public
+  title: S3 bucket policy / ACL allows public access
+  severity: critical
+  vendor: aws-cloud
+  domain: security
+  description: |
+    Bucket policy contains `"Principal": "*"` or ACL grant to AllUsers.
+  remediation: |
+    Enable Block Public Access at the account + bucket level.
+  fix_snippet: |
+    aws s3api put-public-access-block --bucket BUCKET --public-access-block-configuration \\
+      "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+  match_regex:
+    - '(?ims)"Principal":\s*"\*"'
+    - '(?im)acs\.amazonaws\.com/groups/global/AllUsers'
+
+- id: aws-cloud-s3-no-encryption
+  title: S3 bucket without default encryption
+  severity: high
+  vendor: aws-cloud
+  domain: security
+  match_regex:
+    - '(?im)ServerSideEncryptionConfiguration[^\n]*not configured'
+
+- id: aws-cloud-iam-root-access-key
+  title: IAM root account has access keys
+  severity: critical
+  vendor: aws-cloud
+  domain: security
+  description: |
+    Root account access keys should never exist; use IAM users with MFA + SSO.
+  remediation: |
+    Delete root keys via the AWS console → My Security Credentials.
+  match_regex:
+    - '(?im)"UserName":\s*"<root_account>"[\s\S]{0,200}?"AccessKeyId"'
+
+- id: aws-cloud-iam-mfa-not-enforced
+  title: IAM users without MFA
+  severity: high
+  vendor: aws-cloud
+  domain: security
+  match_regex:
+    - '(?im)"MFADevices":\s*\[\s*\]'
+
+- id: aws-cloud-cloudtrail-not-enabled
+  title: CloudTrail not enabled / multi-region
+  severity: high
+  vendor: aws-cloud
+  domain: security
+  description: |
+    `aws cloudtrail describe-trails` returns no IsMultiRegionTrail=true.
+  remediation: |
+    Create a multi-region trail logging to a dedicated S3 bucket with
+    log file validation.
+  absent_regex:
+    - '(?im)"IsMultiRegionTrail":\s*true'
+
+- id: aws-cloud-no-config-recorder
+  title: AWS Config not recording all resources
+  severity: medium
+  vendor: aws-cloud
+  domain: security
+  absent_regex:
+    - '(?im)"recordingGroup":\s*\{[^\}]*"allSupported":\s*true'
+
+- id: aws-cloud-kms-rotation-disabled
+  title: Customer-managed KMS key rotation disabled
+  severity: medium
+  vendor: aws-cloud
+  domain: security
+  match_regex:
+    - '(?im)"KeyRotationEnabled":\s*false'
+
+- id: aws-cloud-rds-publicly-accessible
+  title: RDS instance publicly accessible
+  severity: critical
+  vendor: aws-cloud
+  domain: security
+  match_regex:
+    - '(?im)"PubliclyAccessible":\s*true'

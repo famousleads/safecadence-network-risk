@@ -1,0 +1,33 @@
+! Software image version: 4.28.3M
+! device: SPINE-01 (DCS-7050SX-72Q, EOS-4.28.3M)
+
+hostname SPINE-01
+
+username admin privilege 15 secret 0 admin123
+
+management telnet
+
+snmp-server community public ro
+snmp-server community private rw
+snmp-server community netro ro
+
+management api http-commands
+   protocol http
+   no shutdown
+
+vlan 10
+   name USERS
+
+interface Ethernet1
+   description LEAF-01
+   switchport mode trunk
+
+interface Ethernet2
+   description LEAF-02
+   switchport mode trunk
+
+interface Management1
+   ip address 10.99.0.30/24
+
+ip routing
+end

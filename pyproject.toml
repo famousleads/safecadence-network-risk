@@ -1,0 +1,114 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "safecadence-netrisk"
+version = "10.0.1"
+description = "Free, open-source infrastructure + identity platform — 45 adapters (40 infra + 5 identity), 22 controls, 16 multi-vendor translators, AI policy intelligence, attack-path graph, KEV+EPSS-prioritized CVEs, cross-system drift detection, local-first, BYO-AI, never executes."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+keywords = ["network", "security", "audit", "cisco", "aruba", "arista", "firewall", "cve", "compliance", "infrastructure"]
+authors = [
+    {name = "SafeCadence", email = "hello@safecadence.com"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: System :: Networking",
+    "Topic :: System :: Networking :: Monitoring",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = [
+    "rich>=13.0",
+    "click>=8.1",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+ai = [
+    "httpx>=0.25",
+]
+ssh = [
+    "paramiko>=3.0",
+]
+vault = [
+    "cryptography>=42.0",
+]
+server = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "sqlalchemy>=2.0",
+    "psycopg2-binary>=2.9",
+    "bcrypt>=4.0",
+    "python-jose[cryptography]>=3.3",
+    "python-multipart>=0.0.9",
+    "cryptography>=42.0",
+    # httpx is needed for the local UI's AI deep-analyze + playbook features
+    # (BYOK calls go directly from the local server to the LLM provider).
+    # Including it here means `pip install 'safecadence-netrisk[server]'` is
+    # enough — no need to also install [ai] for typical UI workflows.
+    "httpx>=0.25",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1",
+    "mypy>=1.0",
+]
+all = [
+    "safecadence-network-risk[ai,ssh,vault,server,dev]",
+]
+
+[project.scripts]
+safecadence = "safecadence.cli:cli"
+
+[project.urls]
+Homepage = "https://safecadence.com/"
+Repository = "https://github.com/safecadence/network-risk"
+Documentation = "https://github.com/safecadence/network-risk#readme"
+Issues = "https://github.com/safecadence/network-risk/issues"
+Changelog = "https://github.com/safecadence/network-risk/blob/main/CHANGELOG.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/safecadence"]
+
+# YAML rule packs / CVE / EOL data live under src/safecadence/data and are
+# included automatically by `packages`. No force-include needed.
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/safecadence/**",
+    "tests/**",
+    "examples/**",
+    "docs/**",
+    "README.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "Makefile",
+    "pyproject.toml",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --strict-markers"

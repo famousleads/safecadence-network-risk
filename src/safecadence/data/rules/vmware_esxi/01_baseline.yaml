@@ -1,0 +1,105 @@
+---
+- id: vmware-esxi-shell-enabled
+  title: ESXi Shell service enabled
+  severity: high
+  vendor: vmware-esxi
+  domain: security
+  description: |
+    The ESXi Shell allows local shell access — increases attack surface;
+    should be disabled in production.
+  remediation: |
+    `esxcli system settings advanced set -o /UserVars/SuppressShellWarning -i 0`
+    Then in the host UI: Configure → System → Services → ESXi Shell → Stop.
+  match_regex:
+    - "(?im)Service\\s+TSM(-SSH)?\\s+is\\s+running\\s*$"
+
+- id: vmware-esxi-ssh-enabled-permanently
+  title: SSH service set to start with host
+  severity: high
+  vendor: vmware-esxi
+  domain: security
+  description: |
+    SSH should only be enabled on demand (`Policy: on`), never permanently.
+  remediation: |
+    Set policy to `off` and start SSH only for active troubleshooting.
+  fix_snippet: |
+    esxcli system service set --enabled false --service TSM-SSH
+  match_regex:
+    - "(?im)TSM-SSH[\\s\\S]{0,200}?Policy\\s*:\\s*on\\b"
+
+- id: vmware-esxi-lockdown-mode-disabled
+  title: Lockdown mode disabled
+  severity: high
+  vendor: vmware-esxi
+  domain: security
+  description: |
+    Without lockdown mode, all UI/API access permitted; vCenter SSO
+    enforcement is bypassed.
+  remediation: |
+    Enable Normal lockdown mode in Configure → Security Profile.
+  match_regex:
+    - "(?im)Lockdown\\s+Mode\\s*[:=]\\s*Disabled"
+
+- id: vmware-esxi-default-password
+  title: Default root password unchanged (advisory check)
+  severity: critical
+  vendor: vmware-esxi
+  domain: security
+  description: |
+    Look for evidence of default credential pattern in the config dump.
+  remediation: |
+    Change root password and rotate via Active Directory + lockdown mode.
+  match_regex:
+    - "(?im)root.*VMware1!"
+
+- id: vmware-esxi-old-version
+  title: ESXi version is end-of-support
+  severity: high
+  vendor: vmware-esxi
+  domain: security
+  description: |
+    `esxcli system version get` reports a version older than 7.0 — likely
+    past Broadcom/VMware support.
+  remediation: |
+    Plan upgrade path to 8.0 U3 or later.
+  match_regex:
+    - "(?im)Version:\\s*(5|6)\\."
+
+- id: vmware-esxi-firewall-disabled
+  title: ESXi firewall disabled
+  severity: high
+  vendor: vmware-esxi
+  domain: security
+  description: |
+    `esxcli network firewall get` shows Enabled: false.
+  remediation: |
+    `esxcli network firewall set --enabled true`
+  match_regex:
+    - "(?im)Firewall\\s+(Status|Enabled)\\s*[:=]\\s*(false|disabled)"
+
+- id: vmware-esxi-snmp-v1v2c
+  title: ESXi SNMPv1 / v2c configured
+  severity: high
+  vendor: vmware-esxi
+  domain: security
+  description: |
+    `esxcli system snmp get` shows community-string-based config.
+  remediation: |
+    Migrate to SNMPv3 with auth/priv users.
+  match_regex:
+    - "(?im)Communities\\s*:\\s*(public|private)"
+
+- id: vmware-esxi-vib-acceptance-community
+  title: ESXi VIB acceptance level allows community-supported VIBs
+  severity: medium
+  vendor: vmware-esxi
+  domain: security
+  description: |
+    Allows installation of unsigned community-supported VIBs (potential
+    rootkits like VirtualPita / VirtualPie).
+  remediation: |
+    Set acceptance level to `PartnerSupported` minimum.
+  fix_snippet: |
+    esxcli software acceptance set --level=PartnerSupported
+  match_regex:
+    - "(?im)Host\\s+Acceptance\\s+Level\\s*:\\s*CommunitySupported"

@@ -1,0 +1,31 @@
+---
+- cve_id: CVE-2024-23390
+  severity: high
+  cvss: 7.5
+  os: eos
+  affects: "<4.31"
+  fixed_in: "4.31.2F or later"
+  title: "Arista EOS eAPI authentication bypass via crafted requests"
+  description: |
+    A vulnerability in the eAPI HTTP server of Arista EOS could allow an
+    attacker on the management network to bypass authentication checks
+    when specific request patterns are sent.
+  workaround: |
+    Disable HTTP and force HTTPS on management api http-commands.
+  references:
+    - https://www.arista.com/en/support/advisories-notices
+  published: "2024-02-12"
+
+- cve_id: CVE-2023-24507
+  severity: medium
+  cvss: 5.5
+  os: eos
+  affects: "<4.29"
+  fixed_in: "4.29.2F or later"
+  title: "EOS BGP processing leak"
+  description: |
+    A flaw in BGP route-leak protection can cause unintended advertisement
+    of internal prefixes under specific peer configurations.
+  references:
+    - https://www.arista.com/en/support/advisories-notices
+  published: "2023-04-05"

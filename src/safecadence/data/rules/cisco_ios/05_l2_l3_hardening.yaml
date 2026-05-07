@@ -1,0 +1,140 @@
+# Cisco IOS — L2 / L3 hardening
+---
+- id: cisco-ios-cdp-globally-enabled
+  title: CDP globally enabled
+  severity: low
+  vendor: cisco-ios
+  domain: security
+  description: |
+    CDP discloses model, OS version, native VLAN, and adjacent-device
+    data to anyone on a connected segment. Disable on edge / customer
+    interfaces at minimum.
+  remediation: |
+    Globally disable CDP, or scope to inter-switch links only.
+  fix_snippet: |
+    no cdp run
+  references:
+    - https://www.cisco.com/c/en/us/support/docs/ip/access-lists/13608-21.html
+  absent_regex:
+    - "(?im)^\\s*no\\s+cdp\\s+run\\s*$"
+
+- id: cisco-ios-spanning-tree-no-bpduguard
+  title: BPDU Guard not globally enabled
+  severity: medium
+  vendor: cisco-ios
+  domain: availability
+  description: |
+    Without BPDU Guard, an attacker plugging in a rogue switch can
+    advertise a superior BPDU and become root bridge — disrupting the
+    L2 topology or enabling traffic interception.
+  remediation: |
+    Enable BPDU Guard globally on all PortFast-enabled access ports.
+  fix_snippet: |
+    spanning-tree portfast bpduguard default
+  references:
+    - https://www.cisco.com/c/en/us/support/docs/lan-switching/spanning-tree-protocol/10586-65.html
+  absent_regex:
+    - "(?im)^\\s*spanning-tree\\s+portfast\\s+bpduguard\\s+default"
+
+- id: cisco-ios-no-storm-control
+  title: Storm-control not configured on access ports
+  severity: low
+  vendor: cisco-ios
+  domain: availability
+  description: |
+    Without storm-control, a single misbehaving NIC or loop can flood
+    the broadcast domain and degrade the entire VLAN.
+  remediation: |
+    Apply broadcast/multicast storm-control thresholds on access ports.
+  fix_snippet: |
+    interface range GigabitEthernet1/0/1 - 48
+     storm-control broadcast level 1.00
+     storm-control multicast level 1.00
+     storm-control action shutdown
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/16-12/configuration_guide/sec/b_1612_sec_9300_cg/configuring_storm_control.html
+  absent_regex:
+    - "(?im)^\\s*storm-control\\s+(broadcast|multicast)\\s+level"
+
+- id: cisco-ios-no-dhcp-snooping
+  title: DHCP snooping not enabled
+  severity: medium
+  vendor: cisco-ios
+  domain: security
+  description: |
+    Without DHCP snooping, rogue DHCP servers can hand out malicious
+    gateway / DNS values and intercept traffic (full MITM).
+  remediation: |
+    Enable DHCP snooping on user VLANs and trust uplinks only.
+  fix_snippet: |
+    ip dhcp snooping
+    ip dhcp snooping vlan 10,20,30
+    interface GigabitEthernet1/0/48
+     ip dhcp snooping trust
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/16-12/configuration_guide/sec/b_1612_sec_9300_cg/configuring_dhcp_snooping.html
+  absent_regex:
+    - "(?im)^\\s*ip\\s+dhcp\\s+snooping\\s*$"
+
+- id: cisco-ios-default-vlan-1-in-use
+  title: VLAN 1 in active use on access ports
+  severity: low
+  vendor: cisco-ios
+  domain: security
+  description: |
+    VLAN 1 is the IOS default and is widely used by control protocols
+    (CDP, VTP, PAgP, DTP). Carrying user traffic in VLAN 1 enables
+    VLAN-hopping attacks.
+  remediation: |
+    Move user traffic out of VLAN 1; use a dedicated, unused VLAN as
+    the native VLAN on trunks.
+  fix_snippet: |
+    interface range GigabitEthernet1/0/1 - 24
+     switchport mode access
+     switchport access vlan 100
+  references:
+    - https://www.cisco.com/c/en/us/support/docs/lan-switching/8021q/17056-741-4.html
+  match_regex:
+    - "(?im)^\\s*switchport\\s+access\\s+vlan\\s+1\\s*$"
+
+- id: cisco-ios-trunk-on-access-port
+  title: Dynamic Trunking Protocol (DTP) negotiation enabled
+  severity: medium
+  vendor: cisco-ios
+  domain: security
+  description: |
+    Ports left in `dynamic auto` or `dynamic desirable` mode let an
+    attacker negotiate a trunk and access additional VLANs.
+  remediation: |
+    Hard-code access ports as `switchport mode access` and disable
+    DTP with `switchport nonegotiate`.
+  fix_snippet: |
+    interface range GigabitEthernet1/0/1 - 24
+     switchport mode access
+     switchport nonegotiate
+  references:
+    - https://www.cisco.com/c/en/us/support/docs/lan-switching/8021q/17056-741-4.html
+  match_regex:
+    - "(?im)^\\s*switchport\\s+mode\\s+dynamic\\s+(auto|desirable)"
+
+- id: cisco-ios-routing-no-auth
+  title: Routing protocol authentication missing
+  severity: high
+  vendor: cisco-ios
+  domain: security
+  description: |
+    Routing protocols (OSPF, EIGRP, BGP) are configured without
+    authentication. Adjacent attackers can inject routes to perform
+    blackhole or MITM attacks.
+  remediation: |
+    Enable HMAC-SHA256 (OSPF) / MD5+key-chain (EIGRP) / TCP-AO or
+    MD5 (BGP) authentication on all neighbor adjacencies.
+  fix_snippet: |
+    router ospf 1
+     area 0 authentication message-digest
+    interface GigabitEthernet0/0
+     ip ospf message-digest-key 1 md5 <strong-key>
+  references:
+    - https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/iproute_ospf/configuration/15-mt/iro-15-mt-book.html
+  custom: |
+    bool(re.search(r"(?im)^\s*router\s+(ospf|eigrp|bgp)\b", text)) and not bool(re.search(r"(?im)(message-digest|authentication-key|authentication\s+mode\s+md5|key-chain|tcp-ao|neighbor\s+\S+\s+password)", text))

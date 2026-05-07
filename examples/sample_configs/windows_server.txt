@@ -1,0 +1,46 @@
+==== Get-ComputerInfo (excerpt) ====
+WindowsBuildLabEx        : 17763.5458.amd64fre.rs5_release.180914-1434
+WindowsCurrentVersion    : 6.3
+WindowsEditionId         : ServerStandard
+WindowsInstallationType  : Server
+WindowsProductName       : Windows Server 2012 R2 Standard
+WindowsRegisteredOwner   : ITOPS
+WindowsVersion           : 6.3
+OsBuildNumber            : 9600
+CsName                   : DC-WIN-01
+
+==== Get-SmbServerConfiguration ====
+EnableSMB1Protocol            : True
+EnableSMB2Protocol            : True
+EncryptData                   : False
+RequireSecuritySignature      : False
+
+==== Get-NetFirewallProfile ====
+Name : Domain
+Enabled : False
+Name : Private
+Enabled : True
+Name : Public
+Enabled : False
+
+==== Get-LocalUser ====
+Name           : Administrator
+Enabled        : True
+PasswordLastSet : 2024-04-12
+Name           : Guest
+Enabled        : True
+
+==== HKLM:\\System\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp ====
+UserAuthentication : 0
+
+==== Get-Service WinDefend ====
+Name : WinDefend
+Status : Stopped
+
+==== Get-Service RemoteRegistry ====
+Name : RemoteRegistry
+Status : Running
+
+==== Get-BitLockerVolume C: ====
+MountPoint : C:
+VolumeStatus : FullyDecrypted

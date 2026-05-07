@@ -1,0 +1,24 @@
+# SafeCadence activity log rotation
+# v9.53 — drop into /etc/logrotate.d/safecadence-activity
+#
+# The v9.47 activity middleware writes one JSONL file per UTC day to
+# $SC_DATA_DIR/activity/YYYY-MM-DD.jsonl. Without rotation, that
+# directory grows unbounded.
+#
+# This config keeps 90 days of activity logs and gzips anything older
+# than 7 days. Adjust `rotate` to match your audit retention policy.
+# 90 days is a reasonable default for SOC2 + ISO27001; PCI-DSS
+# typically wants 12 months.
+
+/opt/safecadence/data/activity/*.jsonl {
+    daily
+    rotate 90
+    compress
+    delaycompress
+    missingok
+    notifempty
+    nocreate
+    su safecadence safecadence
+    # No postrotate hook needed — the application appends, never holds
+    # an open fd across day boundaries (one file per UTC day).
+}

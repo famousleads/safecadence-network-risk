@@ -1,0 +1,96 @@
+# ─── Python build artifacts ──────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+build/
+dist/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+.venv/
+venv/
+env/
+
+# ─── Node / Next.js (webui scaffold) ─────────────────────────────────────
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+out/
+**/out/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+.npm/
+.pnpm-store/
+.yarn/
+yarn-error.log
+npm-debug.log*
+yarn-debug.log*
+
+# ─── Secrets — NEVER commit ──────────────────────────────────────────────
+safecadence-users.yaml
+safecadence-users.yaml.salt
+*.vault
+*.vault.salt
+*.pem
+*.key
+*.jwt_secret
+.env
+.env.*
+!.env.example
+~/.safecadence/
+
+# ─── PyPI publishing ─────────────────────────────────────────────────────
+pypi-token.txt
+*.pypi-token
+.pypi-token
+PyPI-Recovery-Codes-*.txt
+release-v*.sh
+WORDPRESS-PYPI-UPDATE.md
+
+# ─── Local runtime / data ────────────────────────────────────────────────
+dashboard.html
+api-dashboard.html
+*.db
+*.sqlite
+*.sqlite3
+.history/
+*.log
+logs/
+tmp/
+temp/
+
+# ─── Backups & swap files ────────────────────────────────────────────────
+*.bak
+*.backup
+*.old
+*.orig
+*.swp
+*.swo
+*~
+
+# ─── OS cruft ────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ─── Editor / IDE ────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/

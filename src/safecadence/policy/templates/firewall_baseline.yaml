@@ -1,0 +1,25 @@
+policy_id: tmpl_firewall_baseline
+policy_name: Firewall Baseline
+description: |
+  Baseline for perimeter and internal firewalls: explicit-deny default,
+  encrypted management, central log forwarding, no insecure crypto, no
+  default credentials.
+target_asset_types: [network]
+scope:
+  vendor: [fortinet, palo-alto, cisco]
+severity: high
+compliance_frameworks: [nist-800-53, cis, pci-dss]
+enforcement_mode: warn
+controls:
+  - control_id: enforce_ssh_v2
+    severity: high
+  - control_id: block_insecure_crypto
+    severity: high
+  - control_id: enable_syslog
+    severity: high
+  - control_id: enable_ntp
+    severity: low
+  - control_id: restrict_management_access
+    severity: critical
+  - control_id: restrict_default_creds
+    severity: critical

@@ -1,0 +1,150 @@
+---
+- id: linux-server-ssh-permitrootlogin-yes
+  title: SSH PermitRootLogin yes
+  severity: high
+  vendor: linux-server
+  domain: security
+  description: |
+    sshd_config allows direct root login. Combined with weak passwords or
+    leaked keys this hands an attacker full system control.
+  remediation: |
+    Set `PermitRootLogin no` (or `prohibit-password`) and use sudo for elevation.
+  fix_snippet: |
+    sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+    systemctl restart sshd
+  references:
+    - https://man.openbsd.org/sshd_config
+  match_regex:
+    - "(?im)^\\s*PermitRootLogin\\s+yes\\s*$"
+
+- id: linux-server-ssh-passwordauthentication-yes
+  title: SSH PasswordAuthentication enabled
+  severity: medium
+  vendor: linux-server
+  domain: security
+  description: |
+    Password-based SSH allows brute-force attacks. Prefer key-based auth.
+  remediation: |
+    Disable password auth and enforce keys (or KbdInteractive + MFA).
+  fix_snippet: |
+    sed -i 's/^#?\\s*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+    systemctl restart sshd
+  match_regex:
+    - "(?im)^\\s*PasswordAuthentication\\s+yes\\s*$"
+
+- id: linux-server-ssh-protocol-1
+  title: SSH protocol version 1 allowed
+  severity: high
+  vendor: linux-server
+  domain: security
+  description: |
+    SSHv1 has known cryptographic weaknesses.
+  remediation: |
+    Force `Protocol 2` (default in modern OpenSSH).
+  fix_snippet: |
+    sed -i 's/^Protocol.*/Protocol 2/' /etc/ssh/sshd_config
+  match_regex:
+    - "(?im)^\\s*Protocol\\s+1\\b"
+
+- id: linux-server-no-firewall
+  title: No host firewall configured (iptables/nftables/firewalld)
+  severity: medium
+  vendor: linux-server
+  domain: security
+  description: |
+    No iptables/nftables rules saved and no firewalld service enabled.
+    The host depends entirely on upstream network filtering.
+  remediation: |
+    Enable firewalld (RHEL/CentOS) or nftables (Debian/Ubuntu) and apply
+    a default-deny baseline.
+  fix_snippet: |
+    systemctl enable --now firewalld           # RHEL family
+    # or
+    systemctl enable --now nftables            # Debian family
+  absent_regex:
+    - "(?im)\\*filter|firewalld\\.service\\s+enabled|nftables\\.service\\s+enabled"
+
+- id: linux-server-empty-root-password
+  title: Root account has empty password (/etc/shadow)
+  severity: critical
+  vendor: linux-server
+  domain: security
+  description: |
+    The root entry in /etc/shadow has an empty hash field — anyone with
+    local console access can become root.
+  remediation: |
+    `passwd -l root` to lock, or set a strong password.
+  fix_snippet: |
+    passwd -l root
+  match_regex:
+    - "(?im)^root::"
+
+- id: linux-server-no-fail2ban
+  title: No brute-force protection (fail2ban / sshguard)
+  severity: low
+  vendor: linux-server
+  domain: security
+  description: |
+    No fail2ban / sshguard service running — SSH is vulnerable to slow
+    brute-force.
+  remediation: |
+    Install + enable fail2ban with the sshd jail.
+  fix_snippet: |
+    apt install -y fail2ban && systemctl enable --now fail2ban
+  absent_regex:
+    - "(?im)\\bfail2ban|sshguard\\b"
+
+- id: linux-server-old-kernel
+  title: Kernel version may be outdated
+  severity: medium
+  vendor: linux-server
+  domain: security
+  description: |
+    `uname -a` reports a kernel older than 5.10. Modern security patches
+    require recent kernels.
+  remediation: |
+    `apt upgrade` / `dnf upgrade` and reboot.
+  custom: |
+    bool(re.search(r"(?im)Linux\s+\S+\s+(2\.|3\.|4\.[0-9]\.|5\.[0-9]\.)", text))
+
+- id: linux-server-no-selinux-apparmor
+  title: No mandatory access control (SELinux / AppArmor)
+  severity: medium
+  vendor: linux-server
+  domain: security
+  description: |
+    Neither SELinux nor AppArmor is enforcing. MAC dramatically reduces
+    blast radius of compromised services.
+  remediation: |
+    Enable SELinux in enforcing mode (RHEL) or AppArmor (Ubuntu/Debian).
+  absent_regex:
+    - "(?im)SELinux status:\\s+enabled|apparmor\\.service\\s+enabled"
+
+- id: linux-server-rsync-without-auth
+  title: rsync daemon running without auth
+  severity: high
+  vendor: linux-server
+  domain: security
+  description: |
+    `rsync --daemon` is enabled without an `auth users` directive in
+    rsyncd.conf — anyone can pull files.
+  remediation: |
+    Add `auth users = ...` and `secrets file = ...` per module.
+  custom: |
+    bool(re.search(r"(?im)rsync.*--daemon|rsyncd\.service\s+enabled", text)) and not bool(re.search(r"(?im)auth users\s*=", text))
+
+- id: linux-server-default-admin
+  title: Default admin / cloud-init user with sudo NOPASSWD
+  severity: high
+  vendor: linux-server
+  domain: security
+  description: |
+    `ubuntu`, `centos`, `ec2-user`, `admin`, `cloud-user` accounts shipped
+    with `NOPASSWD: ALL` sudoers — any compromise of that account = root.
+  remediation: |
+    Remove NOPASSWD or migrate to dedicated service accounts with restricted
+    sudo rules.
+  fix_snippet: |
+    sed -i '/NOPASSWD: ALL/d' /etc/sudoers /etc/sudoers.d/*
+  match_regex:
+    - "(?im)(ubuntu|centos|ec2-user|admin|cloud-user)\\s+ALL\\s*=\\s*\\(ALL\\).*NOPASSWD"

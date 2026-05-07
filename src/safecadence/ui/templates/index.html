@@ -1,0 +1,1991 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SafeCadence Local UI</title>
+<style>
+  *,*::before,*::after { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; background:#f8fafc; color:#0f172a; font-size:14px; line-height:1.5; }
+  a { color:#1d4ed8; text-decoration:none; } a:hover { text-decoration:underline; }
+  code,pre { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13px; }
+  button { font:inherit; cursor:pointer; border:1px solid #cbd5e1; background:#fff; color:#0f172a; padding:7px 14px; border-radius:8px; }
+  button.primary { background:linear-gradient(135deg,#0f172a,#1e3a8a); color:#fff; border-color:transparent; font-weight:600; }
+  button.danger { background:#dc2626; color:#fff; border-color:transparent; }
+  button:hover { opacity:.92; }
+  input[type=text],input[type=password],textarea,select { font:inherit; padding:8px 12px; border:1px solid #cbd5e1; border-radius:8px; width:100%; background:#fff; }
+  input:focus,textarea:focus,select:focus { outline:none; border-color:#1d4ed8; box-shadow:0 0 0 3px rgba(29,78,216,.15); }
+  textarea { min-height:120px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; }
+  /* Layout */
+  .app { display:grid; grid-template-columns:230px 1fr; min-height:100vh; }
+  nav { background:#0f172a; color:#cbd5e1; padding:16px 0; position:sticky; top:0; height:100vh; overflow-y:auto; }
+  nav .brand { padding:0 18px 12px; border-bottom:1px solid #1e293b; margin-bottom:14px; }
+  nav .brand-name { color:#fff; font-weight:700; font-size:14px; }
+  nav .brand-sub { color:#64748b; font-size:11px; }
+  nav .nav-link { display:block; padding:9px 18px; color:#cbd5e1; font-size:13px; border-left:3px solid transparent; cursor:pointer; user-select:none; }
+  nav .nav-link:hover { background:#1e293b; color:#fff; text-decoration:none; }
+  nav .nav-link.active { background:#1e293b; color:#fff; border-left-color:#38bdf8; }
+  nav .nav-section { font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#64748b; padding:14px 18px 6px; }
+  main { padding:24px 32px; max-width:1400px; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+  h1 { margin:0; font-size:22px; font-weight:700; }
+  h2 { margin:0 0 14px; font-size:16px; font-weight:600; }
+  h3 { margin:0 0 8px; font-size:14px; font-weight:600; color:#475569; }
+  .subtitle { color:#64748b; font-size:13px; margin-top:4px; }
+  /* KPI cards */
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin-bottom:24px; }
+  .kpi { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; }
+  .kpi .lbl { font-size:11px; text-transform:uppercase; color:#64748b; letter-spacing:.06em; }
+  .kpi .v { font-size:28px; font-weight:700; margin:4px 0 2px; }
+  .kpi .sub { font-size:12px; color:#64748b; }
+  .kpi.crit .v { color:#dc2626; }
+  .kpi.warn .v { color:#d97706; }
+  .kpi.ok .v { color:#16a34a; }
+  .kpi.info .v { color:#1d4ed8; }
+  /* Cards */
+  .card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px 24px; margin-bottom:18px; }
+  .card .card-actions { float:right; }
+  /* Tables */
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-weight:600; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.04em; padding:8px 10px; border-bottom:1px solid #e2e8f0; }
+  td { padding:9px 10px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
+  tr:hover td { background:#fafbfc; }
+  .sev { display:inline-block; padding:1px 7px; border-radius:4px; font-size:11px; font-weight:600; text-transform:uppercase; }
+  .sev.critical { background:#fee2e2; color:#991b1b; }
+  .sev.high { background:#fef3c7; color:#92400e; }
+  .sev.medium { background:#dbeafe; color:#1e40af; }
+  .sev.low { background:#e0e7ff; color:#3730a3; }
+  .sev.info { background:#f1f5f9; color:#475569; }
+  /* Drag-drop */
+  .drop { border:2px dashed #cbd5e1; border-radius:12px; padding:50px 30px; text-align:center; background:#fff; cursor:pointer; transition:.15s; }
+  .drop.over { border-color:#1d4ed8; background:#eff6ff; }
+  .drop .icon { font-size:36px; margin-bottom:8px; opacity:.6; }
+  .drop-sub { color:#64748b; font-size:12px; margin-top:6px; }
+  /* Inputs row */
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .row > * { flex:0 0 auto; }
+  .row .grow { flex:1 1 auto; min-width:200px; }
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  /* Toasts */
+  .toast { position:fixed; bottom:20px; right:20px; background:#0f172a; color:#fff; padding:12px 18px; border-radius:8px; font-size:13px; box-shadow:0 4px 14px rgba(0,0,0,.2); z-index:1000; opacity:0; transform:translateY(10px); transition:.2s; }
+  .toast.show { opacity:1; transform:translateY(0); }
+  .toast.error { background:#dc2626; }
+  .toast.ok { background:#16a34a; }
+  /* Loading */
+  .loading { display:inline-block; width:14px; height:14px; border:2px solid #e2e8f0; border-top-color:#1d4ed8; border-radius:50%; animation:spin .8s linear infinite; vertical-align:middle; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .empty { text-align:center; padding:40px 20px; color:#94a3b8; }
+  .empty .icon { font-size:32px; margin-bottom:8px; opacity:.5; }
+  /* Form group */
+  .field { margin-bottom:14px; }
+  .field label { display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:4px; text-transform:uppercase; letter-spacing:.04em; }
+  .help { font-size:11px; color:#64748b; margin-top:3px; }
+  .pill { display:inline-block; padding:2px 8px; background:#f1f5f9; color:#475569; border-radius:999px; font-size:11px; font-weight:500; }
+  pre.findings { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 16px; max-height:400px; overflow:auto; font-size:12px; line-height:1.5; }
+  .ai-output { background:#fefce8; border:1px solid #fde047; border-radius:8px; padding:16px 20px; line-height:1.6; white-space:pre-wrap; }
+  /* Score bar */
+  .scorebar { height:6px; background:#e2e8f0; border-radius:3px; overflow:hidden; margin:6px 0; }
+  .scorebar .fill { height:100%; background:linear-gradient(90deg,#16a34a,#65a30d,#d97706,#dc2626); transition:.3s; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ NAV ============ -->
+  <nav>
+    <div class="brand">
+      <div class="brand-name">SafeCadence</div>
+      <div class="brand-sub">Device Intelligence Platform · v5.0.0</div>
+    </div>
+    <div class="nav-section">Audit (v2)</div>
+    <a class="nav-link" data-tab="dashboard">Dashboard</a>
+    <a class="nav-link" data-tab="scan">Scan a config</a>
+    <a class="nav-link" data-tab="devices">Devices</a>
+    <a class="nav-link" data-tab="history">History</a>
+    <div class="nav-section">Discover</div>
+    <a class="nav-link" data-tab="discover">Subnet sweep</a>
+    <a class="nav-link" data-tab="saved-scans">Saved scans</a>
+    <a class="nav-link" data-tab="topology">Topology map</a>
+    <a class="nav-link" data-tab="assets">📌 Assets &amp; tags</a>
+    <div class="nav-section">Threat Intel</div>
+    <a class="nav-link" data-tab="cves">CVEs <span class="pill" id="kev-count">·</span></a>
+    <a class="nav-link" data-tab="eol">End-of-life</a>
+    <a class="nav-link" data-tab="threat-hunt">🎯 Threat hunting</a>
+    <div class="nav-section">AI</div>
+    <a class="nav-link" data-tab="chat">💬 Chat with fleet</a>
+    <a class="nav-link" data-tab="architect">🏛 AI architect</a>
+    <a class="nav-link" data-tab="ai">AI explainer</a>
+    <div class="nav-section">Reports</div>
+    <a class="nav-link" data-tab="compliance">📋 Compliance packs</a>
+    <div class="nav-section">Platform (v4) ★</div>
+    <a class="nav-link" data-tab="platform-overview">📊 Overview</a>
+    <a class="nav-link" data-tab="platform-inventory">📦 Inventory</a>
+    <a class="nav-link" data-tab="platform-servers">🖥 Servers</a>
+    <a class="nav-link" data-tab="platform-storage">💾 Storage</a>
+    <a class="nav-link" data-tab="platform-virt">🪄 Virtualization</a>
+    <a class="nav-link" data-tab="platform-network">🌐 Network</a>
+    <a class="nav-link" data-tab="platform-cloud">☁ Cloud</a>
+    <a class="nav-link" data-tab="platform-backup">🗄 Backup</a>
+    <a class="nav-link" data-tab="platform-reports">📈 Platform reports</a>
+    <div class="nav-section">Policy (v5) ★</div>
+    <a class="nav-link" data-tab="policy-builder">🛠 Builder</a>
+    <a class="nav-link" data-tab="policy-interpret">🤖 AI interpreter</a>
+    <a class="nav-link" data-tab="policy-compliance">✓ Compliance</a>
+    <a class="nav-link" data-tab="policy-drift">📉 Drift</a>
+    <a class="nav-link" data-tab="policy-remediation">🩹 Remediation</a>
+    <a class="nav-link" data-tab="policy-exceptions">⚖ Exceptions</a>
+    <a class="nav-link" data-tab="policy-audit">📜 Audit log</a>
+    <div class="nav-section">Tools</div>
+    <a class="nav-link" data-tab="vault">Vault</a>
+    <a class="nav-link" data-tab="rules">Rule library</a>
+    <a class="nav-link" data-tab="vendors">Vendors</a>
+    <a class="nav-link" data-tab="settings">Settings</a>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <main id="main">
+    <div class="empty"><div class="icon">⏳</div>Loading…</div>
+  </main>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+//=========================================================================
+// SafeCadence Local UI — vanilla JS, no build step, no CDN.
+//=========================================================================
+
+const API = (path) => fetch(path, {headers:{'Accept':'application/json'}}).then(async r => {
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}: ${await r.text()}`);
+  return r.json();
+});
+const POST = (path, body, isJson=true) => {
+  const opts = {method:'POST'};
+  if (isJson) {
+    opts.headers = {'Content-Type':'application/json'};
+    opts.body = JSON.stringify(body);
+  } else {
+    opts.body = body; // FormData
+  }
+  return fetch(path, opts).then(async r => {
+    if (!r.ok) throw new Error(`${r.status}: ${await r.text()}`);
+    return r.json();
+  });
+};
+
+const escape = (s) => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const fmtTime = (ts) => ts ? new Date(ts).toLocaleString() : '—';
+const fmtNum = (n) => (n == null) ? '—' : Number(n).toLocaleString();
+
+const toast = (msg, kind='ok') => {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast show ${kind}`;
+  setTimeout(() => t.classList.remove('show'), 3500);
+};
+
+const sevBadge = (sev) => `<span class="sev ${escape((sev||'').toLowerCase())}">${escape(sev || '?')}</span>`;
+
+const TABS = {};
+let CURRENT_TAB = null;
+
+function registerTab(name, render) { TABS[name] = render; }
+
+async function showTab(name) {
+  document.querySelectorAll('.nav-link').forEach(a => a.classList.toggle('active', a.dataset.tab === name));
+  CURRENT_TAB = name;
+  const main = document.getElementById('main');
+  main.innerHTML = '<div class="empty"><div class="loading"></div></div>';
+  try {
+    await TABS[name](main);
+  } catch (e) {
+    main.innerHTML = `<div class="card"><h2>Error</h2><pre style="color:#dc2626">${escape(e.message)}</pre></div>`;
+  }
+}
+
+document.querySelectorAll('.nav-link').forEach(a => a.addEventListener('click', () => showTab(a.dataset.tab)));
+
+//-------------------------------------------------------------------------
+// Tab: Dashboard
+//-------------------------------------------------------------------------
+registerTab('dashboard', async (main) => {
+  const data = await API('/api/dashboard.json');
+  const o = data.overview || {};
+  const devices = data.devices || [];
+  const totalFindings = devices.reduce((sum, d) => sum + (d.findings?.length || 0), 0);
+  const critFindings = devices.reduce((sum, d) =>
+    sum + (d.findings || []).filter(f => f.severity === 'critical').length, 0);
+  const avgHealth = devices.length ?
+    Math.round(devices.reduce((s,d)=>s+(d.health_score||0),0) / devices.length) : 0;
+  const avgRisk = devices.length ?
+    Math.round(devices.reduce((s,d)=>s+(d.risk_score||0),0) / devices.length) : 0;
+
+  main.innerHTML = `
+    <div class="topbar">
+      <div>
+        <h1>Fleet Dashboard</h1>
+        <div class="subtitle">${devices.length} devices scanned · last refresh: ${fmtTime(data.generated_at)}</div>
+      </div>
+      <div>
+        <button onclick="showTab('scan')" class="primary">+ Scan a config</button>
+        <a href="/api/dashboard.html" target="_blank"><button>Standalone HTML ↗</button></a>
+      </div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi info"><div class="lbl">Devices</div><div class="v">${fmtNum(devices.length)}</div><div class="sub">in fleet</div></div>
+      <div class="kpi crit"><div class="lbl">Critical findings</div><div class="v">${fmtNum(critFindings)}</div><div class="sub">across fleet</div></div>
+      <div class="kpi warn"><div class="lbl">Total findings</div><div class="v">${fmtNum(totalFindings)}</div><div class="sub">all severities</div></div>
+      <div class="kpi ok"><div class="lbl">Avg health</div><div class="v">${avgHealth}/100</div><div class="sub">higher = better</div></div>
+      <div class="kpi crit"><div class="lbl">Avg risk</div><div class="v">${avgRisk}/100</div><div class="sub">higher = worse</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Recent devices</h2>
+      ${devices.length ? `
+      <table>
+        <thead><tr><th>Hostname</th><th>Vendor / OS</th><th>Health</th><th>Risk</th><th>Findings</th><th>Last scan</th></tr></thead>
+        <tbody>
+          ${devices.slice(0, 10).map(d => `
+            <tr style="cursor:pointer" onclick="showDeviceDetail('${escape(d.hostname)}')">
+              <td><strong>${escape(d.hostname)}</strong></td>
+              <td>${escape(d.vendor || '?')} <span class="pill">${escape(d.os_version || '?')}</span></td>
+              <td>${d.health_score ?? '—'}</td>
+              <td>${d.risk_score ?? '—'}</td>
+              <td>${(d.findings || []).length}</td>
+              <td>${fmtTime(d.scanned_at)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      ` : `<div class="empty"><div class="icon">📂</div>No scans yet. Drag a config in the <a onclick="showTab('scan')" style="cursor:pointer">Scan</a> tab to get started.</div>`}
+    </div>
+  `;
+});
+
+window.showDeviceDetail = async (hostname) => {
+  showTab('devices');
+  setTimeout(() => {
+    const link = document.querySelector(`[data-device="${hostname}"]`);
+    if (link) link.click();
+  }, 200);
+};
+
+//-------------------------------------------------------------------------
+// Tab: Scan
+//-------------------------------------------------------------------------
+registerTab('scan', async (main) => {
+  main.innerHTML = `
+    <div class="topbar"><h1>Scan a config</h1></div>
+    <div class="card">
+      <div id="drop" class="drop">
+        <div class="icon">📁</div>
+        <div><strong>Drop config files here</strong> or click to choose</div>
+        <div class="drop-sub">Cisco IOS / NX-OS / ASA · Aruba CX · Arista EOS · Juniper · Palo Alto · Fortinet · Linux · Windows · ESXi · AWS / Azure / GCP</div>
+        <input type="file" id="file-input" multiple style="display:none">
+      </div>
+    </div>
+    <div id="scan-results"></div>
+  `;
+  const drop = document.getElementById('drop');
+  const fileInput = document.getElementById('file-input');
+  const results = document.getElementById('scan-results');
+
+  drop.addEventListener('click', () => fileInput.click());
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); handleFiles(e.dataTransfer.files); });
+  fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+  async function handleFiles(fileList) {
+    if (!fileList.length) return;
+    results.innerHTML = `<div class="card"><div class="loading"></div> Scanning ${fileList.length} file(s)…</div>`;
+    const fd = new FormData();
+    for (const f of fileList) fd.append('files', f);
+    try {
+      const data = await POST('/api/scan/bulk', fd, false);
+      toast(`Scanned ${data.count} file(s) successfully`, 'ok');
+      results.innerHTML = data.results.map(r => renderScanResult(r)).join('');
+    } catch (e) {
+      toast(e.message, 'error');
+      results.innerHTML = `<div class="card"><pre style="color:#dc2626">${escape(e.message)}</pre></div>`;
+    }
+  }
+});
+
+function renderScanResult(r) {
+  const findings = r.findings || [];
+  const groups = {critical:[], high:[], medium:[], low:[], info:[]};
+  for (const f of findings) (groups[f.severity?.toLowerCase()] || groups.info).push(f);
+  return `
+    <div class="card">
+      <div class="card-actions">
+        <a href="/api/dashboard.html" target="_blank"><button>Standalone HTML ↗</button></a>
+      </div>
+      <h2>${escape(r.hostname || 'unknown host')}
+        <span class="pill">${escape(r.vendor || '?')}</span>
+        <span class="pill">${escape(r.os_version || '?')}</span>
+      </h2>
+      <div class="grid-2" style="margin-bottom:16px">
+        <div>
+          <h3>Health · ${r.health_score ?? '—'}/100</h3>
+          <div class="scorebar"><div class="fill" style="width:${r.health_score || 0}%"></div></div>
+        </div>
+        <div>
+          <h3>Risk · ${r.risk_score ?? '—'}/100</h3>
+          <div class="scorebar"><div class="fill" style="width:${r.risk_score || 0}%"></div></div>
+        </div>
+      </div>
+      <h3>${findings.length} finding${findings.length===1?'':'s'}</h3>
+      ${['critical','high','medium','low','info'].map(sev => {
+        const list = groups[sev];
+        if (!list.length) return '';
+        return `<details ${sev==='critical'||sev==='high'?'open':''} style="margin:8px 0">
+          <summary style="cursor:pointer; font-weight:600; padding:6px 0">${sevBadge(sev)} ${list.length} ${sev}</summary>
+          ${list.map(f => `
+            <div style="margin:8px 0 8px 18px; padding:10px 14px; background:#f8fafc; border-radius:6px; border-left:3px solid ${sev==='critical'?'#dc2626':sev==='high'?'#d97706':'#cbd5e1'}">
+              <div style="font-weight:600">${escape(f.title || f.id || '?')}</div>
+              ${f.description ? `<div style="margin:4px 0; font-size:13px; color:#475569">${escape(f.description)}</div>` : ''}
+              ${f.fix_snippet ? `<details style="margin-top:6px"><summary style="font-size:12px; color:#1d4ed8; cursor:pointer">Show fix snippet</summary><pre style="margin:6px 0 0; padding:10px; background:#0f172a; color:#e2e8f0; border-radius:6px; overflow:auto">${escape(f.fix_snippet)}</pre></details>` : ''}
+              ${f.tags ? `<div style="margin-top:6px">${(f.tags || []).map(t => `<span class="pill">${escape(t)}</span>`).join(' ')}</div>` : ''}
+            </div>
+          `).join('')}
+        </details>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+//-------------------------------------------------------------------------
+// Tab: Devices
+//-------------------------------------------------------------------------
+registerTab('devices', async (main) => {
+  const devices = await API('/api/devices');
+  main.innerHTML = `
+    <div class="topbar"><h1>Devices</h1><div>${devices.length} in fleet</div></div>
+    <div class="card">
+      ${devices.length ? `
+      <table>
+        <thead><tr><th>Hostname</th><th>Vendor / OS</th><th>Health</th><th>Risk</th><th>Findings</th><th>Last scan</th></tr></thead>
+        <tbody>
+          ${devices.map(d => `
+            <tr data-device="${escape(d.hostname)}" style="cursor:pointer" onclick="showDeviceDetailModal('${escape(d.hostname)}')">
+              <td><strong>${escape(d.hostname)}</strong></td>
+              <td>${escape(d.vendor || '?')} <span class="pill">${escape(d.os_version || '?')}</span></td>
+              <td>${d.health_score ?? '—'}</td>
+              <td>${d.risk_score ?? '—'}</td>
+              <td>${(d.findings_count != null) ? d.findings_count : ((d.findings || []).length)}</td>
+              <td>${fmtTime(d.scanned_at)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>` : `<div class="empty"><div class="icon">📂</div>No devices. Run a scan first.</div>`}
+    </div>
+    <div id="device-detail"></div>
+  `;
+});
+
+window.showDeviceDetailModal = async (hostname) => {
+  const detail = document.getElementById('device-detail');
+  detail.innerHTML = `<div class="card"><div class="loading"></div></div>`;
+  try {
+    const d = await API(`/api/devices/${encodeURIComponent(hostname)}`);
+    detail.innerHTML = renderScanResult(d);
+    detail.scrollIntoView({behavior:'smooth'});
+  } catch (e) {
+    detail.innerHTML = `<div class="card"><pre style="color:#dc2626">${escape(e.message)}</pre></div>`;
+  }
+};
+
+//-------------------------------------------------------------------------
+// Tab: History
+//-------------------------------------------------------------------------
+registerTab('history', async (main) => {
+  const scans = await API('/api/scans');
+  main.innerHTML = `
+    <div class="topbar"><h1>Scan History</h1><div>${scans.length} recent</div></div>
+    <div class="card">
+      ${scans.length ? `
+      <table>
+        <thead><tr><th>When</th><th>Host</th><th>Vendor</th><th>Findings</th><th>Health</th><th>Risk</th><th>ID</th></tr></thead>
+        <tbody>${scans.map(s => `
+          <tr>
+            <td>${fmtTime(s.scanned_at || s.created_at)}</td>
+            <td><strong>${escape(s.hostname || '?')}</strong></td>
+            <td>${escape(s.vendor || '?')}</td>
+            <td>${s.findings_count ?? (s.findings || []).length}</td>
+            <td>${s.health_score ?? '—'}</td>
+            <td>${s.risk_score ?? '—'}</td>
+            <td><code>${escape((s.id || '').substring(0,8))}</code></td>
+          </tr>
+        `).join('')}</tbody>
+      </table>` : `<div class="empty"><div class="icon">⏱️</div>No scans yet.</div>`}
+    </div>
+  `;
+});
+
+//-------------------------------------------------------------------------
+// Tab: Discover
+//-------------------------------------------------------------------------
+// ----- localStorage cache for discover results so they survive reloads + tab switches
+const DISCOVER_CACHE_KEY = 'sc_last_discover';
+const saveDiscoverCache = (data) => {
+  try { localStorage.setItem(DISCOVER_CACHE_KEY, JSON.stringify({ts: Date.now(), data})); } catch (e) {}
+};
+const loadDiscoverCache = () => {
+  try {
+    const raw = localStorage.getItem(DISCOVER_CACHE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) { return null; }
+};
+const clearDiscoverCache = () => localStorage.removeItem(DISCOVER_CACHE_KEY);
+
+registerTab('discover', async (main) => {
+  // Restore last discover from cache, if any, so user doesn't lose state on tab switch
+  const cached = loadDiscoverCache();
+  const lastCidr = cached ? cached.data.cidr : '192.168.1.0/24';
+  const lastMode = cached ? cached.data.mode : 'lan_deep';
+  if (cached) window.__lastDiscover = cached.data;
+
+  main.innerHTML = `
+    <div class="topbar"><h1>Subnet sweep</h1></div>
+    <div class="card">
+      <div class="grid-2">
+        <div class="field">
+          <label>CIDR to scan</label>
+          <input type="text" id="cidr" value="${escape(lastCidr)}" placeholder="192.168.1.0/24">
+          <div class="help">Use your own LAN — e.g. <code>192.168.4.0/24</code> if your router is .4.1</div>
+        </div>
+        <div class="field">
+          <label>Scan mode</label>
+          <select id="mode">
+            <option value="lan_deep" ${lastMode==='lan_deep'?'selected':''}>LAN deep — ARP + mDNS + extended ports + TLS/HTTP fingerprint (recommended)</option>
+            <option value="extended" ${lastMode==='extended'?'selected':''}>Extended — 27 TCP ports, no ARP/mDNS</option>
+            <option value="quick" ${lastMode==='quick'?'selected':''}>Quick — 8 common ports (fastest, fewest results)</option>
+          </select>
+          <div class="help">LAN deep finds devices that don't open any TCP ports (printers asleep, IoT, sleeping phones) by reading your ARP cache + listening for Bonjour announcements.</div>
+        </div>
+      </div>
+      <div class="row">
+        <button class="primary" id="run-discover">Discover</button>
+        ${cached ? `<button id="clear-discover" style="margin-left:10px">🗑 Clear cached results</button>
+                    <span style="color:#64748b; font-size:12px; margin-left:8px">Showing cached results from ${new Date(cached.ts).toLocaleString()} — click Discover to re-scan.</span>` : ''}
+      </div>
+    </div>
+    <div id="discover-results"></div>
+    <div id="host-detail"></div>
+    <div id="ai-modal"></div>
+  `;
+
+  // If we have cached results, render them immediately
+  if (cached) {
+    renderDiscoverResults(cached.data);
+  }
+
+  if (cached) {
+    document.getElementById('clear-discover').addEventListener('click', () => {
+      clearDiscoverCache();
+      window.__lastDiscover = null;
+      showTab('discover');  // re-render
+    });
+  }
+  document.getElementById('run-discover').addEventListener('click', async () => {
+    const cidr = document.getElementById('cidr').value.trim();
+    const mode = document.getElementById('mode').value;
+    if (!cidr) return toast('Enter a CIDR', 'error');
+    const out = document.getElementById('discover-results');
+    out.innerHTML = `<div class="card"><div class="loading"></div> Scanning ${escape(cidr)} in <strong>${escape(mode)}</strong> mode… (deep mode takes ~10–60s for a /24)</div>`;
+    try {
+      const data = await POST('/api/discover', {cidr, mode});
+      window.__lastDiscover = data;
+      saveDiscoverCache(data);  // Persist for survival across reloads / tab switches
+      renderDiscoverResults(data);
+    } catch (e) {
+      out.innerHTML = `<div class="card"><pre style="color:#dc2626">${escape(e.message)}</pre></div>`;
+    }
+  });
+});
+
+// Extracted renderer so cache restore + fresh scan use the same code path
+function renderDiscoverResults(data) {
+  const out = document.getElementById('discover-results');
+  if (!out) return;
+  const dt = data.duration_ms ? ` · ${(data.duration_ms/1000).toFixed(1)}s` : '';
+      const summary = data.summary || {};
+      const bands = summary.by_risk_band || {};
+      const cats = summary.by_category || {};
+
+      const bandPill = (band, count) => count > 0 ?
+        `<span class="band band-${band}" style="margin-right:6px">${count} ${band}</span>` : '';
+      const catChips = Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,8)
+        .map(([c,n]) => `<span class="pill">${escape(c)}: ${n}</span>`).join(' ');
+
+      const cveSummary = (data.summary && data.summary.cves) || {};
+      out.innerHTML = `
+        <div class="card">
+          <div class="card-actions">
+            <button id="dl-mgmt-report" class="primary">📊 Management report</button>
+            <button id="dl-report">📥 Inventory report</button>
+            <button onclick="exportFleetCSV()">📊 CSV export</button>
+          </div>
+          <h2>${data.count} host${data.count===1?'':'s'} found in ${escape(data.cidr)} <span class="pill">${escape(data.mode||'')}${dt}</span></h2>
+
+          <div style="margin:14px 0 18px">
+            <div style="margin-bottom:8px"><strong>Risk distribution:</strong>
+              ${bandPill('critical', bands.critical || 0)}
+              ${bandPill('high', bands.high || 0)}
+              ${bandPill('medium', bands.medium || 0)}
+              ${bandPill('low', bands.low || 0)}
+              ${bandPill('safe', bands.safe || 0)}
+            </div>
+            ${cveSummary.total_cves ? `<div style="margin-bottom:8px"><strong>CVE matches:</strong> <span class="pill" style="background:#fee2e2; color:#991b1b">${cveSummary.total_cves} total</span> ${cveSummary.kev_cves ? `<span class="pill" style="background:#dc2626; color:#fff">${cveSummary.kev_cves} KEV</span>` : ''} across ${cveSummary.devices_with_cves} device${cveSummary.devices_with_cves===1?'':'s'}</div>` : ''}
+            <div><strong>Device categories:</strong> ${catChips}</div>
+          </div>
+
+          <table>
+            <thead><tr><th>Risk</th><th>IP</th><th>Hostname</th><th>Vendor</th><th>Category</th><th>Ports</th><th>CVEs</th><th>AI</th></tr></thead>
+            <tbody>${data.results.map((r, idx) => {
+              const ports = (r.open_ports || []).map(p => `<span class="pill">${p}</span>`).join(' ') || '—';
+              const cveCount = (r.cves || []).length;
+              const kevCount = (r.cves || []).filter(c => c.kev).length;
+              const cveCell = cveCount ?
+                `<span class="pill" style="background:#fee2e2; color:#991b1b">${cveCount}</span>${kevCount ? ` <span class="pill" style="background:#dc2626; color:#fff">${kevCount} KEV</span>` : ''}` :
+                '<span style="color:#94a3b8">—</span>';
+              return `<tr style="cursor:pointer">
+                <td onclick="showHostDetail(${idx})"><span class="band band-${escape(r.risk_band || 'safe')}">${r.risk_score || 0}</span></td>
+                <td onclick="showHostDetail(${idx})"><code>${escape(r.ip)}</code></td>
+                <td onclick="showHostDetail(${idx})">${escape(r.hostname || '—')}</td>
+                <td onclick="showHostDetail(${idx})">${escape(r.vendor || '—')}</td>
+                <td onclick="showHostDetail(${idx})">${escape(r.category || '—')}</td>
+                <td onclick="showHostDetail(${idx})">${ports}</td>
+                <td onclick="showHostDetail(${idx})">${cveCell}</td>
+                <td onclick="event.stopPropagation(); aiAnalyze(${idx})" title="AI deep-analyze"><span style="color:#7c3aed; font-weight:600">🤖 →</span></td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table>
+          <div class="help" style="margin-top:14px">
+            Click any row for full findings, recommended actions, and matched CVEs. Click <strong>🤖</strong> for AI deep-analysis (BYOK).
+            The <strong>Management report</strong> button generates a multi-section exec-grade HTML doc with charts, vulnerabilities, compliance mapping, and per-device cards — print to PDF via Cmd+P.
+          </div>
+        </div>
+        <div id="host-detail"></div>
+        <div id="ai-modal"></div>
+      `;
+
+      const downloadHtml = (html, kind) => {
+        const blob = new Blob([html], {type: 'text/html'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `safecadence-${kind}-${data.cidr.replace(/\//g,'_')}-${Date.now()}.html`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        toast(`${kind} downloaded — open it then Cmd+P → Save as PDF`, 'ok');
+      };
+
+      document.getElementById('dl-report').addEventListener('click', async () => {
+        try {
+          const r = await POST('/api/discover/report', window.__lastDiscover);
+          downloadHtml(r.html, 'inventory');
+        } catch (e) { toast(e.message, 'error'); }
+      });
+
+      document.getElementById('dl-mgmt-report').addEventListener('click', async () => {
+        try {
+          const org = prompt('Organization name for the report cover (optional):', '') || 'Your Organization';
+          const payload = {...window.__lastDiscover, organization: org};
+          const btn = document.getElementById('dl-mgmt-report');
+          const orig = btn.textContent;
+          btn.textContent = '⏳ Generating…';
+          btn.disabled = true;
+          const r = await POST('/api/discover/management-report', payload);
+          downloadHtml(r.html, 'management-report');
+          btn.textContent = orig;
+          btn.disabled = false;
+        } catch (e) {
+          toast(e.message, 'error');
+          document.getElementById('dl-mgmt-report').textContent = '📊 Management report (exec-grade)';
+          document.getElementById('dl-mgmt-report').disabled = false;
+        }
+      });
+}
+
+window.showHostDetail = (idx) => {
+  const r = (window.__lastDiscover || {}).results?.[idx];
+  if (!r) return;
+  const detail = document.getElementById('host-detail');
+  if (!detail) return;
+  const findings = (r.findings || []).map(f => `<li>${escape(f)}</li>`).join('') || '<li style="color:#94a3b8">No findings — this device passes the heuristic checks.</li>';
+  const actions = (r.recommended_actions || []).map(a => `<li>${escape(a)}</li>`).join('') || '<li style="color:#94a3b8">No recommended actions.</li>';
+  const banners = (r.banners && Object.keys(r.banners).length) ?
+    `<table style="margin-top:8px"><thead><tr><th>Port</th><th>Banner / Service</th></tr></thead><tbody>${
+      Object.entries(r.banners).map(([p,b]) => `<tr><td><code>${escape(p)}</code></td><td style="font-family:ui-monospace,monospace; font-size:11px">${escape(b)}</td></tr>`).join('')
+    }</tbody></table>` : '';
+  const cves = r.cves || [];
+  const cvesHtml = cves.length ? `
+    <h3 style="margin-top:18px">Matched CVEs (${cves.length})</h3>
+    <table style="margin-top:8px">
+      <thead><tr><th>CVE</th><th>CVSS</th><th>Sev</th><th>KEV</th><th>Title</th><th>Fix</th></tr></thead>
+      <tbody>${cves.map(c => `<tr>
+        <td><a href="https://nvd.nist.gov/vuln/detail/${escape(c.cve_id)}" target="_blank"><strong>${escape(c.cve_id)}</strong></a></td>
+        <td>${c.cvss || '—'}</td>
+        <td>${sevBadge(c.severity)}</td>
+        <td>${c.kev ? '<span class="sev critical">KEV</span>' : '—'}</td>
+        <td style="font-size:12px">${escape(c.title || '')}</td>
+        <td style="font-size:11px">${escape(c.fixed_in || '—')}</td>
+      </tr>`).join('')}</tbody>
+    </table>` : '';
+
+  detail.innerHTML = `
+    <div class="card">
+      <div class="card-actions">
+        <button onclick="aiAnalyze(${idx})" style="background:#7c3aed; color:#fff; border-color:transparent; font-weight:600">🤖 AI deep-analyze</button>
+        <button onclick="generatePlaybook(${idx})">📋 Generate playbook</button>
+        <span class="band band-${escape(r.risk_band)}" style="margin-left:8px">${escape(r.risk_band.toUpperCase())} · ${r.risk_score}/100</span>
+      </div>
+      <h2><code>${escape(r.ip)}</code> · ${escape(r.hostname || 'unnamed')}</h2>
+      <div style="color:#64748b; font-size:13px; margin-bottom:14px">
+        ${escape(r.vendor || 'unknown vendor')} · ${escape(r.category || 'uncategorized')} · MAC <code>${escape(r.mac || 'unknown')}</code>
+        ${r.snmp_sysdescr ? `<div style="margin-top:6px; font-size:12px"><strong>SNMP sysDescr:</strong> <code style="font-size:11px">${escape(r.snmp_sysdescr.substring(0,250))}</code></div>` : ''}
+      </div>
+      <div class="grid-2">
+        <div>
+          <h3>Security findings</h3>
+          <ul>${findings}</ul>
+        </div>
+        <div>
+          <h3>Recommended actions</h3>
+          <ul>${actions}</ul>
+        </div>
+      </div>
+      ${cvesHtml}
+      ${banners ? `<h3 style="margin-top:18px">Service detail</h3>${banners}` : ''}
+    </div>`;
+  detail.scrollIntoView({behavior:'smooth', block:'start'});
+};
+
+// ----- AI credential helpers — uses localStorage so keys survive browser restart
+const AI_KEYS = {
+  provider: () => localStorage.getItem('sc_ai_provider') || 'openai',
+  apiKey:   () => localStorage.getItem('sc_ai_key') || '',
+  model:    () => localStorage.getItem('sc_ai_model') || '',
+  set: (provider, key, model) => {
+    localStorage.setItem('sc_ai_provider', provider);
+    localStorage.setItem('sc_ai_key', key);
+    localStorage.setItem('sc_ai_model', model || '');
+  },
+  clear: () => {
+    localStorage.removeItem('sc_ai_provider');
+    localStorage.removeItem('sc_ai_key');
+    localStorage.removeItem('sc_ai_model');
+  },
+};
+
+function _getAICreds() {
+  const provider = AI_KEYS.provider();
+  const key = AI_KEYS.apiKey();
+  const model = AI_KEYS.model();
+  if (!key && provider !== 'ollama') {
+    toast('No AI key configured. Open Settings → AI providers to add one.', 'error');
+    showTab('settings');
+    return null;
+  }
+  return {provider, api_key: key, model};
+}
+
+window.aiAnalyze = async (idx) => {
+  const r = (window.__lastDiscover || {}).results?.[idx];
+  if (!r) return;
+  const creds = _getAICreds();
+  if (!creds) return toast('AI cancelled', 'error');
+  const modal = document.getElementById('ai-modal');
+  modal.innerHTML = `<div class="card"><div class="loading"></div> AI analyzing ${escape(r.ip)} via ${escape(creds.provider)}…</div>`;
+  modal.scrollIntoView({behavior:'smooth'});
+  try {
+    const data = await POST('/api/discover/ai-analyze', {host: r, ...creds});
+    if (data.error) {
+      modal.innerHTML = `<div class="card"><pre style="color:#dc2626">${escape(data.error)}</pre></div>`;
+      return;
+    }
+    const id = data.identification || {};
+    const ta = data.threat_assessment || {};
+    const vulns = data.vulnerabilities || [];
+    const ras = data.recommended_actions || [];
+    const ci = data.compliance_impact || {};
+    modal.innerHTML = `
+      <div class="card">
+        <div class="card-actions"><button onclick="document.getElementById('ai-modal').innerHTML=''">✕ Close</button></div>
+        <h2>🤖 AI Analysis · <code>${escape(r.ip)}</code></h2>
+        <div style="background:#fefce8; border:1px solid #fde047; border-radius:8px; padding:14px 18px; margin:14px 0">
+          <strong>Summary:</strong> ${escape(data.summary || 'No summary returned')}
+        </div>
+        <div class="grid-2">
+          <div>
+            <h3>Identification (${escape(id.confidence || '?')} confidence)</h3>
+            <p><strong>Vendor:</strong> ${escape(id.vendor || '?')}<br>
+               <strong>Model:</strong> ${escape(id.model || 'unknown')}<br>
+               <strong>Role:</strong> ${escape(id.device_role || '?')}<br>
+               <em style="color:#64748b; font-size:12px">${escape(id.reasoning || '')}</em></p>
+          </div>
+          <div>
+            <h3>Threat assessment</h3>
+            <p><strong>Exposure:</strong> ${escape(ta.exposure || '?')}<br>
+               <strong>Criticality:</strong> ${escape(ta.criticality || '?')}</p>
+            <ul>${(ta.primary_concerns || []).map(c => `<li>${escape(c)}</li>`).join('') || '<li>None</li>'}</ul>
+          </div>
+        </div>
+        ${vulns.length ? `<h3 style="margin-top:18px">Vulnerabilities (validated)</h3>
+          <table><thead><tr><th>CVE</th><th>Why it applies</th><th>Exploitability</th></tr></thead><tbody>
+          ${vulns.map(v => `<tr>
+            <td><strong>${escape(v.cve_id || '?')}</strong></td>
+            <td>${escape(v.why_it_applies || '')}</td>
+            <td>${escape(v.exploitability || '?')}</td>
+          </tr>`).join('')}</tbody></table>` : ''}
+        <h3 style="margin-top:18px">Prioritized actions</h3>
+        <table><thead><tr><th>Priority</th><th>Action</th><th>Command</th><th>Effort</th></tr></thead><tbody>
+        ${(ras || []).map(a => `<tr>
+          <td><strong>${escape(a.priority || '?')}</strong></td>
+          <td>${escape(a.action || '')}</td>
+          <td>${a.command ? `<code style="font-size:11px">${escape(a.command)}</code>` : '<span style="color:#94a3b8">—</span>'}</td>
+          <td>${escape(a.estimated_effort || '?')}</td>
+        </tr>`).join('') || '<tr><td colspan="4" style="text-align:center; color:#94a3b8">No actions returned</td></tr>'}
+        </tbody></table>
+        ${(ci.affected_controls || []).length ? `<div style="margin-top:14px"><strong>Compliance impact:</strong> ${(ci.affected_controls || []).map(c => `<span class="pill">${escape(c)}</span>`).join(' ')}</div>` : ''}
+      </div>`;
+  } catch (e) {
+    modal.innerHTML = `<div class="card"><pre style="color:#dc2626">${escape(e.message)}</pre></div>`;
+  }
+};
+
+window.generatePlaybook = async (idx) => {
+  const r = (window.__lastDiscover || {}).results?.[idx];
+  if (!r) return;
+  const creds = _getAICreds();
+  if (!creds) return;
+  const modal = document.getElementById('ai-modal');
+  modal.innerHTML = `<div class="card"><div class="loading"></div> Generating playbook for ${escape(r.ip)}…</div>`;
+  modal.scrollIntoView({behavior:'smooth'});
+  try {
+    const data = await POST('/api/discover/playbook', {host: r, ...creds});
+    modal.innerHTML = `
+      <div class="card">
+        <div class="card-actions">
+          <button onclick="navigator.clipboard.writeText(\`${data.markdown.replace(/`/g,'\\`')}\`); this.textContent='✓ Copied'">📋 Copy markdown</button>
+          <button onclick="document.getElementById('ai-modal').innerHTML=''">✕ Close</button>
+        </div>
+        <h2>📋 Remediation Playbook · <code>${escape(r.ip)}</code></h2>
+        <pre style="background:#0f172a; color:#e2e8f0; padding:18px 22px; border-radius:10px; overflow:auto; white-space:pre-wrap; font-size:12px; line-height:1.6">${escape(data.markdown)}</pre>
+      </div>`;
+  } catch (e) {
+    modal.innerHTML = `<div class="card"><pre style="color:#dc2626">${escape(e.message)}</pre></div>`;
+  }
+};
+
+//-------------------------------------------------------------------------
+// Tab: Saved Scans — load any historical discover from server
+//-------------------------------------------------------------------------
+registerTab('saved-scans', async (main) => {
+  const subnets = await API('/api/discover/subnets');
+  const recent = await API('/api/discover/saved?limit=50');
+
+  main.innerHTML = `
+    <div class="topbar"><h1>Saved Scans</h1><div>${recent.length} runs across ${subnets.length} subnet${subnets.length===1?'':'s'}</div></div>
+
+    <div class="card">
+      <h2>By subnet</h2>
+      ${subnets.length ? `<table>
+        <thead><tr><th>Subnet</th><th>Scans</th><th>Total hosts seen</th><th>Last scan</th><th></th></tr></thead>
+        <tbody>${subnets.map(s => `<tr>
+          <td><code>${escape(s.cidr)}</code></td>
+          <td>${s.run_count}</td>
+          <td>${s.total_hosts_seen || 0}</td>
+          <td style="font-size:12px; color:#64748b">${escape(s.last_scan)}</td>
+          <td><button onclick="document.getElementById('cidr-filter').value='${escape(s.cidr)}'; loadSavedRuns()">Filter ↓</button></td>
+        </tr>`).join('')}</tbody>
+      </table>` : '<div class="empty"><div class="icon">💾</div>No scans saved yet. Run a Subnet sweep first.</div>'}
+    </div>
+
+    <div class="card">
+      <h2>Recent runs</h2>
+      <div class="row" style="margin-bottom:12px">
+        <input type="text" id="cidr-filter" placeholder="Filter by subnet (e.g. 192.168.4.0/24)" class="grow">
+        <button onclick="loadSavedRuns()">Filter</button>
+        <button onclick="document.getElementById('cidr-filter').value=''; loadSavedRuns()">Show all</button>
+      </div>
+      <div id="saved-runs"></div>
+    </div>
+    <div id="diff-result"></div>
+  `;
+  window.loadSavedRuns();
+});
+
+window.loadSavedRuns = async () => {
+  const cidr = document.getElementById('cidr-filter').value.trim();
+  const url = `/api/discover/saved?limit=50${cidr ? '&cidr=' + encodeURIComponent(cidr) : ''}`;
+  const runs = await API(url);
+  const el = document.getElementById('saved-runs');
+  if (!runs.length) { el.innerHTML = '<div class="empty">No saved runs.</div>'; return; }
+  el.innerHTML = `<table>
+    <thead><tr><th>When</th><th>Subnet</th><th>Mode</th><th>Hosts</th><th>Critical</th><th>High</th><th>CVEs (KEV)</th><th>Actions</th></tr></thead>
+    <tbody>${runs.map(r => `<tr>
+      <td style="font-size:12px">${escape(r.created_at)}</td>
+      <td><code>${escape(r.cidr)}</code></td>
+      <td><span class="pill">${escape(r.mode)}</span></td>
+      <td>${r.host_count}</td>
+      <td>${r.risk_critical ? `<span class="band band-critical">${r.risk_critical}</span>` : '—'}</td>
+      <td>${r.risk_high ? `<span class="band band-high">${r.risk_high}</span>` : '—'}</td>
+      <td>${r.cve_count} ${r.kev_count ? `<span class="pill" style="background:#dc2626;color:#fff">${r.kev_count} KEV</span>` : ''}</td>
+      <td>
+        <button onclick="loadSavedRun(${r.id})">📂 Load</button>
+        <button onclick="markForDiff(${r.id})">⇄ Diff</button>
+        <button class="danger" onclick="deleteSavedRun(${r.id})">🗑</button>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+};
+
+window.loadSavedRun = async (id) => {
+  try {
+    const run = await API(`/api/discover/saved/${id}`);
+    window.__lastDiscover = run.payload;
+    saveDiscoverCache(run.payload);
+    toast(`Loaded run #${id} from ${run.created_at}`, 'ok');
+    showTab('discover');
+  } catch (e) { toast(e.message, 'error'); }
+};
+
+window.deleteSavedRun = async (id) => {
+  if (!confirm(`Delete saved run #${id}?`)) return;
+  try {
+    await fetch(`/api/discover/saved/${id}`, {method: 'DELETE'});
+    toast(`Deleted run #${id}`, 'ok');
+    showTab('saved-scans');
+  } catch (e) { toast(e.message, 'error'); }
+};
+
+window._diffOldId = null;
+window.markForDiff = (id) => {
+  if (window._diffOldId === null) {
+    window._diffOldId = id;
+    toast(`Marked run #${id} as baseline. Click Diff on another run to compare.`, 'ok');
+  } else {
+    runDiff(window._diffOldId, id);
+    window._diffOldId = null;
+  }
+};
+
+window.runDiff = async (oldId, newId) => {
+  const out = document.getElementById('diff-result');
+  out.innerHTML = `<div class="card"><div class="loading"></div> Computing diff…</div>`;
+  try {
+    const d = await API(`/api/discover/diff?old_id=${oldId}&new_id=${newId}`);
+    out.innerHTML = `
+      <div class="card">
+        <h2>Diff: run #${oldId} (${escape(d.old_at)}) vs #${newId} (${escape(d.new_at)})</h2>
+        <div class="row" style="margin-bottom:14px">
+          <span class="band band-high">+${d.summary.added_count} added</span>
+          <span class="band band-critical">-${d.summary.removed_count} removed</span>
+          <span class="band band-medium">~${d.summary.changed_count} changed</span>
+        </div>
+        ${d.added.length ? `<h3>Added (new since baseline)</h3><ul>${d.added.map(a => `<li><code>${escape(a.ip)}</code> ${escape(a.hostname || '—')} · ${escape(a.vendor || '—')} · risk ${a.risk_score || 0}</li>`).join('')}</ul>` : ''}
+        ${d.removed.length ? `<h3>Removed (gone since baseline)</h3><ul>${d.removed.map(a => `<li><code>${escape(a.ip)}</code> ${escape(a.hostname || '—')}</li>`).join('')}</ul>` : ''}
+        ${d.changed.length ? `<h3>Changed</h3><ul>${d.changed.map(c => `<li><code>${escape(c.ip)}</code> ${escape(c.hostname || '—')} — ${c.changes.map(ch => `<span class="pill">${escape(ch.field)}</span>`).join(' ')}</li>`).join('')}</ul>` : ''}
+        ${(!d.added.length && !d.removed.length && !d.changed.length) ? '<div class="empty">No changes — fleet is identical.</div>' : ''}
+      </div>`;
+  } catch (e) { out.innerHTML = `<div class="card"><pre style="color:#dc2626">${escape(e.message)}</pre></div>`; }
+};
+
+//-------------------------------------------------------------------------
+// Tab: Topology — force-directed graph with drill-down
+//-------------------------------------------------------------------------
+registerTab('topology', async (main) => {
+  // Use the last discover from cache or prompt to run one
+  if (!window.__lastDiscover) {
+    const cached = loadDiscoverCache();
+    if (cached) window.__lastDiscover = cached.data;
+  }
+  if (!window.__lastDiscover) {
+    main.innerHTML = `
+      <div class="topbar"><h1>Topology map</h1></div>
+      <div class="card">
+        <div class="empty"><div class="icon">🗺️</div>
+          No scan to visualize. Run <a onclick="showTab('discover')" style="cursor:pointer">Subnet sweep</a> first or load a <a onclick="showTab('saved-scans')" style="cursor:pointer">saved scan</a>.
+        </div>
+      </div>`;
+    return;
+  }
+
+  const data = window.__lastDiscover;
+  main.innerHTML = `
+    <div class="topbar">
+      <h1>Topology map</h1>
+      <div>${data.count} devices · subnet <code>${escape(data.cidr)}</code></div>
+    </div>
+    <div class="card" style="position:relative; padding:0; overflow:hidden">
+      <div style="padding:14px 20px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center">
+        <div>
+          <strong>Click</strong> a node to inspect · <strong>Double-click</strong> to drill into device · <strong>Drag</strong> background to pan
+        </div>
+        <div>
+          <button onclick="topologyResetLayout()">🔄 Reset layout</button>
+          <select id="topo-color-by" onchange="renderTopology(window.__lastDiscover)">
+            <option value="risk">Color by risk</option>
+            <option value="category">Color by category</option>
+            <option value="vendor">Color by vendor</option>
+          </select>
+        </div>
+      </div>
+      <svg id="topo-svg" viewBox="0 0 1000 700" style="width:100%; height:700px; background:#0f172a; cursor:grab"></svg>
+      <div id="topo-legend" style="padding:12px 20px; border-top:1px solid #e2e8f0; font-size:12px; color:#475569"></div>
+    </div>
+    <div id="topo-detail"></div>
+  `;
+  renderTopology(data);
+});
+
+window.renderTopology = (data) => {
+  const svg = document.getElementById('topo-svg');
+  if (!svg) return;
+  const nodes = (data.results || []).map((d, i) => ({
+    ...d, _idx: i,
+    x: 500 + Math.cos(i / data.results.length * Math.PI * 2) * 250 + (Math.random()-0.5)*50,
+    y: 350 + Math.sin(i / data.results.length * Math.PI * 2) * 200 + (Math.random()-0.5)*50,
+    vx: 0, vy: 0,
+  }));
+
+  // Simulated edges: every device connects to the gateway (.1) for visualization
+  const gateway = nodes.find(n => n.ip && n.ip.endsWith('.1')) || nodes[0];
+  const edges = nodes.filter(n => n !== gateway).map(n => ({source: gateway, target: n}));
+
+  const colorBy = (document.getElementById('topo-color-by') || {}).value || 'risk';
+  const colorFn = (n) => {
+    if (colorBy === 'risk') {
+      return ({critical:'#0f172a', high:'#dc2626', medium:'#d97706', low:'#1d4ed8', safe:'#16a34a'})[n.risk_band] || '#64748b';
+    } else if (colorBy === 'category') {
+      const palette = ['#1d4ed8','#dc2626','#16a34a','#d97706','#7c3aed','#0891b2','#db2777','#65a30d','#9333ea','#ea580c'];
+      const cats = [...new Set(data.results.map(r => r.category || '?'))];
+      return palette[cats.indexOf(n.category || '?') % palette.length];
+    } else {
+      const palette = ['#1d4ed8','#dc2626','#16a34a','#d97706','#7c3aed','#0891b2','#db2777','#65a30d'];
+      const vendors = [...new Set(data.results.map(r => r.vendor || '?'))];
+      return palette[vendors.indexOf(n.vendor || '?') % palette.length];
+    }
+  };
+
+  // Force-directed layout — simple approximation
+  const W = 1000, H = 700;
+  const REPULSION = 800;
+  const ATTRACTION = 0.02;
+  for (let iter = 0; iter < 60; iter++) {
+    // Repel
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i+1; j < nodes.length; j++) {
+        const dx = nodes[j].x - nodes[i].x;
+        const dy = nodes[j].y - nodes[i].y;
+        const d2 = dx*dx + dy*dy + 0.1;
+        const f = REPULSION / d2;
+        const dl = Math.sqrt(d2);
+        nodes[i].vx -= dx/dl * f;
+        nodes[i].vy -= dy/dl * f;
+        nodes[j].vx += dx/dl * f;
+        nodes[j].vy += dy/dl * f;
+      }
+    }
+    // Attract along edges (toward gateway)
+    edges.forEach(e => {
+      const dx = e.target.x - e.source.x;
+      const dy = e.target.y - e.source.y;
+      e.source.vx += dx * ATTRACTION;
+      e.source.vy += dy * ATTRACTION;
+      e.target.vx -= dx * ATTRACTION;
+      e.target.vy -= dy * ATTRACTION;
+    });
+    // Center pull
+    nodes.forEach(n => {
+      n.vx += (W/2 - n.x) * 0.005;
+      n.vy += (H/2 - n.y) * 0.005;
+    });
+    // Apply
+    nodes.forEach(n => {
+      n.x += n.vx * 0.5;
+      n.y += n.vy * 0.5;
+      n.vx *= 0.6; n.vy *= 0.6;
+      n.x = Math.max(40, Math.min(W-40, n.x));
+      n.y = Math.max(40, Math.min(H-40, n.y));
+    });
+  }
+
+  const edgeSvg = edges.map(e =>
+    `<line x1="${e.source.x}" y1="${e.source.y}" x2="${e.target.x}" y2="${e.target.y}" stroke="#334155" stroke-width="0.7" />`
+  ).join('');
+
+  const nodeSvg = nodes.map(n => {
+    const r = n === gateway ? 18 : Math.max(6, 6 + (n.risk_score || 0) / 8);
+    const stroke = n.risk_band === 'critical' || n.risk_band === 'high' ? '#fff' : '#1e293b';
+    const isGw = n === gateway;
+    return `
+      <g class="topo-node" data-idx="${n._idx}" style="cursor:pointer">
+        <circle cx="${n.x}" cy="${n.y}" r="${r}" fill="${colorFn(n)}" stroke="${stroke}" stroke-width="${isGw ? 3 : 1.5}">
+          <title>${escape(n.ip)} · ${escape(n.hostname || '')} · ${escape(n.vendor || '')} · risk ${n.risk_score || 0}</title>
+        </circle>
+        ${isGw ? `<text x="${n.x}" y="${n.y - r - 6}" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">GATEWAY</text>` : ''}
+        <text x="${n.x}" y="${n.y + r + 12}" text-anchor="middle" fill="#cbd5e1" font-size="10" font-family="ui-monospace,monospace">${escape(n.ip)}</text>
+      </g>`;
+  }).join('');
+
+  svg.innerHTML = edgeSvg + nodeSvg;
+
+  // Wire click + double-click
+  svg.querySelectorAll('.topo-node').forEach(g => {
+    let clickTimer = null;
+    g.addEventListener('click', (e) => {
+      const idx = parseInt(g.dataset.idx);
+      if (clickTimer) {
+        clearTimeout(clickTimer); clickTimer = null;
+        // Double-click: open full detail
+        showHostDetail(idx);
+        const detail = document.getElementById('host-detail') || document.getElementById('topo-detail');
+        if (detail) {
+          // show in topology-specific detail container
+          const td = document.getElementById('topo-detail');
+          if (td) {
+            td.innerHTML = '';
+            const dh = document.getElementById('host-detail');
+            if (dh && dh.innerHTML) td.innerHTML = dh.innerHTML;
+          }
+        }
+      } else {
+        clickTimer = setTimeout(() => {
+          clickTimer = null;
+          // Single click: tooltip-like quick detail
+          const r = data.results[idx];
+          const td = document.getElementById('topo-detail');
+          if (td) {
+            td.innerHTML = `<div class="card">
+              <h3><code>${escape(r.ip)}</code> ${escape(r.hostname || '')}</h3>
+              <p>${escape(r.vendor || '?')} · ${escape(r.category || '?')} · risk <span class="band band-${escape(r.risk_band||'safe')}">${r.risk_score||0}</span></p>
+              <p style="font-size:12px; color:#64748b">Open ports: ${(r.open_ports||[]).join(', ') || 'none'}</p>
+              <button onclick="showHostDetail(${idx})">Full detail →</button>
+            </div>`;
+          }
+        }, 250);
+      }
+    });
+  });
+
+  // Render legend
+  const legend = document.getElementById('topo-legend');
+  if (legend) {
+    if (colorBy === 'risk') {
+      legend.innerHTML = `<strong>Color by risk:</strong>
+        <span><i style="display:inline-block;width:10px;height:10px;background:#0f172a;border-radius:50%;vertical-align:middle"></i> Critical</span>
+        <span style="margin-left:10px"><i style="display:inline-block;width:10px;height:10px;background:#dc2626;border-radius:50%;vertical-align:middle"></i> High</span>
+        <span style="margin-left:10px"><i style="display:inline-block;width:10px;height:10px;background:#d97706;border-radius:50%;vertical-align:middle"></i> Medium</span>
+        <span style="margin-left:10px"><i style="display:inline-block;width:10px;height:10px;background:#1d4ed8;border-radius:50%;vertical-align:middle"></i> Low</span>
+        <span style="margin-left:10px"><i style="display:inline-block;width:10px;height:10px;background:#16a34a;border-radius:50%;vertical-align:middle"></i> Safe</span>
+        · Node size scales with risk score`;
+    } else {
+      legend.innerHTML = `<strong>Color by ${escape(colorBy)}.</strong> Node size scales with risk score. Click for quick info, double-click for full detail.`;
+    }
+  }
+};
+
+window.topologyResetLayout = () => renderTopology(window.__lastDiscover);
+
+//-------------------------------------------------------------------------
+// Tab: Chat with fleet
+//-------------------------------------------------------------------------
+registerTab('chat', async (main) => {
+  if (!window.__lastDiscover) {
+    const cached = loadDiscoverCache();
+    if (cached) window.__lastDiscover = cached.data;
+  }
+  const hasFleet = !!(window.__lastDiscover && window.__lastDiscover.results && window.__lastDiscover.results.length);
+  const hasKey = AI_KEYS.apiKey() || AI_KEYS.provider() === 'ollama';
+
+  main.innerHTML = `
+    <div class="topbar">
+      <h1>💬 Chat with your fleet</h1>
+      <div>${hasFleet ? `${window.__lastDiscover.count} devices in context` : 'No scan loaded'}</div>
+    </div>
+
+    ${!hasFleet ? `<div class="card"><div class="empty"><div class="icon">📡</div>Run a <a onclick="showTab('discover')" style="cursor:pointer">scan</a> first or <a onclick="showTab('saved-scans')" style="cursor:pointer">load a saved scan</a> to chat about it.</div></div>` :
+      !hasKey ? `<div class="card"><div class="empty"><div class="icon">🔑</div>Configure your AI provider in <a onclick="showTab('settings')" style="cursor:pointer">Settings</a> first.</div></div>` : ''}
+
+    ${hasFleet && hasKey ? `
+    <div class="card">
+      <div id="chat-history" style="max-height:500px; overflow-y:auto; padding:8px; background:#f8fafc; border-radius:8px; margin-bottom:14px"></div>
+
+      <div style="margin-bottom:8px">
+        <strong>Try asking:</strong>
+        <span class="pill" onclick="chatAsk('What is the riskiest device?')" style="cursor:pointer">What's the riskiest device?</span>
+        <span class="pill" onclick="chatAsk('Which devices have telnet open?')" style="cursor:pointer">Which have telnet?</span>
+        <span class="pill" onclick="chatAsk('Show me all printers')" style="cursor:pointer">Show all printers</span>
+        <span class="pill" onclick="chatAsk('Generate a 30-day remediation plan')" style="cursor:pointer">30-day plan</span>
+        <span class="pill" onclick="chatAsk('Which devices need immediate patching?')" style="cursor:pointer">Need patching now?</span>
+      </div>
+
+      <div class="row">
+        <input type="text" id="chat-input" placeholder="Ask anything about your network…" class="grow" onkeydown="if(event.key==='Enter') chatSubmit()">
+        <button class="primary" onclick="chatSubmit()">Send →</button>
+        <button onclick="document.getElementById('chat-history').innerHTML=''; window.__chatHistory=[]">🗑 Clear</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🚀 Bulk fleet analysis</h2>
+      <p>One-click full-fleet AI analysis with cross-device pattern recognition.</p>
+      <button class="primary" onclick="bulkAnalyze()">🤖 Analyze entire fleet</button>
+      <div id="bulk-result" style="margin-top:14px"></div>
+    </div>
+    ` : ''}
+  `;
+});
+
+window.__chatHistory = [];
+
+window.chatAsk = (msg) => {
+  document.getElementById('chat-input').value = msg;
+  chatSubmit();
+};
+
+window.chatSubmit = async () => {
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  const creds = _getAICreds();
+  if (!creds) return;
+
+  const history = document.getElementById('chat-history');
+  history.innerHTML += `<div style="margin:8px 0; padding:10px 14px; background:#1d4ed8; color:#fff; border-radius:8px; max-width:80%; margin-left:auto"><strong>You:</strong> ${escape(msg)}</div>`;
+  history.scrollTop = history.scrollHeight;
+
+  const loadingId = 'chat-loading-' + Date.now();
+  history.innerHTML += `<div id="${loadingId}" style="margin:8px 0; padding:10px 14px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; max-width:80%"><div class="loading"></div> Thinking…</div>`;
+  history.scrollTop = history.scrollHeight;
+
+  try {
+    const data = await POST('/api/ai/chat', {
+      message: msg, fleet: window.__lastDiscover, ...creds,
+      history: window.__chatHistory,
+    });
+    document.getElementById(loadingId).remove();
+    if (data.error) {
+      history.innerHTML += `<div style="margin:8px 0; padding:10px 14px; background:#fee2e2; color:#7f1d1d; border-radius:8px"><strong>Error:</strong> ${escape(data.error)}</div>`;
+    } else {
+      const ips = data.matching_device_ips || [];
+      const followups = data.suggested_followup || [];
+      const action = data.action_recommendation || '';
+      history.innerHTML += `<div style="margin:8px 0; padding:12px 16px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; max-width:90%">
+        <strong>🤖 Fleet AI:</strong>
+        <div style="margin-top:4px; white-space:pre-wrap">${escape(data.answer || '(no answer)')}</div>
+        ${ips.length ? `<div style="margin-top:8px; font-size:12px"><strong>Matching devices:</strong> ${ips.map(ip => `<code>${escape(ip)}</code>`).join(' ')}</div>` : ''}
+        ${action ? `<div style="margin-top:8px; padding:8px 12px; background:#fefce8; border-left:3px solid #eab308; border-radius:4px; font-size:13px"><strong>Suggested next action:</strong> ${escape(action)}</div>` : ''}
+        ${followups.length ? `<div style="margin-top:8px; font-size:12px"><strong>Followups:</strong> ${followups.map(f => `<span class="pill" onclick="chatAsk('${escape(f).replace(/'/g,"\\'")}')" style="cursor:pointer; background:#dbeafe">${escape(f)}</span>`).join(' ')}</div>` : ''}
+      </div>`;
+      window.__chatHistory.push({role: 'user', content: msg});
+      window.__chatHistory.push({role: 'assistant', content: data.answer || ''});
+    }
+    history.scrollTop = history.scrollHeight;
+  } catch (e) {
+    document.getElementById(loadingId).remove();
+    toast(e.message, 'error');
+  }
+};
+
+window.bulkAnalyze = async () => {
+  const creds = _getAICreds();
+  if (!creds) return;
+  const out = document.getElementById('bulk-result');
+  out.innerHTML = `<div class="loading"></div> AI analyzing the entire fleet… (~10-30s)`;
+  try {
+    const data = await POST('/api/ai/bulk-analyze', {fleet: window.__lastDiscover, ...creds});
+    if (data.error) { out.innerHTML = `<pre style="color:#dc2626">${escape(data.error)}</pre>`; return; }
+    const grade = data.fleet_health_grade || '?';
+    const gradeColor = ({A:'#16a34a', B:'#65a30d', C:'#d97706', D:'#dc2626', F:'#0f172a'})[grade] || '#64748b';
+    out.innerHTML = `
+      <div style="background:#fff; border:2px solid ${gradeColor}; border-radius:10px; padding:18px 22px">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start">
+          <h3 style="margin:0">Fleet Health: <span style="color:${gradeColor}; font-size:32px">${grade}</span></h3>
+        </div>
+        <p style="margin-top:10px; color:#1e293b">${escape(data.executive_summary || '')}</p>
+
+        ${(data.cross_device_patterns || []).length ? `<h4 style="margin-top:16px">Cross-device patterns</h4>
+          ${(data.cross_device_patterns).map(p => `<div style="background:#f8fafc; border-left:4px solid #1d4ed8; padding:10px 14px; margin:8px 0; border-radius:0 6px 6px 0">
+            <strong>${escape(p.pattern || '')}</strong>
+            ${(p.affected_devices||[]).length ? `<div style="font-size:12px; margin-top:4px">Affects: ${(p.affected_devices).map(ip=>`<code>${escape(ip)}</code>`).join(' ')}</div>` : ''}
+            <div style="margin-top:4px; font-size:13px"><strong>→</strong> ${escape(p.recommendation || '')}</div>
+          </div>`).join('')}` : ''}
+
+        ${(data.prioritized_fleet_actions || []).length ? `<h4 style="margin-top:16px">Prioritized fleet actions</h4>
+          <table>
+            <thead><tr><th>#</th><th>Action</th><th>Impact</th><th>Effort</th></tr></thead>
+            <tbody>${(data.prioritized_fleet_actions).map(a => `<tr>
+              <td><strong>${a.rank || '?'}</strong></td>
+              <td>${escape(a.action || '')}</td>
+              <td style="font-size:12px">${escape(a.estimated_impact || '')}</td>
+              <td>${escape(a.estimated_effort || '?')}</td>
+            </tr>`).join('')}</tbody>
+          </table>` : ''}
+
+        ${(data.anomalies || []).length ? `<h4 style="margin-top:16px">Anomalies</h4><ul>${(data.anomalies).map(a => `<li>${escape(a)}</li>`).join('')}</ul>` : ''}
+
+        ${data.compliance_callouts ? `<div style="margin-top:14px; padding:10px 14px; background:#fefce8; border-radius:6px; font-size:13px"><strong>Compliance:</strong> ${escape(data.compliance_callouts)}</div>` : ''}
+      </div>`;
+  } catch (e) {
+    out.innerHTML = `<pre style="color:#dc2626">${escape(e.message)}</pre>`;
+  }
+};
+
+//-------------------------------------------------------------------------
+// Tab: CVEs
+//-------------------------------------------------------------------------
+registerTab('cves', async (main) => {
+  const cves = await API('/api/cves');
+  const kev = cves.filter(c => c.kev);
+  document.getElementById('kev-count').textContent = kev.length;
+  main.innerHTML = `
+    <div class="topbar">
+      <h1>CVE catalog</h1>
+      <div>${cves.length} total · <strong>${kev.length} KEV-listed</strong></div>
+    </div>
+    <div class="card">
+      <div class="row" style="margin-bottom:14px">
+        <input type="text" id="cve-filter" placeholder="Filter by CVE ID, vendor, or product…" class="grow">
+        <label><input type="checkbox" id="kev-only"> KEV only</label>
+      </div>
+      <table id="cve-table">
+        <thead><tr><th>CVE</th><th>Vendor / Product</th><th>Severity</th><th>KEV</th><th>Affects</th></tr></thead>
+        <tbody>${cves.map(c => `
+          <tr data-search="${escape((c.cve + ' ' + (c.vendor||'') + ' ' + (c.product||'')).toLowerCase())}" data-kev="${c.kev?'1':'0'}">
+            <td><a href="https://nvd.nist.gov/vuln/detail/${escape(c.cve)}" target="_blank"><strong>${escape(c.cve)}</strong></a></td>
+            <td>${escape(c.vendor || '?')} / ${escape(c.product || '?')}</td>
+            <td>${sevBadge(c.severity)}</td>
+            <td>${c.kev ? '<span class="sev critical">KEV</span>' : ''}</td>
+            <td><span style="font-size:12px; color:#64748b">${escape(c.affects || '—')}</span></td>
+          </tr>
+        `).join('')}</tbody>
+      </table>
+    </div>
+  `;
+  const filter = document.getElementById('cve-filter');
+  const kevOnly = document.getElementById('kev-only');
+  const apply = () => {
+    const q = filter.value.toLowerCase().trim();
+    const k = kevOnly.checked;
+    document.querySelectorAll('#cve-table tbody tr').forEach(tr => {
+      const matches = (!q || tr.dataset.search.includes(q)) && (!k || tr.dataset.kev === '1');
+      tr.style.display = matches ? '' : 'none';
+    });
+  };
+  filter.addEventListener('input', apply); kevOnly.addEventListener('change', apply);
+});
+
+//-------------------------------------------------------------------------
+// Tab: EOL
+//-------------------------------------------------------------------------
+registerTab('eol', async (main) => {
+  const eol = await API('/api/eol');
+  const today = new Date();
+  const expired = eol.filter(e => e.end_of_support && new Date(e.end_of_support) < today);
+  main.innerHTML = `
+    <div class="topbar">
+      <h1>End-of-life trains</h1>
+      <div>${eol.length} OS trains · <strong>${expired.length} past EOS</strong></div>
+    </div>
+    <div class="card">
+      <table>
+        <thead><tr><th>OS</th><th>Version</th><th>End of software</th><th>End of support</th><th>Status</th><th>Notes</th></tr></thead>
+        <tbody>${eol.map(e => {
+          const eos = e.end_of_support ? new Date(e.end_of_support) : null;
+          const past = eos && eos < today;
+          const status = past ? '<span class="sev critical">EOS</span>' : '<span class="sev info">supported</span>';
+          return `<tr>
+            <td><code>${escape(e.os || '?')}</code></td>
+            <td>${escape(e.version_prefix || '?')}</td>
+            <td>${escape(e.end_of_software || '—')}</td>
+            <td>${escape(e.end_of_support || '—')}</td>
+            <td>${status}</td>
+            <td><span style="font-size:12px; color:#64748b">${escape(e.notes || '')}</span></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>
+  `;
+});
+
+//-------------------------------------------------------------------------
+// Tab: AI explainer
+//-------------------------------------------------------------------------
+registerTab('ai', async (main) => {
+  const scans = await API('/api/scans');
+  main.innerHTML = `
+    <div class="topbar"><h1>AI executive briefing</h1></div>
+    <div class="card">
+      <p style="margin-top:0">Bring your own OpenAI / Anthropic / Ollama API key. The call goes directly from this server to the LLM provider — your key is never persisted, never sent to SafeCadence.</p>
+
+      <div class="field">
+        <label>Scan to explain</label>
+        <select id="ai-scan">
+          ${scans.map(s => `<option value="${escape(s.id)}">${escape(s.hostname || '?')} — ${fmtTime(s.scanned_at || s.created_at)} (${s.findings_count ?? 0} findings)</option>`).join('') || '<option disabled>No scans yet</option>'}
+        </select>
+      </div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Provider</label>
+          <select id="ai-provider">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="ollama">Ollama (localhost)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Model (optional)</label>
+          <input type="text" id="ai-model" placeholder="e.g. gpt-4o, claude-sonnet-4-6, llama3.1:8b">
+        </div>
+      </div>
+      <div class="field">
+        <label>API key</label>
+        <input type="password" id="ai-key" placeholder="sk-… or sk-ant-… (not needed for Ollama)">
+        <div class="help">Stored only in this browser tab's memory. Cleared when you close it.</div>
+      </div>
+      <button class="primary" id="ai-go">Generate briefing</button>
+    </div>
+    <div id="ai-out"></div>
+  `;
+  document.getElementById('ai-go').addEventListener('click', async () => {
+    const scan_id = document.getElementById('ai-scan').value;
+    const provider = document.getElementById('ai-provider').value;
+    const model = document.getElementById('ai-model').value || undefined;
+    const api_key = document.getElementById('ai-key').value;
+    if (!scan_id) return toast('Pick a scan', 'error');
+    if (!api_key && provider !== 'ollama') return toast('Enter your API key', 'error');
+    const out = document.getElementById('ai-out');
+    out.innerHTML = `<div class="card"><div class="loading"></div> Calling ${provider}…</div>`;
+    try {
+      const data = await POST('/api/ai/explain', {scan_id, provider, model, api_key});
+      out.innerHTML = `<div class="card"><h2>Briefing</h2><div class="ai-output">${escape(data.explanation)}</div></div>`;
+    } catch (e) {
+      out.innerHTML = `<div class="card"><pre style="color:#dc2626">${escape(e.message)}</pre></div>`;
+    }
+  });
+});
+
+//-------------------------------------------------------------------------
+// Tab: Vault
+//-------------------------------------------------------------------------
+registerTab('vault', async (main) => {
+  let entries = [];
+  try { entries = await API('/api/vault/list'); } catch (e) { /* unavailable */ }
+  main.innerHTML = `
+    <div class="topbar"><h1>Encrypted credential vault</h1></div>
+    <div class="card">
+      <p style="margin-top:0">SSH passwords, enable secrets, and API keys for <code>safecadence collect</code>. Encrypted with Fernet at rest in <code>~/.safecadence/vault.json</code>.</p>
+      <div class="grid-2">
+        <div class="field"><label>Name</label><input type="text" id="vault-name" placeholder="e.g. cisco-edge-router-1"></div>
+        <div class="field"><label>Secret</label><input type="password" id="vault-secret" placeholder="password / key"></div>
+      </div>
+      <button class="primary" id="vault-add">Save to vault</button>
+    </div>
+    <div class="card">
+      <h2>Entries</h2>
+      ${entries.length ? `<table>
+        <thead><tr><th>Name</th><th>Created</th></tr></thead>
+        <tbody>${entries.map(e => `<tr><td><code>${escape(e.name)}</code></td><td>${fmtTime(e.created_at)}</td></tr>`).join('')}</tbody>
+      </table>` : `<div class="empty"><div class="icon">🔐</div>Vault is empty.</div>`}
+    </div>
+  `;
+  document.getElementById('vault-add').addEventListener('click', async () => {
+    const name = document.getElementById('vault-name').value.trim();
+    const secret = document.getElementById('vault-secret').value;
+    if (!name || !secret) return toast('Name + secret required', 'error');
+    try {
+      await POST('/api/vault/add', {name, secret});
+      toast('Added', 'ok');
+      showTab('vault');
+    } catch (e) { toast(e.message, 'error'); }
+  });
+});
+
+//-------------------------------------------------------------------------
+// Tab: Rules library
+//-------------------------------------------------------------------------
+registerTab('rules', async (main) => {
+  const rules = await API('/api/rules');
+  const byVendor = {};
+  for (const r of rules) (byVendor[r.vendor || '?'] = byVendor[r.vendor || '?'] || []).push(r);
+  main.innerHTML = `
+    <div class="topbar"><h1>Rule library</h1><div>${rules.length} rules · ${Object.keys(byVendor).length} vendors</div></div>
+    <div class="card">
+      <input type="text" id="rule-filter" placeholder="Filter rules by ID, title, or tag…" style="margin-bottom:14px">
+      ${Object.entries(byVendor).map(([v, list]) => `
+        <h3 style="margin-top:18px">${escape(v)} <span class="pill">${list.length}</span></h3>
+        <table style="margin-bottom:14px">
+          <thead><tr><th>Rule ID</th><th>Title</th><th>Severity</th><th>Tags</th></tr></thead>
+          <tbody>${list.map(r => `
+            <tr data-search="${escape((r.id + ' ' + (r.title||'') + ' ' + (r.tags||[]).join(' ')).toLowerCase())}">
+              <td><code>${escape(r.id)}</code></td>
+              <td>${escape(r.title)}</td>
+              <td>${sevBadge(r.severity)}</td>
+              <td>${(r.tags || []).map(t => `<span class="pill">${escape(t)}</span>`).join(' ')}</td>
+            </tr>
+          `).join('')}</tbody>
+        </table>
+      `).join('')}
+    </div>
+  `;
+  document.getElementById('rule-filter').addEventListener('input', e => {
+    const q = e.target.value.toLowerCase().trim();
+    document.querySelectorAll('tr[data-search]').forEach(tr => {
+      tr.style.display = (!q || tr.dataset.search.includes(q)) ? '' : 'none';
+    });
+  });
+});
+
+//-------------------------------------------------------------------------
+// Tab: Vendors
+//-------------------------------------------------------------------------
+registerTab('vendors', async (main) => {
+  const vendors = await API('/api/vendors');
+  main.innerHTML = `
+    <div class="topbar"><h1>Registered vendor adapters</h1><div>${vendors.length} adapters</div></div>
+    <div class="card">
+      <table>
+        <thead><tr><th>ID</th><th>Display name</th><th>Vendor</th><th>OS</th></tr></thead>
+        <tbody>${vendors.map(v => `
+          <tr><td><code>${escape(v.id)}</code></td><td>${escape(v.name)}</td><td>${escape(v.vendor)}</td><td>${escape(v.os)}</td></tr>
+        `).join('')}</tbody>
+      </table>
+    </div>
+  `;
+});
+
+//-------------------------------------------------------------------------
+// Tab: Settings
+//-------------------------------------------------------------------------
+registerTab('settings', async (main) => {
+  const health = await API('/api/health');
+  const provider = AI_KEYS.provider();
+  const apiKey = AI_KEYS.apiKey();
+  const model = AI_KEYS.model();
+  const keyMasked = apiKey ? (apiKey.substring(0, 8) + '…' + apiKey.substring(apiKey.length - 4)) : '(not set)';
+
+  main.innerHTML = `
+    <div class="topbar"><h1>Settings</h1></div>
+
+    <!-- AI provider settings — saved in browser localStorage, never sent to server -->
+    <div class="card">
+      <h2>AI providers (BYOK)</h2>
+      <p>Bring your own OpenAI / Anthropic / Ollama key. The key is saved in <strong>this browser's localStorage only</strong> — it persists across tabs/restarts but never leaves your machine and never reaches a SafeCadence server. AI calls go directly from the local UI server to the LLM provider.</p>
+      <div class="grid-2">
+        <div class="field">
+          <label>Provider</label>
+          <select id="ai-set-provider">
+            <option value="openai" ${provider==='openai'?'selected':''}>OpenAI</option>
+            <option value="anthropic" ${provider==='anthropic'?'selected':''}>Anthropic</option>
+            <option value="ollama" ${provider==='ollama'?'selected':''}>Ollama (localhost — no key)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Default model (optional)</label>
+          <input type="text" id="ai-set-model" value="${escape(model)}" placeholder="leave blank for sensible default">
+          <div class="help">e.g. <code>gpt-4o-mini</code>, <code>claude-haiku-4-5-20251001</code>, <code>llama3.1:8b</code></div>
+        </div>
+      </div>
+      <div class="field">
+        <label>API key</label>
+        <div class="row">
+          <input type="password" id="ai-set-key" value="${escape(apiKey)}" placeholder="sk-…  /  sk-ant-…  (not needed for Ollama)" class="grow">
+          <button id="ai-set-show" type="button" title="Show / hide">👁</button>
+        </div>
+        <div class="help">Currently saved: <code>${escape(keyMasked)}</code></div>
+      </div>
+      <div class="row">
+        <button class="primary" id="ai-set-save">Save</button>
+        <button id="ai-set-test">🧪 Test connection</button>
+        <button class="danger" id="ai-set-clear">🗑 Clear stored key</button>
+      </div>
+      <div id="ai-set-status" style="margin-top:10px"></div>
+    </div>
+
+    <!-- Threat intel refresh -->
+    <div class="card">
+      <h2>Threat intel refresh</h2>
+      <p>Pull the latest CISA KEV catalog and endoflife.date trains. Both are public JSON feeds. Cached on disk after fetch.</p>
+      <div class="row">
+        <button id="ref-cve">Refresh CVEs / KEV</button>
+        <button id="ref-eol">Refresh EOL</button>
+        <button class="primary" id="ref-all">Refresh everything</button>
+      </div>
+      <div id="ref-status" style="margin-top:10px"></div>
+    </div>
+
+    <!-- Cached state controls -->
+    <div class="card">
+      <h2>Cached state</h2>
+      <p>The Subnet sweep tab caches your last scan results to localStorage so they survive reloads. Clear here if you want to start fresh.</p>
+      <div class="row">
+        <button id="clear-discover-cache">🗑 Clear cached discovery results</button>
+        <button class="danger" id="clear-all-cache">🗑 Clear ALL browser-side state (keys + cache)</button>
+      </div>
+      <div id="cache-status" style="margin-top:10px; font-size:12px; color:#64748b"></div>
+    </div>
+
+    <div class="card">
+      <h2>Server info</h2>
+      <table>
+        <tr><th>Mode</th><td>${escape(health.mode)}</td></tr>
+        <tr><th>Version</th><td>${escape(health.version)}</td></tr>
+        <tr><th>UI</th><td>${window.location.origin}</td></tr>
+        <tr><th>Local DB</th><td><code>~/.safecadence/ui.sqlite</code></td></tr>
+        <tr><th>API docs</th><td><a href="/api/docs" target="_blank">/api/docs ↗</a></td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>About</h2>
+      <p>SafeCadence Network Risk · MIT licensed · 100% local · Bring your own AI key</p>
+      <p><a href="https://github.com/famousleads/safecadence-network-risk" target="_blank">GitHub ↗</a> · <a href="https://pypi.org/project/safecadence-netrisk/" target="_blank">PyPI ↗</a> · <a href="https://safecadence.com/audit-engagement/" target="_blank">Need help? ↗</a></p>
+    </div>
+  `;
+
+  // ---- AI key handlers
+  const aiKeyInput = document.getElementById('ai-set-key');
+  document.getElementById('ai-set-show').addEventListener('click', () => {
+    aiKeyInput.type = aiKeyInput.type === 'password' ? 'text' : 'password';
+  });
+  document.getElementById('ai-set-save').addEventListener('click', () => {
+    const p = document.getElementById('ai-set-provider').value;
+    const k = aiKeyInput.value.trim();
+    const m = document.getElementById('ai-set-model').value.trim();
+    AI_KEYS.set(p, k, m);
+    document.getElementById('ai-set-status').innerHTML = `<span style="color:#16a34a">✓ Saved. Provider: <strong>${escape(p)}</strong>, key: <code>${escape(k ? k.substring(0,8)+'…' : '(none)')}</code></span>`;
+    toast('AI settings saved', 'ok');
+  });
+  document.getElementById('ai-set-clear').addEventListener('click', () => {
+    if (!confirm('Clear stored AI key? You will need to re-enter it.')) return;
+    AI_KEYS.clear();
+    aiKeyInput.value = '';
+    document.getElementById('ai-set-status').innerHTML = `<span style="color:#64748b">Cleared.</span>`;
+    toast('AI key cleared', 'ok');
+  });
+  document.getElementById('ai-set-test').addEventListener('click', async () => {
+    const p = document.getElementById('ai-set-provider').value;
+    const k = aiKeyInput.value.trim();
+    const m = document.getElementById('ai-set-model').value.trim();
+    if (!k && p !== 'ollama') {
+      document.getElementById('ai-set-status').innerHTML = `<span style="color:#dc2626">Enter a key first.</span>`;
+      return;
+    }
+    document.getElementById('ai-set-status').innerHTML = `<div class="loading"></div> Testing ${escape(p)}…`;
+    // Build a minimal mock host and try the analyze endpoint
+    const mockHost = {
+      ip: '127.0.0.1', hostname: 'localhost', vendor: 'Test', os: 'test',
+      open_ports: [80], banners: {}, findings: [], recommended_actions: [],
+      cves: [], risk_score: 0, risk_band: 'safe', category: 'workstation-mac'
+    };
+    try {
+      const data = await POST('/api/discover/ai-analyze', {host: mockHost, provider: p, api_key: k, model: m});
+      if (data.error) {
+        document.getElementById('ai-set-status').innerHTML = `<span style="color:#dc2626">✗ ${escape(data.error)}</span>`;
+      } else {
+        document.getElementById('ai-set-status').innerHTML = `<span style="color:#16a34a">✓ Connection OK — provider responded with valid JSON.</span>`;
+        toast('AI test succeeded', 'ok');
+      }
+    } catch (e) {
+      document.getElementById('ai-set-status').innerHTML = `<span style="color:#dc2626">✗ ${escape(e.message)}</span>`;
+    }
+  });
+
+  // ---- Cache handlers
+  const updateCacheStatus = () => {
+    const cached = loadDiscoverCache();
+    const aiSet = AI_KEYS.apiKey() ? `set (${AI_KEYS.provider()})` : 'not set';
+    document.getElementById('cache-status').innerHTML = `
+      Cached discovery: ${cached ? `<strong>${cached.data.count} hosts</strong> from ${new Date(cached.ts).toLocaleString()}` : 'none'} ·
+      AI key: ${aiSet}
+    `;
+  };
+  updateCacheStatus();
+  document.getElementById('clear-discover-cache').addEventListener('click', () => {
+    clearDiscoverCache();
+    window.__lastDiscover = null;
+    updateCacheStatus();
+    toast('Discovery cache cleared', 'ok');
+  });
+  document.getElementById('clear-all-cache').addEventListener('click', () => {
+    if (!confirm('Clear ALL browser-side state (AI keys, cached discovery, preferences)?')) return;
+    localStorage.clear();
+    window.__lastDiscover = null;
+    updateCacheStatus();
+    toast('All browser state cleared', 'ok');
+    setTimeout(() => showTab('settings'), 500);
+  });
+
+  // ---- Threat intel refresh
+  const refresh = async (source) => {
+    const out = document.getElementById('ref-status');
+    out.innerHTML = `<div class="loading"></div> Refreshing ${source}…`;
+    try {
+      const r = await POST(`/api/enrichment/refresh?source=${source}`, {});
+      out.innerHTML = `<span style="color:#16a34a">✓ ${source} refreshed at ${r.refreshed_at}</span>`;
+      toast(`Refreshed ${source}`, 'ok');
+    } catch (e) {
+      out.innerHTML = `<span style="color:#dc2626">${escape(e.message)}</span>`;
+      toast(e.message, 'error');
+    }
+  };
+  document.getElementById('ref-cve').addEventListener('click', () => refresh('cve'));
+  document.getElementById('ref-eol').addEventListener('click', () => refresh('eol'));
+  document.getElementById('ref-all').addEventListener('click', () => refresh('all'));
+});
+
+//-------------------------------------------------------------------------
+// Tab: Compliance packs (v2.7.0 backend)
+//-------------------------------------------------------------------------
+registerTab('compliance', async (main) => {
+  const hasFleet = !!(window.__lastDiscover && window.__lastDiscover.results && window.__lastDiscover.results.length);
+  main.innerHTML = `
+    <div class="topbar"><h1>📋 Compliance audit packs</h1></div>
+    <div class="card">
+      <p>Generate auditor-ready evidence packs that map your network's findings to specific compliance control IDs. Exec-grade HTML — print to PDF for client deliverables.</p>
+      ${!hasFleet ? '<div class="empty"><div class="icon">📡</div>Run a <a onclick="showTab(\'discover\')" style="cursor:pointer">scan</a> first.</div>' : `
+      <div class="grid-2">
+        <div class="field">
+          <label>Framework</label>
+          <select id="comp-framework">
+            <option value="soc2">SOC 2 Type II — Trust Services Criteria</option>
+            <option value="pci">PCI-DSS v4.0</option>
+            <option value="hipaa">HIPAA Security Rule</option>
+            <option value="nist">NIST 800-53 Rev. 5</option>
+            <option value="cis">CIS Controls v8</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Organization name</label>
+          <input type="text" id="comp-org" placeholder="Acme Corp">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Auditor name (optional)</label><input type="text" id="comp-auditor"></div>
+        <div class="field"><label>Audit period (optional)</label><input type="text" id="comp-period" placeholder="Q1 2026"></div>
+      </div>
+      <button class="primary" id="comp-gen">📥 Generate compliance pack</button>`}
+    </div>
+    <div id="comp-result"></div>
+  `;
+  if (hasFleet) {
+    document.getElementById('comp-gen').addEventListener('click', async () => {
+      const framework = document.getElementById('comp-framework').value;
+      const organization = document.getElementById('comp-org').value || 'Your Organization';
+      const auditor_name = document.getElementById('comp-auditor').value;
+      const audit_period = document.getElementById('comp-period').value;
+      const out = document.getElementById('comp-result');
+      out.innerHTML = `<div class="card"><div class="loading"></div> Generating ${framework.toUpperCase()} pack…</div>`;
+      try {
+        const payload = {...window.__lastDiscover, framework, organization, auditor_name, audit_period};
+        const r = await POST('/api/discover/compliance-pack', payload);
+        const blob = new Blob([r.html], {type: 'text/html'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url;
+        a.download = `safecadence-compliance-${framework}-${Date.now()}.html`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        out.innerHTML = `<div class="card" style="background:#dcfce7"><strong>✓ ${framework.toUpperCase()} compliance pack downloaded.</strong> Open it then Cmd+P → Save as PDF for the client deliverable.</div>`;
+      } catch (e) { out.innerHTML = `<div class="card"><pre style="color:#dc2626">${escape(e.message)}</pre></div>`; }
+    });
+  }
+});
+
+//-------------------------------------------------------------------------
+// Tab: Threat Hunt (v2.7.0 backend)
+//-------------------------------------------------------------------------
+registerTab('threat-hunt', async (main) => {
+  const hasFleet = !!(window.__lastDiscover && window.__lastDiscover.results && window.__lastDiscover.results.length);
+  main.innerHTML = `
+    <div class="topbar"><h1>🎯 Threat hunting</h1></div>
+    <div class="card">
+      <p>Pulls the live <strong>CISA Known Exploited Vulnerabilities</strong> catalog and matches recently-active threats against your fleet's identified vendors. Tells you which currently-exploited threats apply to YOUR network.</p>
+      <div class="row">
+        <label>Window:
+          <select id="hunt-days">
+            <option value="7">Last 7 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365">Last year</option>
+          </select>
+        </label>
+        <button class="primary" id="hunt-feed" style="margin-left:10px">📡 Fetch CISA KEV feed</button>
+        ${hasFleet ? `<button id="hunt-fleet" style="margin-left:10px">🎯 Hunt my fleet</button>` : ''}
+      </div>
+    </div>
+    <div id="hunt-result"></div>
+  `;
+
+  document.getElementById('hunt-feed').addEventListener('click', async () => {
+    const days = document.getElementById('hunt-days').value;
+    const out = document.getElementById('hunt-result');
+    out.innerHTML = `<div class="card"><div class="loading"></div> Fetching CISA KEV feed (last ${days} days)…</div>`;
+    try {
+      const data = await API(`/api/discover/threat-hunt-feed?days=${days}`);
+      if (data.error) { out.innerHTML = `<div class="card"><pre style="color:#dc2626">${escape(data.error)}</pre></div>`; return; }
+      out.innerHTML = `<div class="card">
+        <h2>${data.recent_count} CVEs added to KEV in last ${data.days_window} days</h2>
+        <div style="font-size:12px; color:#64748b; margin-bottom:14px">Total KEV entries: ${data.total_kev} · Fetched ${escape(data.fetched_at)}</div>
+        <table>
+          <thead><tr><th>CVE</th><th>Vendor / Product</th><th>Date Added</th><th>Ransomware</th><th>Required Action</th></tr></thead>
+          <tbody>${(data.recent || []).slice(0, 50).map(v => `<tr>
+            <td><a href="https://nvd.nist.gov/vuln/detail/${escape(v.cve_id)}" target="_blank"><strong>${escape(v.cve_id)}</strong></a></td>
+            <td>${escape(v.vendor || '?')} / ${escape(v.product || '?')}</td>
+            <td style="font-size:11px">${escape(v.date_added)}</td>
+            <td>${v.ransomware === 'Known' ? '<span class="band band-critical">YES</span>' : '<span style="color:#94a3b8">—</span>'}</td>
+            <td style="font-size:11px">${escape((v.required_action || '').substring(0, 100))}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+    } catch (e) { out.innerHTML = `<div class="card"><pre style="color:#dc2626">${escape(e.message)}</pre></div>`; }
+  });
+
+  if (hasFleet) {
+    document.getElementById('hunt-fleet').addEventListener('click', async () => {
+      const days = document.getElementById('hunt-days').value;
+      const out = document.getElementById('hunt-result');
+      out.innerHTML = `<div class="card"><div class="loading"></div> Hunting fleet for matches…</div>`;
+      try {
+        const data = await POST('/api/discover/threat-hunt', {fleet: window.__lastDiscover, days: parseInt(days)});
+        if (data.error) { out.innerHTML = `<div class="card"><pre style="color:#dc2626">${escape(data.error)}</pre></div>`; return; }
+        out.innerHTML = `<div class="card">
+          <h2>${data.matches_in_fleet} match${data.matches_in_fleet===1?'':'es'} in your fleet (out of ${data.feed_total_recent} recent KEV entries)</h2>
+          ${data.matches_in_fleet === 0 ? `<div style="background:#dcfce7; padding:16px 20px; border-radius:8px; margin-top:12px"><strong>✓ No fleet devices match recently-active threats.</strong> Continue normal monitoring.</div>` :
+          `<table>
+            <thead><tr><th>CVE</th><th>Vendor</th><th>Affected devices</th><th>Required Action</th></tr></thead>
+            <tbody>${data.matches.map(m => `<tr>
+              <td><a href="https://nvd.nist.gov/vuln/detail/${escape(m.cve_id)}" target="_blank"><strong>${escape(m.cve_id)}</strong></a><br><span style="font-size:10px">${escape(m.date_added)}</span></td>
+              <td>${escape(m.vendor)} / ${escape(m.product)}</td>
+              <td>${m.affected_devices.map(d => `<code>${escape(d.ip)}</code>`).join(' ')}</td>
+              <td style="font-size:11px">${escape(m.required_action || '')}</td>
+            </tr>`).join('')}</tbody>
+          </table>`}
+        </div>`;
+      } catch (e) { out.innerHTML = `<div class="card"><pre style="color:#dc2626">${escape(e.message)}</pre></div>`; }
+    });
+  }
+});
+
+//-------------------------------------------------------------------------
+// Tab: AI Architect (v2.7.0 backend)
+//-------------------------------------------------------------------------
+registerTab('architect', async (main) => {
+  const hasFleet = !!(window.__lastDiscover && window.__lastDiscover.results && window.__lastDiscover.results.length);
+  const hasKey = AI_KEYS.apiKey() || AI_KEYS.provider() === 'ollama';
+  main.innerHTML = `
+    <div class="topbar"><h1>🏛 AI Network Architect</h1></div>
+    <div class="card">
+      <p>Senior network architect AI analyzes your network as a SYSTEM. Returns architecture grade (A-F), segmentation gaps, zero-trust violations, lateral movement risks, and a prioritized modernization roadmap.</p>
+      ${!hasFleet ? '<div class="empty"><div class="icon">📡</div>Run a <a onclick="showTab(\'discover\')" style="cursor:pointer">scan</a> first.</div>' :
+       !hasKey ? '<div class="empty"><div class="icon">🔑</div>Configure AI in <a onclick="showTab(\'settings\')" style="cursor:pointer">Settings</a> first.</div>' :
+       `<button class="primary" id="run-architect">🏛 Analyze architecture</button>`}
+    </div>
+    <div id="architect-result"></div>
+  `;
+  if (hasFleet && hasKey) {
+    document.getElementById('run-architect').addEventListener('click', async () => {
+      const creds = _getAICreds(); if (!creds) return;
+      const out = document.getElementById('architect-result');
+      out.innerHTML = `<div class="card"><div class="loading"></div> AI analyzing your architecture (~15-30s)…</div>`;
+      try {
+        const data = await POST('/api/ai/architect', {fleet: window.__lastDiscover, ...creds});
+        if (data.error) { out.innerHTML = `<div class="card"><pre style="color:#dc2626">${escape(data.error)}</pre></div>`; return; }
+        const grade = data.architecture_grade || '?';
+        const gradeColor = ({A:'#16a34a',B:'#65a30d',C:'#d97706',D:'#dc2626',F:'#0f172a'})[grade] || '#64748b';
+        out.innerHTML = `<div class="card">
+          <div style="display:flex; align-items:flex-start; gap:20px; margin-bottom:18px">
+            <div style="text-align:center; padding:14px 22px; border:3px solid ${gradeColor}; border-radius:12px">
+              <div style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700">Architecture grade</div>
+              <div style="font-size:48px; font-weight:800; color:${gradeColor}">${grade}</div>
+            </div>
+            <div style="flex:1"><strong>Summary:</strong> ${escape(data.summary || '')}</div>
+          </div>
+
+          ${(data.segmentation_gaps || []).length ? `<h3>Segmentation gaps</h3>
+            ${data.segmentation_gaps.map(g => `<div style="background:#fef3c7; border-left:4px solid #d97706; padding:12px 16px; margin:8px 0; border-radius:0 6px 6px 0">
+              <strong>${escape(g.issue)}</strong>
+              ${(g.evidence_devices||[]).length ? `<div style="font-size:12px; margin-top:4px">Devices: ${g.evidence_devices.map(ip=>`<code>${escape(ip)}</code>`).join(' ')}</div>` : ''}
+              <div style="margin-top:6px; font-size:13px">→ <strong>${escape(g.recommendation)}</strong> (${escape(g.effort)}, ${escape(g.risk_reduction)} risk reduction)</div>
+            </div>`).join('')}` : ''}
+
+          ${(data.lateral_movement_risks || []).length ? `<h3>Lateral movement risks</h3>
+            ${data.lateral_movement_risks.map(r => `<div style="background:#fee2e2; border-left:4px solid #dc2626; padding:12px 16px; margin:8px 0; border-radius:0 6px 6px 0">
+              <strong>${escape(r.scenario)}</strong>
+              <div style="margin-top:6px; font-size:13px">Break the chain: ${escape(r.break_the_chain)}</div>
+            </div>`).join('')}` : ''}
+
+          ${(data.zero_trust_recommendations || []).length ? `<h3>Zero-trust posture</h3>
+            <table><thead><tr><th>Principle</th><th>Current</th><th>Target</th><th>First step</th></tr></thead>
+            <tbody>${data.zero_trust_recommendations.map(z => `<tr>
+              <td><strong>${escape(z.principle || '')}</strong></td>
+              <td>${escape(z.current_state || '')}</td>
+              <td>${escape(z.target_state || '')}</td>
+              <td>${escape(z.first_step || '')}</td>
+            </tr>`).join('')}</tbody></table>` : ''}
+
+          ${(data.prioritized_roadmap || []).length ? `<h3>Prioritized modernization roadmap</h3>
+            ${data.prioritized_roadmap.map(p => `<div style="background:#eff6ff; border-left:4px solid #1d4ed8; padding:12px 16px; margin:8px 0; border-radius:0 6px 6px 0">
+              <strong>Phase ${p.phase} (${escape(p.timeframe)})</strong>
+              <ul style="margin:6px 0">${(p.actions||[]).map(a=>`<li>${escape(a)}</li>`).join('')}</ul>
+              <div style="font-size:12px; color:#475569"><strong>Outcome:</strong> ${escape(p.expected_outcome || '')}</div>
+            </div>`).join('')}` : ''}
+
+          ${(data.modernization_opportunities || []).length ? `<h3>Modernization opportunities</h3><ul>${data.modernization_opportunities.map(m=>`<li>${escape(m)}</li>`).join('')}</ul>` : ''}
+        </div>`;
+      } catch (e) { out.innerHTML = `<div class="card"><pre style="color:#dc2626">${escape(e.message)}</pre></div>`; }
+    });
+  }
+});
+
+//-------------------------------------------------------------------------
+// Tab: Assets & tags (v2.7.0 backend)
+//-------------------------------------------------------------------------
+registerTab('assets', async (main) => {
+  let data; try { data = await API('/api/assets/tags'); } catch (e) { data = {assets: [], all_tags: []}; }
+  main.innerHTML = `
+    <div class="topbar"><h1>📌 Assets &amp; tags</h1><div>${data.assets.length} tagged · ${data.all_tags.length} unique tags</div></div>
+
+    <div class="card">
+      <h2>Add / update tag</h2>
+      <div class="grid-2">
+        <div class="field"><label>Device IP</label><input type="text" id="tag-ip" placeholder="192.168.4.1"></div>
+        <div class="field"><label>Owner (email)</label><input type="text" id="tag-owner" placeholder="alice@acme.com"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Tags (comma-separated)</label><input type="text" id="tag-tags" placeholder="prod, gateway, finance"></div>
+        <div class="field"><label>Criticality</label>
+          <select id="tag-criticality">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+            <option value="crown-jewel">Crown jewel (auto-boosts risk +15)</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>Notes</label><input type="text" id="tag-notes"></div>
+      <button class="primary" id="tag-save">💾 Save tag</button>
+    </div>
+
+    <div class="card">
+      <h2>Tagged devices</h2>
+      ${data.assets.length ? `<table>
+        <thead><tr><th>IP</th><th>Owner</th><th>Criticality</th><th>Tags</th><th>Notes</th><th>Updated</th><th></th></tr></thead>
+        <tbody>${data.assets.map(a => `<tr>
+          <td><code>${escape(a.ip)}</code></td>
+          <td>${escape(a.owner || '—')}</td>
+          <td><span class="band band-${a.criticality === 'crown-jewel' ? 'critical' : a.criticality === 'high' ? 'high' : a.criticality === 'medium' ? 'medium' : 'safe'}">${escape(a.criticality)}</span></td>
+          <td>${(a.tags||[]).map(t=>`<span class="pill">${escape(t)}</span>`).join(' ') || '—'}</td>
+          <td style="font-size:11px">${escape((a.notes||'').substring(0,60))}</td>
+          <td style="font-size:11px; color:#64748b">${escape(a.updated_at)}</td>
+          <td><button class="danger" onclick="deleteTag('${escape(a.ip)}')">🗑</button></td>
+        </tr>`).join('')}</tbody>
+      </table>` : '<div class="empty"><div class="icon">📌</div>No tagged devices yet. Tag your gateways, crown jewels, and DEV gear above.</div>'}
+    </div>
+  `;
+  document.getElementById('tag-save').addEventListener('click', async () => {
+    const ip = document.getElementById('tag-ip').value.trim();
+    if (!ip) return toast('IP required', 'error');
+    const tags = document.getElementById('tag-tags').value.split(',').map(s => s.trim()).filter(Boolean);
+    try {
+      await POST('/api/assets/tags', {
+        ip, tags,
+        owner: document.getElementById('tag-owner').value.trim(),
+        criticality: document.getElementById('tag-criticality').value,
+        notes: document.getElementById('tag-notes').value.trim(),
+      });
+      toast(`Tagged ${ip}`, 'ok');
+      showTab('assets');
+    } catch (e) { toast(e.message, 'error'); }
+  });
+});
+
+window.deleteTag = async (ip) => {
+  if (!confirm(`Remove tag for ${ip}?`)) return;
+  await fetch(`/api/assets/tags/${encodeURIComponent(ip)}`, {method: 'DELETE'});
+  toast(`Removed ${ip}`, 'ok');
+  showTab('assets');
+};
+
+//-------------------------------------------------------------------------
+// CSV export of fleet
+//-------------------------------------------------------------------------
+window.exportFleetCSV = () => {
+  const data = window.__lastDiscover;
+  if (!data || !data.results) return toast('No fleet to export', 'error');
+  const headers = ['ip','hostname','mac','vendor','os','category','risk_score','risk_band','open_ports','cve_count','kev_count','findings'];
+  const rows = data.results.map(r => [
+    r.ip || '',
+    r.hostname || '',
+    r.mac || '',
+    r.vendor || '',
+    r.os || '',
+    r.category || '',
+    r.risk_score || 0,
+    r.risk_band || 'safe',
+    (r.open_ports || []).join('|'),
+    (r.cves || []).length,
+    (r.cves || []).filter(c => c.kev).length,
+    (r.findings || []).join(' | ').replace(/"/g, "'"),
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = `safecadence-fleet-${data.cidr.replace(/\//g,'_')}-${Date.now()}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  toast('CSV downloaded', 'ok');
+};
+
+//-------------------------------------------------------------------------
+// v4.0 Platform tabs — iframe-mount the platform UI, jump to the tab
+// the user picked. Auth in local-UI mode is stubbed out, so fetches work
+// without a token.
+//-------------------------------------------------------------------------
+function _platformIframe(initialTab) {
+  return `<iframe src="/api/platform/ui#${encodeURIComponent(initialTab||'overview')}"
+    style="width:100%;height:calc(100vh - 24px);border:0;border-radius:10px;background:#0b1020"
+    title="Platform"></iframe>`;
+}
+[
+  ['platform-overview','overview'], ['platform-inventory','inventory'],
+  ['platform-servers','servers'],   ['platform-storage','storage'],
+  ['platform-virt','virt'],         ['platform-network','network'],
+  ['platform-cloud','cloud'],       ['platform-backup','backup'],
+  ['platform-reports','reports'],
+].forEach(([navId, panelId]) => {
+  registerTab(navId, async (main) => { main.innerHTML = _platformIframe(panelId); });
+});
+
+//-------------------------------------------------------------------------
+// v5.0 Policy tabs — same iframe pattern against the Policy UI
+//-------------------------------------------------------------------------
+function _policyIframe(initialTab) {
+  return `<iframe src="/api/policy/ui#${encodeURIComponent(initialTab||'builder')}"
+    style="width:100%;height:calc(100vh - 24px);border:0;border-radius:10px;background:#0b1020"
+    title="Policy"></iframe>`;
+}
+[
+  ['policy-builder','builder'],   ['policy-interpret','interpreter'],
+  ['policy-compliance','compliance'], ['policy-drift','drift'],
+  ['policy-remediation','remediation'], ['policy-exceptions','exceptions'],
+  ['policy-audit','audit'],
+].forEach(([navId, panelId]) => {
+  registerTab(navId, async (main) => { main.innerHTML = _policyIframe(panelId); });
+});
+
+//-------------------------------------------------------------------------
+// Bootstrap
+//-------------------------------------------------------------------------
+showTab('dashboard');
+</script>
+</body>
+</html>

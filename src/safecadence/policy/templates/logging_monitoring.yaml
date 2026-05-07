@@ -1,0 +1,16 @@
+policy_id: tmpl_logging_monitoring
+policy_name: Logging & Monitoring
+description: Central log forwarding, NTP discipline, audit logging across all asset types.
+target_asset_types: [network, server, cloud, storage, hypervisor]
+severity: medium
+compliance_frameworks: [nist-800-53, cis, pci-dss, hipaa]
+enforcement_mode: warn
+controls:
+  - control_id: enable_syslog
+    severity: medium
+    parameters:
+      syslog_target: 10.10.10.50
+  - control_id: enable_ntp
+    severity: low
+  - control_id: enforce_logging
+    severity: high
