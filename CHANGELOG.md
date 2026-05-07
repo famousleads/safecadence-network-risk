@@ -3,6 +3,22 @@
 All notable changes to **safecadence-netrisk** are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.0.2] — 2026-05-07
+
+### Metadata-only patch — fix broken PyPI project URLs
+
+- `pyproject.toml`: corrected `[project.urls]` Repository / Documentation /
+  Issues / Changelog from `github.com/safecadence/network-risk` (which does
+  not exist) to `github.com/famousleads/safecadence-network-risk` (the actual
+  public repo). Without this, every "Repository" / "Issues" / "Changelog"
+  link on the PyPI 10.0.1 page returns a 404.
+- `pyproject.toml`: fixed the `[project.optional-dependencies] all` reference
+  from `safecadence-network-risk[...]` to the correct package name
+  `safecadence-netrisk[...]`. The old name would resolve to a non-existent
+  PyPI package.
+
+No code changes. Same wheel layout, same dependencies, same tests.
+
 ## [10.0.1] — 2026-05-07
 
 ### Pre-ship validation pass + epic HOWTO rewrite
