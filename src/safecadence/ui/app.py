@@ -75,6 +75,16 @@ def create_app(*, password: str | None = None):
         redoc_url=None,
     )
 
+    # v10.1 — Reports wizard. Mounts /reports + /api/reports/* + /r/<token>.
+    # Read-only mode (SC_READONLY=1) blocks save/delete/share endpoints.
+    try:
+        from safecadence.reports.ui_routes import router as reports_router
+        if reports_router is not None:
+            app.include_router(reports_router)
+    except Exception:                                # pragma: no cover
+        # Reports wizard is optional — never break the rest of the UI.
+        pass
+
     # v9.47 — activity tracking. Every authenticated mutation
     # (POST/PUT/PATCH/DELETE) lands in $SC_DATA_DIR/activity/YYYY-MM-DD.jsonl
     # so /audit can answer "who did what, when?" without trawling

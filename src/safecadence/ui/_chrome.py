@@ -400,6 +400,11 @@ th { color: var(--muted); font-weight: 500; }
   </div>
 
   <div class="group">
+    <div class="group-title">Reports</div>
+    <a class="sub" id="nav-reports" href="/reports">📊 Builder</a>
+  </div>
+
+  <div class="group">
     <div class="group-title">Settings</div>
     <a class="sub" id="nav-settings" href="/settings">⚙️ Settings</a>
     <a class="sub" id="nav-users" href="/users">👥 Users</a>

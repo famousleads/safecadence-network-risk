@@ -3,6 +3,48 @@
 All notable changes to **safecadence-netrisk** are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.1.0] — 2026-05-10
+
+### Reports module — build any report from real system data
+
+A first-class wizard-driven reports module. Customers running NetRisk
+locally now get a 4-step UI at `/reports` that reads real fleet state
+(no canned data) and renders into HTML, JSON, or PDF.
+
+- **New package** `safecadence.reports` (extends the existing legacy
+  per-scan renderers without breaking them):
+  - `sections.py` — 10 composers reading the live store: `kpi_summary`,
+    `host_inventory`, `cve_exposure`, `compliance_posture`, `eol_hardware`,
+    `attack_paths`, `identity_drift`, `recommended_actions`,
+    `recent_changes`, `executive_summary`. Each handles empty data
+    gracefully (returns `empty: True`, never panics).
+  - `builder.py` — `compose_report(sections=, scope=, store=)` plus
+    `list_section_keys()` / `list_scope_keys()`.
+  - `templates.py` — JSON-on-disk template persistence with
+    `save/load/list/delete` + share-token helpers, all gated by
+    `SC_READONLY=1`.
+  - `renderers.py` — `render_html` (cover, TOC, print-friendly CSS),
+    `render_json`, `render_pdf` (uses `weasyprint` if available, falls
+    back to HTML bytes — never a hard dep).
+  - `ui_routes.py` — FastAPI router auto-mounted by `safecadence ui`.
+- **Wizard UI** at `/reports`: 4 steps (sections / scope / live preview
+  iframe / export). Save-as-template, share link, HTML/PDF/JSON
+  download. Real values for sites and vendors pulled from the store.
+  Vanilla JS, no external CDNs, fully self-contained.
+- **Scope filters**: `site`, `criticality`, `asset_type`, `vendor`,
+  `date_range` — AND-combined.
+- **Public share** at `/r/<token>` for read-only sharing.
+- **Read-only safety**: every save/delete/share endpoint returns 403
+  `{"error":"read_only"}` when `SC_READONLY=1` is set (also enforced at
+  the Caddy `@write` layer on demo.safecadence.com).
+- **Sidebar**: new "Reports" group with a "Builder" link in
+  `safecadence/ui/_chrome.py`.
+- **Tests**: `tests/test_reports.py` covers all 10 composers (empty +
+  populated), template round-trip, read-only enforcement, share-token
+  flow, and the builder → render-html round-trip.
+- **No new hard deps**. `weasyprint` is opt-in; everything else is pure
+  stdlib + existing safecadence deps.
+
 ## [10.0.2] — 2026-05-07
 
 ### Metadata-only patch — fix broken PyPI project URLs
