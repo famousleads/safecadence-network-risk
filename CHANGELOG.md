@@ -1,5 +1,44 @@
 # Changelog
 
+## [10.2.0] — 2026-05-10
+
+### A+++ Reports flagship — turns NetRisk into the only network-risk platform with a first-class report builder.
+
+**Visual + content overhaul**
+- Branded cover page with 240px risk-gauge SVG
+- Numbered TOC, AI-written executive summary with "Top action this week" callout
+- 5-card KPI band with sparklines + delta indicators (↑/↓)
+- Inline SVG charts: severity donut, compliance radar, control heat-map, severity bars, attack-path graph, sparklines
+- CVE badges with KEV / exploit-available pills
+- Prioritized P0–P3 action plan with owner / effort / risk-reduction-per-action / compliance impact
+- Print-ready A4 CSS, polished typography, accessible markup
+
+**4 stakeholder presets** — exec_brief / technical_deepdive / compliance_audit / quarterly_review
+
+**4 industry templates** — Healthcare HIPAA + HITECH, Finance PCI DSS 4.0 + SOX, Defense CMMC 2.0 + FedRAMP, SaaS SOC 2 + ISO 27001/27017
+
+**AI layer** (real OpenAI when key set, deterministic templates otherwise)
+- Executive summary in 5 tones
+- Plain-language CVE explainer
+- Quick-wins detector (sorts by risk_reduction / effort_minutes)
+- Patch sequencer (identity → edge → server → backup → app)
+
+**Delta reports** — daily snapshots, KPI delta indicators, sparklines, "what changed" lists
+
+**Webhooks** — Slack/Teams/generic with HMAC-SHA256 signed delivery
+
+**Ticketing integration** — Jira / ServiceNow / GitHub Issues / Linear, deduped by external_id
+
+**Wizard UI** — 6-step builder (preset → sections → scope → preview → notify → tickets)
+
+**Tests**: 116 passing (was 32). New modules: visuals.py, ai_helpers.py, presets.py, delta.py, webhooks.py, industry.py, ticketing.py.
+
+**API additions**: 30+ new endpoints under /api/reports/* including /presets, /industry-templates, /webhooks, /ticketing, /delta, /trend, /snapshots.
+
+**Read-only safety**: SC_READONLY=1 env var blocks all write endpoints with 403 + JSON error.
+
+
+
 All notable changes to **safecadence-netrisk** are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
