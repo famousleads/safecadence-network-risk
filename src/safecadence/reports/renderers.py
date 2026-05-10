@@ -108,6 +108,7 @@ a{color:#1f6f6a}
 .sc-pillrow{display:inline-flex;gap:4px;flex-wrap:wrap}
 .sc-pill-red{background:#fee2e2;color:#7f1d1d}
 .sc-pill-green{background:#dcfce7;color:#14532d}
+.sc-pill-medium{background:#fef3c7;color:#854d0e}
 .sc-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
 .sc-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px}
 .sc-card h4{margin:0 0 6px;font-size:13px;color:#0f172a}
@@ -519,4 +520,682 @@ def render_pdf(report: dict, *, preset: dict | None = None) -> bytes:
         return html_doc.encode("utf-8")
 
 
-__all__ = ["render_html", "render_json", "render_pdf"]
+# --------------------------------------------------------------------------
+# DOCX  (Word .docx — built with stdlib zipfile + OOXML)
+# --------------------------------------------------------------------------
+
+
+def _docx_escape(s: Any) -> str:
+    return html.escape(str(s if s is not None else ""), quote=True)
+
+
+def _docx_para(text: str, *, bold: bool = False, size: int | None = None,
+               heading: int | None = None, color: str | None = None,
+               align: str | None = None) -> str:
+    """Build a single OOXML paragraph."""
+    runs = []
+    rpr_bits = []
+    if bold: rpr_bits.append("<w:b/>")
+    if size: rpr_bits.append(f'<w:sz w:val="{int(size*2)}"/>')
+    if color: rpr_bits.append(f'<w:color w:val="{color}"/>')
+    rpr = f"<w:rPr>{''.join(rpr_bits)}</w:rPr>" if rpr_bits else ""
+    runs.append(f"<w:r>{rpr}<w:t xml:space=\"preserve\">{_docx_escape(text)}</w:t></w:r>")
+
+    ppr_bits = []
+    if heading: ppr_bits.append(f'<w:pStyle w:val="Heading{int(heading)}"/>')
+    if align: ppr_bits.append(f'<w:jc w:val="{align}"/>')
+    ppr = f"<w:pPr>{''.join(ppr_bits)}</w:pPr>" if ppr_bits else ""
+
+    return f"<w:p>{ppr}{''.join(runs)}</w:p>"
+
+
+def _docx_table(rows: list[list[str]], *, header: bool = True,
+                widths: list[int] | None = None) -> str:
+    """Build a simple OOXML table. widths in DXA (1440=1in)."""
+    if not rows:
+        return ""
+    ncols = max(len(r) for r in rows)
+    widths = widths or [int(9000 / max(1, ncols))] * ncols
+    grid = "<w:tblGrid>" + "".join(
+        f'<w:gridCol w:w="{w}"/>' for w in widths
+    ) + "</w:tblGrid>"
+    tbl_pr = (
+        '<w:tblPr>'
+        '<w:tblW w:w="5000" w:type="pct"/>'
+        '<w:tblBorders>'
+        '<w:top w:val="single" w:sz="4" w:color="CBD5E1"/>'
+        '<w:left w:val="single" w:sz="4" w:color="CBD5E1"/>'
+        '<w:bottom w:val="single" w:sz="4" w:color="CBD5E1"/>'
+        '<w:right w:val="single" w:sz="4" w:color="CBD5E1"/>'
+        '<w:insideH w:val="single" w:sz="4" w:color="E2E8F0"/>'
+        '<w:insideV w:val="single" w:sz="4" w:color="E2E8F0"/>'
+        '</w:tblBorders>'
+        '</w:tblPr>'
+    )
+    out = [f"<w:tbl>{tbl_pr}{grid}"]
+    for ri, row in enumerate(rows):
+        cells = []
+        for ci in range(ncols):
+            txt = row[ci] if ci < len(row) else ""
+            shading = ''
+            bold = False
+            if header and ri == 0:
+                shading = '<w:shd w:val="clear" w:color="auto" w:fill="F1F5F9"/>'
+                bold = True
+            tcpr = f'<w:tcPr><w:tcW w:w="{widths[ci]}" w:type="dxa"/>{shading}</w:tcPr>'
+            cells.append(
+                f"<w:tc>{tcpr}{_docx_para(txt, bold=bold, size=10)}</w:tc>"
+            )
+        out.append(f"<w:tr>{''.join(cells)}</w:tr>")
+    out.append("</w:tbl>")
+    return "".join(out)
+
+
+def _section_to_docx(section: dict, report: dict, idx: int) -> str:
+    """Turn one composed section into OOXML paragraphs+tables."""
+    title = section.get("title") or section.get("key") or ""
+    out = [_docx_para(f"{idx:02d}. {title}", heading=1, bold=True, size=15, color="0F172A")]
+
+    key = section.get("key")
+    data = section.get("data") or {}
+
+    if section.get("empty"):
+        out.append(_docx_para(f"No data for {title}.", color="64748B"))
+        return "".join(out)
+
+    if key == "kpi_summary":
+        rows = [["Metric", "Value", "Notes"]]
+        rows.append(["Hosts in scope", str(data.get("hosts", 0)), "Assets evaluated"])
+        rows.append(["Critical CVEs", str(data.get("critical", 0)), "P0 patch class"])
+        rows.append(["High CVEs", str(data.get("high", 0)), "P1 patch class"])
+        rows.append(["KEV-listed", str(data.get("kev", 0)), "Actively exploited"])
+        rows.append(["EOL hardware", str(data.get("eol", 0)), "Past vendor EOS"])
+        rows.append(["EOS software", str(data.get("eos_software", 0)), "Unsupported versions"])
+        out.append(_docx_table(rows))
+        return "".join(out)
+
+    if key == "executive_summary":
+        try:
+            text = ai_helpers.generate_executive_summary({
+                "kpi": _kpi_data(report),
+                "scope": report.get("scope") or {},
+            }, tone="professional")
+        except Exception:
+            text = data.get("summary") or "Executive summary unavailable."
+        for para in str(text).split("\n\n"):
+            if para.strip():
+                out.append(_docx_para(para.strip()))
+        return "".join(out)
+
+    if key == "compliance_posture":
+        frameworks = data.get("frameworks") or []
+        if frameworks:
+            rows = [["Framework", "Score", "Pass", "Fail", "Top failing controls"]]
+            for fw in frameworks:
+                top = fw.get("top_failures") or fw.get("top_failing") or []
+                top_str = "; ".join(
+                    f"{(c.get('id') or c.get('control') or '')}"
+                    + (f" — {c.get('title')}" if c.get("title") else "")
+                    for c in top[:3]
+                )
+                rows.append([
+                    fw.get("framework") or fw.get("name") or "",
+                    f"{int(fw.get('score') or 0)}%",
+                    str(fw.get("pass") or fw.get("passing") or 0),
+                    str(fw.get("fail") or 0),
+                    top_str,
+                ])
+            out.append(_docx_table(rows, widths=[1600, 800, 800, 800, 5000]))
+        return "".join(out)
+
+    if key == "recommended_actions":
+        actions = data.get("actions") or []
+        if actions:
+            rows = [["Priority", "Action", "Effort", "Controls"]]
+            for a in actions[:25]:
+                compl = a.get("compliance") or []
+                if isinstance(compl, list):
+                    compl = ", ".join(compl[:2])
+                rows.append([
+                    str(a.get("priority") or "P3"),
+                    str(a.get("title") or ""),
+                    str(a.get("effort") or "medium"),
+                    str(compl or "—"),
+                ])
+            out.append(_docx_table(rows, widths=[900, 5400, 1200, 1500]))
+        return "".join(out)
+
+    if key == "host_inventory":
+        hosts = data.get("hosts") or data.get("rows") or []
+        if hosts:
+            rows = [["Host", "Vendor", "Site", "Criticality", "Crit", "High"]]
+            for h in hosts[:50]:
+                rows.append([
+                    str(h.get("hostname") or h.get("host") or h.get("name") or ""),
+                    str(h.get("vendor") or ""),
+                    str(h.get("site") or ""),
+                    str(h.get("criticality") or ""),
+                    str(h.get("critical") or h.get("crit_count") or 0),
+                    str(h.get("high") or h.get("high_count") or 0),
+                ])
+            out.append(_docx_table(rows))
+        return "".join(out)
+
+    # Generic dict/list fallback: try to render as a table
+    if isinstance(data, dict) and data:
+        rows = [["Field", "Value"]]
+        for k, v in list(data.items())[:30]:
+            if isinstance(v, (list, dict)):
+                v = _json.dumps(v, default=str)[:200]
+            rows.append([str(k), str(v)])
+        out.append(_docx_table(rows, widths=[2500, 6500]))
+        return "".join(out)
+
+    out.append(_docx_para("(See HTML/PDF version for full visuals)", color="64748B"))
+    return "".join(out)
+
+
+def render_docx(report: dict, *, preset: dict | None = None) -> bytes:
+    """Render the report as a Word .docx file (real OOXML, opens in Word/Pages/Google Docs)."""
+    import io
+    import zipfile
+
+    title = report.get("title") or "SafeCadence NetRisk Report"
+    kpi = _kpi_data(report)
+    score = _derive_overall_risk(kpi)
+    confidence = _confidence_for(kpi)
+    sections = report.get("sections") or []
+
+    body_parts: list[str] = []
+    # Cover
+    body_parts.append(_docx_para(title, heading=1, bold=True, size=24, color="0F172A", align="center"))
+    body_parts.append(_docx_para("A SafeCadence NetRisk security posture deliverable.",
+                                 size=12, color="475569", align="center"))
+    body_parts.append(_docx_para(""))
+    body_parts.append(_docx_table([
+        ["Generated", _today()],
+        ["Assets in scope", str(int(kpi.get("hosts") or 0))],
+        ["Overall risk index", f"{score} / 100"],
+        ["Confidence", confidence],
+        ["Sections", str(len(sections))],
+    ], header=False, widths=[2200, 6800]))
+    body_parts.append(_docx_para(""))
+
+    # TOC heading
+    body_parts.append(_docx_para("Contents", heading=2, bold=True, size=14, color="0F172A"))
+    for i, s in enumerate(sections, start=1):
+        body_parts.append(_docx_para(f"  {i:02d}.  {s.get('title','')}", size=11))
+    body_parts.append(_docx_para(""))
+
+    # Sections
+    for i, s in enumerate(sections, start=1):
+        body_parts.append(_section_to_docx(s, report, i))
+        body_parts.append(_docx_para(""))
+
+    # Footer
+    body_parts.append(_docx_para(
+        f"Generated by SafeCadence NetRisk v10.2.0 · "
+        f"CISA KEV catalog rev {_kev_catalog_rev()}",
+        size=9, color="64748B", align="center",
+    ))
+
+    body_xml = "".join(body_parts)
+
+    document_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        f'<w:body>{body_xml}'
+        '<w:sectPr>'
+        '<w:pgSz w:w="12240" w:h="15840"/>'
+        '<w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080"/>'
+        '</w:sectPr></w:body></w:document>'
+    )
+
+    styles_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        '<w:docDefaults><w:rPrDefault><w:rPr>'
+        '<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>'
+        '<w:sz w:val="22"/></w:rPr></w:rPrDefault></w:docDefaults>'
+        '<w:style w:type="paragraph" w:styleId="Heading1">'
+        '<w:name w:val="heading 1"/><w:basedOn w:val="Normal"/>'
+        '<w:pPr><w:spacing w:before="240" w:after="120"/></w:pPr>'
+        '<w:rPr><w:b/><w:sz w:val="30"/><w:color w:val="0F172A"/></w:rPr></w:style>'
+        '<w:style w:type="paragraph" w:styleId="Heading2">'
+        '<w:name w:val="heading 2"/><w:basedOn w:val="Normal"/>'
+        '<w:pPr><w:spacing w:before="160" w:after="80"/></w:pPr>'
+        '<w:rPr><w:b/><w:sz w:val="26"/><w:color w:val="1F6F6A"/></w:rPr></w:style>'
+        '</w:styles>'
+    )
+
+    rels_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
+        'Target="word/document.xml"/></Relationships>'
+    )
+
+    doc_rels_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" '
+        'Target="styles.xml"/></Relationships>'
+    )
+
+    content_types_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="xml" ContentType="application/xml"/>'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        '<Override PartName="/word/document.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+        '<Override PartName="/word/styles.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
+        '</Types>'
+    )
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml", content_types_xml)
+        z.writestr("_rels/.rels", rels_xml)
+        z.writestr("word/document.xml", document_xml)
+        z.writestr("word/styles.xml", styles_xml)
+        z.writestr("word/_rels/document.xml.rels", doc_rels_xml)
+    return buf.getvalue()
+
+
+# --------------------------------------------------------------------------
+# PPTX  (PowerPoint .pptx — built with stdlib zipfile + OOXML)
+# --------------------------------------------------------------------------
+
+
+def _pptx_escape(s: Any) -> str:
+    return html.escape(str(s if s is not None else ""), quote=True)
+
+
+def _pptx_slide_xml(blocks: list[dict]) -> str:
+    """Build a single slide. blocks = list of dicts:
+       {text, x, y, w, h, size, bold, color, align}.
+    """
+    shapes = []
+    for i, b in enumerate(blocks, start=1):
+        text = _pptx_escape(b.get("text", ""))
+        x = b.get("x", 457200)         # 0.5 in
+        y = b.get("y", 457200)
+        w = b.get("w", 8229600)        # ~9 in
+        h = b.get("h", 685800)         # 0.75 in
+        size = int(b.get("size", 18)) * 100  # 100 = 1 pt
+        bold = "1" if b.get("bold") else "0"
+        color = b.get("color", "0F172A")
+        align = b.get("align", "l")    # l/ctr/r
+        font = b.get("font", "Calibri")
+
+        # Multi-line: split on \n
+        paras = []
+        for line in text.split("\n"):
+            paras.append(
+                f'<a:p><a:pPr algn="{align}"/>'
+                f'<a:r><a:rPr lang="en-US" sz="{size}" b="{bold}">'
+                f'<a:solidFill><a:srgbClr val="{color}"/></a:solidFill>'
+                f'<a:latin typeface="{font}"/>'
+                f'</a:rPr><a:t>{line}</a:t></a:r></a:p>'
+            )
+        body = "".join(paras)
+        shapes.append(
+            f'<p:sp><p:nvSpPr><p:cNvPr id="{i+1}" name="Block{i}"/>'
+            '<p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>'
+            '<p:spPr>'
+            f'<a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{w}" cy="{h}"/></a:xfrm>'
+            '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>'
+            '</p:spPr>'
+            f'<p:txBody><a:bodyPr wrap="square" anchor="t"/><a:lstStyle/>{body}</p:txBody>'
+            '</p:sp>'
+        )
+
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+        'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'
+        '<p:cSld><p:bg><p:bgPr>'
+        '<a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill>'
+        '<a:effectLst/></p:bgPr></p:bg>'
+        '<p:spTree>'
+        '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>'
+        '<p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/>'
+        '<a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>'
+        + "".join(shapes) +
+        '</p:spTree></p:cSld>'
+        '<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>'
+    )
+
+
+def _pptx_section_slide(section: dict, report: dict, idx: int) -> str:
+    title = section.get("title") or section.get("key") or ""
+    blocks: list[dict] = [
+        # Brand bar (skinny rectangle proxied via small text)
+        {"text": f"  {idx:02d}", "x": 457200, "y": 457200, "w": 685800, "h": 457200,
+         "size": 28, "bold": True, "color": "1F6F6A"},
+        {"text": title, "x": 1200150, "y": 457200, "w": 7400000, "h": 685800,
+         "size": 32, "bold": True, "color": "0F172A"},
+    ]
+
+    key = section.get("key")
+    data = section.get("data") or {}
+    y = 1371600  # 1.5 in
+
+    if section.get("empty"):
+        blocks.append({"text": f"No data for {title}.",
+                       "x": 1200150, "y": y, "w": 7400000, "h": 500000,
+                       "size": 14, "color": "64748B"})
+        return _pptx_slide_xml(blocks)
+
+    if key == "kpi_summary":
+        # Five KPI cards on a row
+        items = [
+            ("Hosts", data.get("hosts", 0), "1F6F6A"),
+            ("Critical", data.get("critical", 0), "DC2626"),
+            ("High", data.get("high", 0), "EA580C"),
+            ("KEV", data.get("kev", 0), "7C2D12"),
+            ("EOL", data.get("eol", 0), "B45309"),
+        ]
+        cw = 1600200
+        for i, (lbl, val, color) in enumerate(items):
+            x = 457200 + i * (cw + 100000)
+            blocks.append({"text": str(val), "x": x, "y": y, "w": cw, "h": 800000,
+                           "size": 44, "bold": True, "color": color, "align": "ctr"})
+            blocks.append({"text": lbl, "x": x, "y": y + 750000, "w": cw, "h": 400000,
+                           "size": 12, "color": "64748B", "align": "ctr"})
+        return _pptx_slide_xml(blocks)
+
+    if key == "executive_summary":
+        try:
+            text = ai_helpers.generate_executive_summary({
+                "kpi": _kpi_data(report),
+                "scope": report.get("scope") or {},
+            }, tone="executive")
+        except Exception:
+            text = data.get("summary") or "Executive summary unavailable."
+        # Wrap to ~90 chars/line for readability on slide
+        wrapped = _wrap_text(str(text), 90)
+        blocks.append({"text": wrapped, "x": 600000, "y": y, "w": 8200000, "h": 4500000,
+                       "size": 16, "color": "0F172A"})
+        return _pptx_slide_xml(blocks)
+
+    if key == "compliance_posture":
+        frameworks = data.get("frameworks") or []
+        if frameworks:
+            for i, fw in enumerate(frameworks[:5]):
+                row_y = y + i * 750000
+                name = fw.get("framework") or fw.get("name") or ""
+                score = int(fw.get("score") or 0)
+                fail_count = int(fw.get("fail") or 0)
+                color = "16A34A" if score >= 80 else "EA580C" if score >= 60 else "DC2626"
+                blocks.append({"text": name, "x": 600000, "y": row_y, "w": 2400000, "h": 500000,
+                               "size": 18, "bold": True, "color": "0F172A"})
+                blocks.append({"text": f"{score}%", "x": 3000000, "y": row_y, "w": 1000000,
+                               "h": 500000, "size": 22, "bold": True, "color": color})
+                top = fw.get("top_failures") or fw.get("top_failing") or []
+                top_str = " · ".join(
+                    (c.get("id") or c.get("control") or "") for c in top[:3]
+                )
+                blocks.append({"text": f"{fail_count} failing — {top_str}",
+                               "x": 4100000, "y": row_y, "w": 4700000, "h": 500000,
+                               "size": 12, "color": "64748B"})
+        return _pptx_slide_xml(blocks)
+
+    if key == "recommended_actions":
+        actions = data.get("actions") or []
+        for i, a in enumerate(actions[:8]):
+            row_y = y + i * 500000
+            pri = a.get("priority", "P3")
+            color = {"P0":"DC2626","P1":"EA580C","P2":"CA8A04","P3":"2563EB"}.get(pri, "64748B")
+            blocks.append({"text": pri, "x": 600000, "y": row_y, "w": 500000, "h": 400000,
+                           "size": 14, "bold": True, "color": color})
+            blocks.append({"text": str(a.get("title", "")), "x": 1200000, "y": row_y,
+                           "w": 7400000, "h": 400000, "size": 14, "color": "0F172A"})
+        return _pptx_slide_xml(blocks)
+
+    # Generic: dump a few facts
+    if isinstance(data, dict):
+        lines = []
+        for k, v in list(data.items())[:8]:
+            if isinstance(v, (list, dict)):
+                v = f"{len(v)} item(s)" if hasattr(v, "__len__") else str(v)[:60]
+            lines.append(f"• {k}: {v}")
+        blocks.append({"text": "\n".join(lines) if lines else "(see full HTML report)",
+                       "x": 600000, "y": y, "w": 8200000, "h": 4000000,
+                       "size": 14, "color": "0F172A"})
+    return _pptx_slide_xml(blocks)
+
+
+def _wrap_text(text: str, width: int) -> str:
+    import textwrap
+    out_lines = []
+    for paragraph in str(text).split("\n"):
+        if not paragraph.strip():
+            out_lines.append("")
+            continue
+        out_lines.extend(textwrap.wrap(paragraph, width=width) or [""])
+    return "\n".join(out_lines)
+
+
+def render_pptx(report: dict, *, preset: dict | None = None) -> bytes:
+    """Render the report as a PowerPoint .pptx file."""
+    import io
+    import zipfile
+
+    title = report.get("title") or "SafeCadence NetRisk Report"
+    kpi = _kpi_data(report)
+    score = _derive_overall_risk(kpi)
+    confidence = _confidence_for(kpi)
+    sections = report.get("sections") or []
+
+    slides_xml: list[str] = []
+
+    # Slide 1: Cover
+    slides_xml.append(_pptx_slide_xml([
+        {"text": title, "x": 600000, "y": 1500000, "w": 8200000, "h": 1000000,
+         "size": 40, "bold": True, "color": "0F172A", "align": "ctr"},
+        {"text": "SafeCadence NetRisk Security Posture",
+         "x": 600000, "y": 2600000, "w": 8200000, "h": 500000,
+         "size": 18, "color": "475569", "align": "ctr"},
+        {"text": f"Overall Risk Index: {score} / 100",
+         "x": 600000, "y": 3500000, "w": 8200000, "h": 500000,
+         "size": 22, "bold": True,
+         "color": "DC2626" if score >= 70 else "EA580C" if score >= 40 else "16A34A",
+         "align": "ctr"},
+        {"text": f"Confidence: {confidence}",
+         "x": 600000, "y": 4100000, "w": 8200000, "h": 400000,
+         "size": 14, "color": "64748B", "align": "ctr"},
+        {"text": f"Generated {_today()}",
+         "x": 600000, "y": 5200000, "w": 8200000, "h": 400000,
+         "size": 12, "color": "94A3B8", "align": "ctr"},
+    ]))
+
+    # Slide 2: Agenda
+    agenda_lines = "\n".join(f"  {i:02d}.  {s.get('title','')}"
+                              for i, s in enumerate(sections, start=1))
+    slides_xml.append(_pptx_slide_xml([
+        {"text": "Agenda", "x": 600000, "y": 457200, "w": 8200000, "h": 685800,
+         "size": 32, "bold": True, "color": "0F172A"},
+        {"text": agenda_lines, "x": 600000, "y": 1371600, "w": 8200000, "h": 5000000,
+         "size": 16, "color": "0F172A"},
+    ]))
+
+    # Per-section slides
+    for i, s in enumerate(sections, start=1):
+        slides_xml.append(_pptx_section_slide(s, report, i))
+
+    # Last slide: Thank-you
+    slides_xml.append(_pptx_slide_xml([
+        {"text": "Questions?", "x": 600000, "y": 2300000, "w": 8200000, "h": 800000,
+         "size": 44, "bold": True, "color": "0F172A", "align": "ctr"},
+        {"text": "SafeCadence NetRisk v10.2.0",
+         "x": 600000, "y": 3300000, "w": 8200000, "h": 400000,
+         "size": 14, "color": "64748B", "align": "ctr"},
+        {"text": "safecadence.com",
+         "x": 600000, "y": 3700000, "w": 8200000, "h": 400000,
+         "size": 14, "color": "1F6F6A", "align": "ctr"},
+    ]))
+
+    n = len(slides_xml)
+
+    # Build presentation.xml
+    sld_id_list = "".join(
+        f'<p:sldId id="{256+i}" r:id="rId{i+2}"/>' for i in range(n)
+    )
+    presentation_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+        'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" '
+        'saveSubsetFonts="1">'
+        '<p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst>'
+        f'<p:sldIdLst>{sld_id_list}</p:sldIdLst>'
+        '<p:sldSz cx="9144000" cy="6858000" type="screen4x3"/>'
+        '<p:notesSz cx="6858000" cy="9144000"/>'
+        '</p:presentation>'
+    )
+
+    # Minimal slide master + layout
+    slide_master_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+        'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'
+        '<p:cSld><p:bg><p:bgPr>'
+        '<a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill>'
+        '<a:effectLst/></p:bgPr></p:bg>'
+        '<p:spTree>'
+        '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>'
+        '<p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/>'
+        '<a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>'
+        '</p:spTree></p:cSld>'
+        '<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" '
+        'accent1="accent1" accent2="accent2" accent3="accent3" '
+        'accent4="accent4" accent5="accent5" accent6="accent6" '
+        'hlink="hlink" folHlink="folHlink"/>'
+        '<p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst>'
+        '<p:txStyles>'
+        '<p:titleStyle><a:lvl1pPr><a:defRPr sz="3200" b="1">'
+        '<a:solidFill><a:srgbClr val="0F172A"/></a:solidFill>'
+        '<a:latin typeface="Calibri"/></a:defRPr></a:lvl1pPr></p:titleStyle>'
+        '<p:bodyStyle><a:lvl1pPr><a:defRPr sz="1800">'
+        '<a:solidFill><a:srgbClr val="0F172A"/></a:solidFill>'
+        '<a:latin typeface="Calibri"/></a:defRPr></a:lvl1pPr></p:bodyStyle>'
+        '<p:otherStyle/></p:txStyles></p:sldMaster>'
+    )
+
+    slide_layout_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+        'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" '
+        'type="blank" preserve="1">'
+        '<p:cSld name="Blank"><p:spTree>'
+        '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>'
+        '<p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/>'
+        '<a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>'
+        '</p:spTree></p:cSld>'
+        '<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>'
+    )
+
+    # _rels for presentation: master + each slide
+    pres_rels_parts = [
+        '<Relationship Id="rId1" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" '
+        'Target="slideMasters/slideMaster1.xml"/>'
+    ]
+    for i in range(n):
+        pres_rels_parts.append(
+            f'<Relationship Id="rId{i+2}" '
+            'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" '
+            f'Target="slides/slide{i+1}.xml"/>'
+        )
+    presentation_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        + "".join(pres_rels_parts) +
+        '</Relationships>'
+    )
+
+    master_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" '
+        'Target="../slideLayouts/slideLayout1.xml"/>'
+        '</Relationships>'
+    )
+
+    layout_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" '
+        'Target="../slideMasters/slideMaster1.xml"/>'
+        '</Relationships>'
+    )
+
+    def _slide_rels() -> str:
+        return (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" '
+            'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" '
+            'Target="../slideLayouts/slideLayout1.xml"/>'
+            '</Relationships>'
+        )
+
+    # Content types
+    overrides = [
+        '<Override PartName="/ppt/presentation.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>',
+        '<Override PartName="/ppt/slideMasters/slideMaster1.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>',
+        '<Override PartName="/ppt/slideLayouts/slideLayout1.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>',
+    ]
+    for i in range(n):
+        overrides.append(
+            f'<Override PartName="/ppt/slides/slide{i+1}.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>'
+        )
+    content_types = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="xml" ContentType="application/xml"/>'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        + "".join(overrides) +
+        '</Types>'
+    )
+
+    root_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
+        'Target="ppt/presentation.xml"/>'
+        '</Relationships>'
+    )
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml", content_types)
+        z.writestr("_rels/.rels", root_rels)
+        z.writestr("ppt/presentation.xml", presentation_xml)
+        z.writestr("ppt/_rels/presentation.xml.rels", presentation_rels)
+        z.writestr("ppt/slideMasters/slideMaster1.xml", slide_master_xml)
+        z.writestr("ppt/slideMasters/_rels/slideMaster1.xml.rels", master_rels)
+        z.writestr("ppt/slideLayouts/slideLayout1.xml", slide_layout_xml)
+        z.writestr("ppt/slideLayouts/_rels/slideLayout1.xml.rels", layout_rels)
+        for i, sx in enumerate(slides_xml, start=1):
+            z.writestr(f"ppt/slides/slide{i}.xml", sx)
+            z.writestr(f"ppt/slides/_rels/slide{i}.xml.rels", _slide_rels())
+    return buf.getvalue()
+
+
+__all__ = ["render_html", "render_json", "render_pdf", "render_docx", "render_pptx"]

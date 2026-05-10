@@ -36,7 +36,13 @@ from safecadence.reports.builder import (
     list_section_keys,
 )
 from safecadence.reports import templates as _tpl
-from safecadence.reports.renderers import render_html, render_json, render_pdf
+from safecadence.reports.renderers import (
+    render_docx,
+    render_html,
+    render_json,
+    render_pdf,
+    render_pptx,
+)
 from safecadence.reports.presets import (
     apply_preset,
     get_preset,
@@ -309,12 +315,18 @@ _WIZARD_BODY = """
 
   <div id="rep-step4" class="rep-card" style="display:none">
     <h3>Export this report</h3>
-    <div class="rep-actions">
+    <p style="color:#5b6685;font-size:13px;margin:0 0 12px">
+      Choose any combination of formats. Downloads work in read-only demo mode &mdash;
+      no signup required.
+    </p>
+    <div class="rep-actions" style="flex-wrap:wrap;gap:8px">
       <button class="rep-btn primary" onclick="repDownload('html')">Download HTML</button>
       <button class="rep-btn primary" onclick="repDownload('pdf')">Download PDF</button>
+      <button class="rep-btn primary" onclick="repDownload('docx')">Download Word (.docx)</button>
+      <button class="rep-btn primary" onclick="repDownload('pptx')">Download PowerPoint (.pptx)</button>
       <button class="rep-btn primary" onclick="repDownload('json')">Download JSON</button>
-      <button class="rep-btn" onclick="repSaveAsTemplate()">Save as template</button>
       <button class="rep-btn" onclick="repShareLink()">Get share link</button>
+      <button class="rep-btn" onclick="repSaveAsTemplate()">Save as template</button>
     </div>
     <div id="rep-export-msg" class="rep-msg" style="margin-top:12px;display:none"></div>
     <h3 style="margin-top:18px">Saved templates</h3>
@@ -407,6 +419,14 @@ function repRenderIndustry() {
 }
 
 async function repApplyIndustry(tplId) {
+  // Visual feedback first — mark the chosen card as active so the user
+  // sees an immediate response even before the network call returns.
+  document.querySelectorAll('#rep-industry-grid .rep-preset-card').forEach(el => {
+    el.classList.remove('active');
+  });
+  const ev = window.event && window.event.currentTarget;
+  if (ev) ev.classList.add('active');
+
   try {
     const r = await fetch('/api/reports/industry-templates/' + encodeURIComponent(tplId) + '/apply', {
       method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}'
@@ -419,8 +439,13 @@ async function repApplyIndustry(tplId) {
       repRenderSections();
       repRenderScope();
       repGo(3);
+    } else {
+      alert('Could not apply that industry template. Try again.');
     }
-  } catch(e) { console.error(e); }
+  } catch(e) {
+    console.error(e);
+    alert('Could not apply that industry template: ' + e.message);
+  }
 }
 
 function repRenderPresets() {
@@ -434,6 +459,13 @@ function repRenderPresets() {
 }
 
 async function repApplyPreset(presetId) {
+  // Immediate visual feedback on the clicked card.
+  document.querySelectorAll('#rep-presets-grid .rep-preset-card').forEach(el => {
+    el.classList.remove('active');
+  });
+  const ev = window.event && window.event.currentTarget;
+  if (ev) ev.classList.add('active');
+
   if (!presetId) {
     repState.presetId = null;
     repGo(1);
@@ -450,8 +482,15 @@ async function repApplyPreset(presetId) {
       repRenderSections();
       repRenderScope();
       repGo(3);
+    } else if (r && r.detail) {
+      alert('Could not apply preset: ' + r.detail);
+    } else {
+      alert('Could not apply that preset. Try again or pick Custom (start blank).');
     }
-  } catch(e) { console.error(e); }
+  } catch(e) {
+    console.error(e);
+    alert('Could not apply preset: ' + e.message);
+  }
 }
 
 function repRenderSections() {
@@ -592,42 +631,108 @@ async function repSaveAsTemplate() {
 }
 
 async function repShareLink() {
-  if (!repState.templateId) {
-    await repSaveAsTemplate();
-    if (!repState.templateId) return;
-  }
-  const r = await fetch('/api/reports/templates/' + repState.templateId + '/share', {method:'POST'});
-  if (r.status === 403) { alert('Read-only demo: cannot create share links.'); return; }
-  const j = await r.json();
-  const url = location.origin + '/r/' + j.share_token;
   const msg = document.getElementById('rep-export-msg');
   msg.style.display = '';
-  msg.innerHTML = 'Share link: <a href="' + repEsc(url) + '" target="_blank">' + repEsc(url) + '</a>';
-}
+  msg.innerHTML = 'Generating share link...';
 
-async function repDownload(fmt) {
+  // Try ephemeral share link first — works in read-only mode without a save.
+  try {
+    const r = await fetch('/api/reports/share-link', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        sections: repState.sections,
+        scope: repState.scope,
+        preset_id: repState.presetId || null,
+        industry_template_id: repState.industryTemplateId || null,
+      })
+    });
+    if (r.ok) {
+      const j = await r.json();
+      const url = location.origin + (j.path || ('/r-live/' + j.share_token));
+      msg.innerHTML =
+        'Share link (anyone with the link can view): ' +
+        '<a href="' + repEsc(url) + '" target="_blank">' + repEsc(url) + '</a>' +
+        ' <button class="rep-btn" onclick="navigator.clipboard.writeText(\'' +
+        repEsc(url) + '\').then(()=>{this.textContent=\'Copied\'})">Copy</button>';
+      return;
+    }
+  } catch(e) { /* fall through to saved-template path */ }
+
+  // Fallback: persistent share for saved template (requires write access).
   if (!repState.templateId) {
-    if (!repState.readonly) {
-      await repSaveAsTemplate();
-      if (!repState.templateId) return;
-    } else {
-      // In read-only mode, fetch a one-shot composed download
-      const r = await fetch('/api/reports/render-' + fmt, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({sections: repState.sections, scope: repState.scope})
-      });
-      const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'safecadence-report.' + fmt;
-      a.click();
-      URL.revokeObjectURL(url);
+    await repSaveAsTemplate();
+    if (!repState.templateId) {
+      msg.innerHTML = 'Read-only demo: install NetRisk locally for persistent share links.';
       return;
     }
   }
-  location.href = '/api/reports/templates/' + repState.templateId + '/download?format=' + fmt;
+  const r2 = await fetch('/api/reports/templates/' + repState.templateId + '/share',
+                        {method:'POST'});
+  if (r2.status === 403) {
+    msg.innerHTML = 'Read-only demo: cannot create persistent share links.';
+    return;
+  }
+  const j2 = await r2.json();
+  const url2 = location.origin + '/r/' + j2.share_token;
+  msg.innerHTML =
+    'Share link (persistent): ' +
+    '<a href="' + repEsc(url2) + '" target="_blank">' + repEsc(url2) + '</a>';
+}
+
+async function repDownload(fmt) {
+  const btn = (window.event && window.event.currentTarget) || null;
+  let oldText = '';
+  if (btn) { oldText = btn.textContent; btn.textContent = 'Generating...'; btn.disabled = true; }
+
+  const msg = document.getElementById('rep-export-msg');
+  msg.style.display = 'none';
+
+  const payload = {
+    sections: repState.sections,
+    scope: repState.scope,
+    preset_id: repState.presetId || null,
+    industry_template_id: repState.industryTemplateId || null,
+    format: fmt,
+    filename: 'safecadence-report',
+  };
+
+  try {
+    const r = await fetch('/api/reports/render-download', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) {
+      const txt = await r.text();
+      throw new Error('HTTP ' + r.status + ' — ' + (txt || 'see console'));
+    }
+    const blob = await r.blob();
+    if (blob.size === 0) throw new Error('Empty file returned by server');
+    // Derive filename from Content-Disposition if present, else default.
+    let filename = 'safecadence-report.' + fmt;
+    const cd = r.headers.get('Content-Disposition') || '';
+    const m = /filename="([^"]+)"/.exec(cd);
+    if (m) filename = m[1];
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    msg.style.display = '';
+    msg.innerHTML = 'Downloaded ' + repEsc(filename) +
+                    ' (' + Math.round(blob.size/1024) + ' KB).';
+  } catch(e) {
+    console.error(e);
+    msg.style.display = '';
+    msg.innerHTML = '<span style="color:#dc2626">Download failed: ' +
+                    repEsc(e.message) + '</span>';
+  } finally {
+    if (btn) { btn.textContent = oldText; btn.disabled = false; }
+  }
 }
 
 async function repLoadTemplates() {
@@ -933,6 +1038,110 @@ def _make_router():
         return Response(content=render_pdf(report, preset=preset),
                         media_type="application/pdf")
 
+    @router.post("/api/reports/render-docx")
+    def api_render_docx(payload: dict = Body(default={})) -> Response:
+        sections, scope, preset, incl = _resolve_payload(payload)
+        report = compose_report(sections=sections, scope=scope, include_delta=incl)
+        return Response(
+            content=render_docx(report, preset=preset),
+            media_type=("application/vnd.openxmlformats-officedocument."
+                        "wordprocessingml.document"),
+            headers={"Content-Disposition":
+                     'attachment; filename="safecadence-report.docx"'},
+        )
+
+    @router.post("/api/reports/render-pptx")
+    def api_render_pptx(payload: dict = Body(default={})) -> Response:
+        sections, scope, preset, incl = _resolve_payload(payload)
+        report = compose_report(sections=sections, scope=scope, include_delta=incl)
+        return Response(
+            content=render_pptx(report, preset=preset),
+            media_type=("application/vnd.openxmlformats-officedocument."
+                        "presentationml.presentation"),
+            headers={"Content-Disposition":
+                     'attachment; filename="safecadence-report.pptx"'},
+        )
+
+    @router.post("/api/reports/render-download")
+    def api_render_download(payload: dict = Body(default={})) -> Response:
+        """One-shot composed download — works in read-only mode (no template save).
+
+        Body: {sections, scope, preset_id, industry_template_id, format, filename}
+        format: html | pdf | json | docx | pptx
+        """
+        fmt = (payload.get("format") or "html").lower()
+        if fmt not in ("html", "pdf", "json", "docx", "pptx"):
+            raise HTTPException(status_code=400, detail="bad_format")
+        sections, scope, preset, incl = _resolve_payload(payload)
+        report = compose_report(sections=sections, scope=scope, include_delta=incl)
+        base = str(payload.get("filename") or "safecadence-report").strip() or "safecadence-report"
+        # Strip dangerous chars
+        base = "".join(c for c in base if c.isalnum() or c in "-_") or "safecadence-report"
+        fname = f"{base}.{fmt}"
+
+        if fmt == "json":
+            data = render_json(report).encode("utf-8")
+            mime = "application/json"
+        elif fmt == "pdf":
+            data = render_pdf(report, preset=preset)
+            mime = "application/pdf" if data[:4] == b"%PDF" else "text/html"
+            if mime == "text/html":
+                fname = f"{base}.html"
+        elif fmt == "docx":
+            data = render_docx(report, preset=preset)
+            mime = ("application/vnd.openxmlformats-officedocument."
+                    "wordprocessingml.document")
+        elif fmt == "pptx":
+            data = render_pptx(report, preset=preset)
+            mime = ("application/vnd.openxmlformats-officedocument."
+                    "presentationml.presentation")
+        else:  # html
+            data = render_html(report, standalone=True, preset=preset).encode("utf-8")
+            mime = "text/html"
+        return Response(
+            content=data,
+            media_type=mime,
+            headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+        )
+
+    @router.post("/api/reports/share-link")
+    def api_share_link(payload: dict = Body(default={})) -> dict:
+        """Build an ephemeral share URL that encodes the wizard state.
+
+        Works in read-only mode (doesn't need a saved template). The /r-live/
+        endpoint below decodes & renders it.
+        """
+        import base64
+        import json as _json2
+        body = {
+            "sections": payload.get("sections") or [],
+            "scope": payload.get("scope") or {},
+            "preset_id": payload.get("preset_id"),
+            "industry_template_id": payload.get("industry_template_id"),
+            "title": payload.get("title") or "SafeCadence NetRisk Report",
+        }
+        token = base64.urlsafe_b64encode(
+            _json2.dumps(body, default=str).encode("utf-8")
+        ).rstrip(b"=").decode("ascii")
+        return {"share_token": token, "kind": "ephemeral",
+                "path": f"/r-live/{token}"}
+
+    @router.get("/r-live/{token}", response_class=HTMLResponse)
+    def public_share_live(token: str = PathParam(...)) -> str:
+        """Decode an ephemeral share token and render the report."""
+        import base64
+        import json as _json2
+        try:
+            padded = token + "=" * (-len(token) % 4)
+            body = _json2.loads(base64.urlsafe_b64decode(padded).decode("utf-8"))
+        except Exception:
+            raise HTTPException(status_code=404, detail="not_found")
+        sections, scope, preset, incl = _resolve_payload(body)
+        report = compose_report(sections=sections, scope=scope,
+                                title=body.get("title") or "Report",
+                                include_delta=incl)
+        return render_html(report, standalone=True, preset=preset)
+
     @router.get("/api/reports/templates")
     def api_list_templates() -> dict:
         return {"templates": _tpl.list_templates()}
@@ -980,7 +1189,7 @@ def _make_router():
     @router.get("/api/reports/templates/{tpl_id}/download")
     def api_download_template(
         tpl_id: str = PathParam(...),
-        format: str = Query("html", pattern="^(html|json|pdf)$"),
+        format: str = Query("html", pattern="^(html|json|pdf|docx|pptx)$"),
     ) -> Response:
         tpl = _tpl.load_template(tpl_id)
         if not tpl:
@@ -999,6 +1208,20 @@ def _make_router():
             mime = "application/pdf" if data[:4] == b"%PDF" else "text/html"
             return Response(
                 content=data, media_type=mime,
+                headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+            )
+        if format == "docx":
+            return Response(
+                content=render_docx(report),
+                media_type=("application/vnd.openxmlformats-officedocument."
+                            "wordprocessingml.document"),
+                headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+            )
+        if format == "pptx":
+            return Response(
+                content=render_pptx(report),
+                media_type=("application/vnd.openxmlformats-officedocument."
+                            "presentationml.presentation"),
                 headers={"Content-Disposition": f'attachment; filename="{fname}"'},
             )
         return Response(

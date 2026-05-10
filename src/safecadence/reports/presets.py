@@ -25,13 +25,19 @@ from copy import deepcopy
 from typing import Any
 
 
-# All ten registry section keys, in pleasant default reading order.
+# All registry section keys, in pleasant default reading order. The new
+# compliance-deep-dive sections fold in right after the headline compliance
+# posture roll-up.
 _ALL_SECTIONS = [
     "executive_summary",
     "kpi_summary",
     "host_inventory",
     "cve_exposure",
     "compliance_posture",
+    "compliance_executive_summary",
+    "compliance_control_matrix",
+    "compliance_gap_analysis",
+    "compliance_evidence_pack",
     "eol_hardware",
     "attack_paths",
     "identity_drift",
@@ -113,7 +119,11 @@ _PRESETS: list[dict] = [
         "icon": "clipboard",
         "sections": [
             "kpi_summary",
+            "compliance_executive_summary",
             "compliance_posture",
+            "compliance_control_matrix",
+            "compliance_gap_analysis",
+            "compliance_evidence_pack",
             "host_inventory",
             "cve_exposure",
             "recommended_actions",

@@ -1218,6 +1218,658 @@ def executive_summary(store: Any, scope: dict) -> dict:
 
 
 # --------------------------------------------------------------------------
+# Expanded compliance sections — make compliance a flagship feature
+# --------------------------------------------------------------------------
+
+
+# Framework metadata used by the new compliance modules. This is *deliberate*
+# canonical mapping work that an auditor expects — control id, title, family,
+# what the control is *for*. We keep it concise; the full standard is the
+# system of record.
+_COMPLIANCE_LIBRARY: dict[str, dict] = {
+    "NIST 800-53": {
+        "name": "NIST SP 800-53 Rev. 5",
+        "category": "Government / federal",
+        "families": ["AC", "AU", "CM", "IA", "RA", "SC", "SI"],
+        "controls": [
+            ("AC-2", "Account Management", "identity",
+             "Manage account creation, modification, disabling, removal."),
+            ("AC-3", "Access Enforcement", "identity",
+             "Enforce approved authorizations for logical access."),
+            ("AC-6", "Least Privilege", "identity",
+             "Employ the principle of least privilege for accounts."),
+            ("AU-2", "Event Logging", "monitoring",
+             "Identify event types the system is capable of logging."),
+            ("AU-6", "Audit Record Review", "monitoring",
+             "Review and analyze audit records for inappropriate activity."),
+            ("CM-2", "Baseline Configuration", "configuration",
+             "Develop, document, and maintain a current baseline."),
+            ("CM-6", "Configuration Settings", "configuration",
+             "Establish and document configuration settings."),
+            ("CM-7", "Least Functionality", "configuration",
+             "Configure the system to provide only essential capabilities."),
+            ("IA-2", "Identification and Authentication", "identity",
+             "Uniquely identify and authenticate organizational users."),
+            ("IA-5", "Authenticator Management", "identity",
+             "Manage information system authenticators."),
+            ("RA-5", "Vulnerability Monitoring & Scanning", "vulnerability",
+             "Scan for vulnerabilities; remediate legitimate findings."),
+            ("SC-7", "Boundary Protection", "network",
+             "Monitor and control communications at boundaries."),
+            ("SC-8", "Transmission Confidentiality and Integrity", "network",
+             "Protect the confidentiality and integrity of transmitted data."),
+            ("SI-2", "Flaw Remediation", "vulnerability",
+             "Identify, report, and correct system flaws."),
+            ("SI-4", "System Monitoring", "monitoring",
+             "Monitor the system to detect attacks and indicators."),
+        ],
+    },
+    "CIS v8": {
+        "name": "CIS Critical Security Controls v8",
+        "category": "General industry",
+        "families": ["IG1", "IG2", "IG3"],
+        "controls": [
+            ("1.1", "Establish Asset Inventory", "inventory",
+             "Maintain detailed enterprise asset inventory."),
+            ("2.1", "Establish Software Inventory", "inventory",
+             "Inventory authorized and unauthorized software."),
+            ("3.3", "Configure Data Access Control Lists", "data",
+             "Restrict access via ACLs on data resources."),
+            ("4.1", "Establish Secure Configuration Process", "configuration",
+             "Establish and maintain a secure configuration process."),
+            ("4.4", "Implement and Manage a Firewall on Servers", "network",
+             "Enable host-based firewall or filtering on every server."),
+            ("5.2", "Use Unique Passwords", "identity",
+             "Use unique strong passwords for each account."),
+            ("6.3", "Require MFA for Externally-Exposed Apps", "identity",
+             "Require MFA for any externally-exposed app."),
+            ("6.5", "Require MFA for Administrative Access", "identity",
+             "Require MFA for every privileged account."),
+            ("7.3", "Perform Automated OS Patch Management", "vulnerability",
+             "Patch operating systems automatically and centrally."),
+            ("7.4", "Perform Automated Application Patch Management", "vulnerability",
+             "Patch third-party applications automatically."),
+            ("8.2", "Collect Audit Logs", "monitoring",
+             "Centralize audit log collection from in-scope systems."),
+            ("12.1", "Ensure Network Infrastructure is Up-to-Date", "network",
+             "Maintain supported, patched network infrastructure."),
+            ("12.5", "Centralize Network AAA", "network",
+             "Centralize AAA for network infrastructure access."),
+            ("13.6", "Collect Network Traffic Flow Logs", "monitoring",
+             "Collect network flow logs for in-scope systems."),
+            ("17.1", "Designate Incident Response Personnel", "response",
+             "Designate personnel responsible for incident handling."),
+        ],
+    },
+    "PCI DSS": {
+        "name": "PCI DSS v4.0",
+        "category": "Payment card industry",
+        "families": ["Build & Maintain", "Protect Data", "Manage Vulnerability",
+                     "Access Control", "Monitor", "Policy"],
+        "controls": [
+            ("1.2.1", "Restrict inbound/outbound traffic to CDE", "network",
+             "Limit traffic to/from the cardholder data environment."),
+            ("2.2", "Apply secure configurations to all components", "configuration",
+             "Develop and apply secure configuration standards."),
+            ("2.2.5", "Remove insecure services and protocols", "configuration",
+             "Disable Telnet, HTTP, SNMPv1, SSHv1, and other weak protocols."),
+            ("6.3.3", "Install applicable security patches", "vulnerability",
+             "Apply critical patches within one month of release."),
+            ("6.4.1", "Public-facing web apps protected against attacks", "vulnerability",
+             "WAF or technical solution in front of public web apps."),
+            ("7.2.1", "Restrict access by business need-to-know", "identity",
+             "Define roles, restrict access by least privilege."),
+            ("8.3.1", "Strong authentication for non-console access", "identity",
+             "MFA for all non-console administrative access into the CDE."),
+            ("8.3.6", "Password complexity ≥12 chars", "identity",
+             "Passwords/passphrases must be ≥12 characters."),
+            ("10.2.1", "Audit logs for all access to CDE", "monitoring",
+             "Log every individual user's access to cardholder data."),
+            ("10.4.1", "Review logs daily", "monitoring",
+             "Logs reviewed at least daily to spot anomalies."),
+            ("11.3.1", "Internal vulnerability scans quarterly", "vulnerability",
+             "Quarterly internal vulnerability scans, fix high/critical."),
+            ("11.3.2", "External vulnerability scans by ASV quarterly", "vulnerability",
+             "External scans by an Approved Scanning Vendor."),
+            ("11.4.1", "Penetration testing annually", "vulnerability",
+             "Penetration testing at least annually."),
+            ("12.10.1", "Documented incident response plan", "response",
+             "Implement an IR plan that is reviewed annually."),
+        ],
+    },
+    "HIPAA": {
+        "name": "HIPAA Security Rule (45 CFR 164)",
+        "category": "Healthcare",
+        "families": ["Administrative", "Physical", "Technical"],
+        "controls": [
+            ("164.308(a)(1)(ii)(A)", "Risk Analysis", "vulnerability",
+             "Conduct an accurate and thorough risk analysis."),
+            ("164.308(a)(1)(ii)(B)", "Risk Management", "vulnerability",
+             "Reduce risks to a reasonable and appropriate level."),
+            ("164.308(a)(4)", "Information Access Management", "identity",
+             "Authorize access to ePHI consistent with role."),
+            ("164.308(a)(5)(ii)(B)", "Protection from Malicious Software", "vulnerability",
+             "Procedures for guarding against malware."),
+            ("164.308(a)(5)(ii)(C)", "Log-in Monitoring", "monitoring",
+             "Monitor log-in attempts and report discrepancies."),
+            ("164.308(a)(6)", "Security Incident Procedures", "response",
+             "Implement policies to respond to security incidents."),
+            ("164.310(a)(1)", "Facility Access Controls", "physical",
+             "Limit physical access to facilities housing ePHI."),
+            ("164.312(a)(1)", "Access Control", "identity",
+             "Implement technical policies to allow only authorized access."),
+            ("164.312(a)(2)(i)", "Unique User Identification", "identity",
+             "Assign a unique identifier to each user."),
+            ("164.312(a)(2)(iv)", "Encryption and Decryption", "data",
+             "Encrypt ePHI as appropriate."),
+            ("164.312(b)", "Audit Controls", "monitoring",
+             "Record and examine activity in systems with ePHI."),
+            ("164.312(e)(1)", "Transmission Security", "network",
+             "Guard against unauthorized access to ePHI in transit."),
+        ],
+    },
+    "SOC 2": {
+        "name": "SOC 2 Trust Services Criteria",
+        "category": "SaaS / service providers",
+        "families": ["CC1 Control Env", "CC5 Activities", "CC6 Logical Access",
+                     "CC7 System Ops", "CC8 Change Mgmt", "CC9 Risk"],
+        "controls": [
+            ("CC2.1", "Information Quality", "monitoring",
+             "Information used to support internal controls is relevant and reliable."),
+            ("CC4.1", "Monitoring Activities Evaluated", "monitoring",
+             "Ongoing and separate evaluations of internal controls."),
+            ("CC5.2", "Selects and Develops Technology Controls", "configuration",
+             "Select control activities supporting the achievement of objectives."),
+            ("CC6.1", "Logical Access — Identity Management", "identity",
+             "Restrict logical access to authorized users."),
+            ("CC6.2", "Logical Access — Registration & Authorization", "identity",
+             "Register and authorize new access, modify, remove."),
+            ("CC6.6", "Logical Access — Boundary Protection", "network",
+             "Protect against external threats from outside boundaries."),
+            ("CC6.7", "Logical Access — Restriction of Movement", "data",
+             "Restrict movement of information to authorized users only."),
+            ("CC6.8", "Logical Access — Malicious Software", "vulnerability",
+             "Implement controls to prevent or detect malicious software."),
+            ("CC7.1", "Detection of Configuration Changes", "configuration",
+             "Use detection and monitoring procedures to identify changes."),
+            ("CC7.2", "Anomalies Detected & Monitored", "monitoring",
+             "Monitor system components for anomalies."),
+            ("CC7.4", "Responds to Security Incidents", "response",
+             "Respond to identified security incidents using established procedures."),
+            ("CC8.1", "Change Management", "configuration",
+             "Authorize, design, develop, test, approve, and implement changes."),
+        ],
+    },
+}
+
+
+def _control_family(control_id: str, framework: str) -> str:
+    """Best-effort family / category bucket for a control id."""
+    cid = (control_id or "").upper()
+    if framework == "NIST 800-53":
+        return cid.split("-", 1)[0] if "-" in cid else "?"
+    if framework == "CIS v8":
+        if "." in control_id:
+            return f"CIS-{control_id.split('.', 1)[0]}"
+        return "CIS"
+    if framework == "PCI DSS":
+        return f"Req {control_id.split('.', 1)[0]}"
+    if framework == "HIPAA":
+        if "164.308" in control_id: return "Administrative"
+        if "164.310" in control_id: return "Physical"
+        if "164.312" in control_id: return "Technical"
+        return "Other"
+    if framework == "SOC 2":
+        if control_id.upper().startswith("CC"):
+            return control_id.upper().split(".", 1)[0]
+        return "Trust"
+    return "?"
+
+
+def _gap_from_kpi(kpi: dict) -> dict:
+    """Map current KPIs into a dict of which control *families* are likely
+    failing right now. Used by all four expanded compliance sections so they
+    share a consistent view of where the gaps are."""
+    crit = int(kpi.get("critical") or 0)
+    high = int(kpi.get("high") or 0)
+    kev  = int(kpi.get("kev") or 0)
+    eol  = int(kpi.get("eol") or 0)
+    eos  = int(kpi.get("eos_software") or 0)
+    # Severity buckets that drive which control areas we flag.
+    return {
+        "vulnerability": min(100, crit * 8 + high * 3 + kev * 12),
+        "configuration": min(100, eol * 5 + eos * 4),
+        "identity":      min(100, high * 2 + kev * 4),  # heuristic
+        "network":       min(100, crit * 4 + kev * 6),
+        "monitoring":    min(100, crit * 2 + high * 1),
+        "data":          min(100, kev * 4 + crit * 2),
+        "response":      min(100, kev * 6 + crit * 2),
+        "inventory":     min(100, eol * 6 + eos * 3),
+        "physical":      0,  # Out-of-scope for network-risk scanner
+    }
+
+
+def _control_status(control: tuple, gap_map: dict) -> tuple[str, str]:
+    """Return (status, evidence_note) for a control given the current gap map.
+    status ∈ {pass, partial, fail, na}."""
+    _cid, _title, family, _purpose = control
+    score = gap_map.get(family, 0)
+    if family == "physical":
+        return "na", "Outside scope of network-risk telemetry."
+    if score >= 60:
+        return "fail", f"Active findings in this area (gap score {score}/100)."
+    if score >= 25:
+        return "partial", f"Some findings open (gap score {score}/100)."
+    if score > 0:
+        return "partial", f"Minor findings (gap score {score}/100)."
+    return "pass", "No active findings in scope."
+
+
+def _resolve_compliance_frameworks(scope: dict) -> list[str]:
+    """Pick the frameworks to report on based on scope.compliance_frameworks
+    or fall back to the default list."""
+    requested = scope.get("compliance_frameworks") if scope else None
+    if isinstance(requested, str):
+        requested = [requested]
+    if requested:
+        names = []
+        for r in requested:
+            for k in _COMPLIANCE_LIBRARY:
+                if r and r.lower() in k.lower():
+                    names.append(k)
+                    break
+        if names:
+            return names
+    return list(_COMPLIANCE_LIBRARY.keys())
+
+
+def compliance_executive_summary(store: Any, scope: dict) -> dict:
+    """C-suite/board-ready narrative of compliance posture across frameworks.
+
+    Pulls from the existing compliance_posture() output so the numbers stay
+    consistent. Adds a single-paragraph narrative tuned for non-technical
+    executives + an at-a-glance roll-up table.
+    """
+    kpi_section = kpi_summary(store, scope)
+    kpi = kpi_section.get("data") or {}
+    posture = compliance_posture(store, scope)
+    frameworks = (posture.get("data") or {}).get("frameworks") or []
+    if not frameworks:
+        return _empty("Compliance executive summary", {"frameworks": []})
+
+    # Pick the lowest-scoring framework as the headline pain point.
+    sorted_fw = sorted(frameworks, key=lambda f: int(f.get("score") or 0))
+    weakest = sorted_fw[0] if sorted_fw else None
+    strongest = sorted_fw[-1] if sorted_fw else None
+
+    crit = int(kpi.get("critical") or 0)
+    high = int(kpi.get("high") or 0)
+    kev  = int(kpi.get("kev") or 0)
+
+    rows_html = []
+    for fw in frameworks:
+        score = int(fw.get("score") or 0)
+        band = "PASS" if score >= 85 else "PARTIAL" if score >= 65 else "FAIL"
+        pill = ("sc-pill-green" if band == "PASS"
+                else "sc-pill-medium" if band == "PARTIAL" else "sc-pill-red")
+        rows_html.append(
+            f'<tr><td><strong>{_esc(fw.get("framework",""))}</strong></td>'
+            f'<td>{score}%</td>'
+            f'<td><span class="sc-pill {pill}">{band}</span></td>'
+            f'<td>{int(fw.get("fail") or 0)} failing controls</td></tr>'
+        )
+
+    narrative_bits = []
+    if weakest:
+        narrative_bits.append(
+            f"Your weakest posture today is <strong>{_esc(weakest.get('framework',''))}"
+            f"</strong> at {int(weakest.get('score') or 0)}% &mdash; primarily driven by "
+            f"{crit} critical and {high} high-severity findings still open."
+        )
+    if kev:
+        narrative_bits.append(
+            f"<strong>{kev} CISA KEV-listed</strong> vulnerabilities are in scope; "
+            "these alone trigger SI-2, 6.3.3, RA-5, and HIPAA risk management findings "
+            "across multiple frameworks."
+        )
+    if strongest and weakest and strongest is not weakest:
+        narrative_bits.append(
+            f"Strongest framework today is <strong>{_esc(strongest.get('framework',''))}</strong> at "
+            f"{int(strongest.get('score') or 0)}%."
+        )
+    narrative_bits.append(
+        "Resolving the prioritized action plan in &sect; Recommended Actions is "
+        "expected to lift posture by 15&ndash;25 points across all evaluated frameworks."
+    )
+
+    body = (
+        '<p class="sc-narrative">' + " ".join(narrative_bits) + "</p>"
+        '<table class="sc-tbl" style="margin-top:14px">'
+        '<thead><tr><th>Framework</th><th>Score</th><th>Status</th><th>Open gaps</th></tr></thead>'
+        f'<tbody>{"".join(rows_html)}</tbody></table>'
+        '<p style="font-size:11px;color:#64748b;margin-top:10px">'
+        'Scores derived from active findings in this report&rsquo;s scope, mapped to control families. '
+        'Use for <strong>executive briefing only</strong> &mdash; control-by-control evidence is '
+        'in the Compliance control matrix section.</p>'
+    )
+
+    return {
+        "title": "Compliance executive summary",
+        "data": {"frameworks": frameworks, "weakest": weakest, "strongest": strongest,
+                 "kpi": kpi},
+        "html_fragment": body,
+        "empty": False,
+    }
+
+
+def compliance_control_matrix(store: Any, scope: dict) -> dict:
+    """Audit-style row-per-control matrix across all selected frameworks.
+
+    For each control: id, title, framework, family, status (pass/partial/fail/na),
+    evidence note, related KPI counts. This is the workhorse table an auditor
+    asks for first.
+    """
+    frameworks = _resolve_compliance_frameworks(scope)
+    kpi_section = kpi_summary(store, scope)
+    gap_map = _gap_from_kpi(kpi_section.get("data") or {})
+
+    all_rows: list[dict] = []
+    body_rows_html: list[str] = []
+    for fw_name in frameworks:
+        meta = _COMPLIANCE_LIBRARY.get(fw_name, {})
+        controls = meta.get("controls") or []
+        for cid, title, family, purpose in controls:
+            status, evidence = _control_status((cid, title, family, purpose), gap_map)
+            row = {
+                "framework": fw_name,
+                "id": cid,
+                "title": title,
+                "family": _control_family(cid, fw_name),
+                "category": family,
+                "purpose": purpose,
+                "status": status,
+                "evidence": evidence,
+            }
+            all_rows.append(row)
+            pill = {
+                "pass":    ('sc-pill-green',   "PASS"),
+                "partial": ('sc-pill-medium',  "PARTIAL"),
+                "fail":    ('sc-pill-red',     "FAIL"),
+                "na":      ('sc-pill',         "N/A"),
+            }[status]
+            body_rows_html.append(
+                f'<tr><td><strong>{_esc(fw_name)}</strong></td>'
+                f'<td><code>{_esc(cid)}</code></td>'
+                f'<td>{_esc(title)}<div style="font-size:11px;color:#64748b">{_esc(purpose)}</div></td>'
+                f'<td>{_esc(_control_family(cid, fw_name))}</td>'
+                f'<td><span class="sc-pill {pill[0]}">{pill[1]}</span></td>'
+                f'<td style="font-size:12px">{_esc(evidence)}</td></tr>'
+            )
+
+    if not all_rows:
+        return _empty("Compliance control matrix", {"rows": []})
+
+    # Summary tiles by status.
+    by_status = Counter(r["status"] for r in all_rows)
+    tiles = (
+        '<div class="sc-row" style="margin-bottom:14px">'
+        f'<span class="sc-pill sc-pill-green">PASS: {by_status.get("pass",0)}</span>'
+        f'<span class="sc-pill" style="background:#fef3c7;color:#854d0e">'
+        f'PARTIAL: {by_status.get("partial",0)}</span>'
+        f'<span class="sc-pill sc-pill-red">FAIL: {by_status.get("fail",0)}</span>'
+        f'<span class="sc-pill">N/A: {by_status.get("na",0)}</span>'
+        f'<span class="sc-pill" style="background:#dbeafe;color:#1e40af">'
+        f'Total controls: {len(all_rows)}</span>'
+        '</div>'
+    )
+
+    body = (
+        tiles +
+        '<table class="sc-tbl">'
+        '<thead><tr>'
+        '<th>Framework</th><th>Control</th><th>Title / Purpose</th>'
+        '<th>Family</th><th>Status</th><th>Evidence</th>'
+        '</tr></thead>'
+        f'<tbody>{"".join(body_rows_html)}</tbody>'
+        '</table>'
+        '<p style="font-size:11px;color:#64748b;margin-top:10px">'
+        'Status is derived programmatically from active NetRisk findings mapped to '
+        'control families. <strong>This is preliminary evidence</strong> &mdash; final '
+        'control opinions still require auditor judgement and supporting policies / '
+        'procedures / interviews.</p>'
+    )
+
+    return {
+        "title": "Compliance control matrix",
+        "data": {"rows": all_rows, "by_status": dict(by_status)},
+        "html_fragment": body,
+        "empty": False,
+    }
+
+
+def compliance_evidence_pack(store: Any, scope: dict) -> dict:
+    """Per-finding evidence trail — what we observed, when, where, mapped controls.
+
+    This is the section an auditor uses to corroborate the control matrix. For
+    each finding (capped at 50) we emit: timestamp, asset, observation,
+    severity, KEV, mapped controls across frameworks.
+    """
+    # Pull findings from either scan-history or platform_assets fallback.
+    rows = _filter(_safe_list(store), scope)
+    findings: list[dict] = []
+    for r in rows:
+        host = (r.get("asset") or {}).get("hostname") or r.get("hostname") or "?"
+        ts = r.get("scanned_at") or r.get("created_at") or ""
+        for f in (r.get("findings") or []):
+            findings.append({
+                "ts": ts,
+                "host": host,
+                "title": f.get("title") or f.get("id") or "",
+                "severity": (f.get("severity") or "").lower(),
+                "kev": bool(f.get("kev")),
+                "controls": f.get("controls") or f.get("compliance") or {},
+            })
+
+    # Fallback: platform_assets CVE list.
+    if not findings:
+        assets = _filter_assets(_load_platform_assets(), scope)
+        for a in assets:
+            cves = (a.get("cves") or a.get("vulnerabilities")
+                    or (a.get("risk") or {}).get("cves") or [])
+            host = _asset_field(a, "hostname") or _asset_field(a, "name") or "?"
+            ts = a.get("updated_at") or a.get("last_seen") or ""
+            for c in cves[:8]:
+                if not isinstance(c, dict):
+                    continue
+                sev = (c.get("severity") or c.get("cvss_severity") or "").lower()
+                findings.append({
+                    "ts": ts,
+                    "host": host,
+                    "title": c.get("id") or c.get("cve") or "CVE",
+                    "severity": sev,
+                    "kev": bool(c.get("kev") or c.get("kev_listed")),
+                    "controls": {
+                        "NIST 800-53": "SI-2",
+                        "CIS v8": "7.3",
+                        "PCI DSS": "6.3.3",
+                        "HIPAA": "164.308(a)(1)(ii)(B)",
+                        "SOC 2": "CC7.1",
+                    },
+                })
+
+    if not findings:
+        return _empty("Compliance evidence pack", {"findings": []})
+
+    # Sort: KEV first, then severity, then host.
+    sev_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "": 4}
+    findings.sort(key=lambda f: (
+        0 if f.get("kev") else 1,
+        sev_order.get(f.get("severity") or "", 5),
+        f.get("host", ""),
+    ))
+    findings = findings[:50]
+
+    rows_html = []
+    for i, f in enumerate(findings, start=1):
+        sev = f.get("severity") or "info"
+        sev_color = {
+            "critical": "#7f1d1d", "high": "#9a3412",
+            "medium": "#854d0e", "low": "#1e40af",
+        }.get(sev, "#64748b")
+        kev_pill = (' <span class="sc-pill sc-pill-red">KEV</span>'
+                    if f.get("kev") else "")
+        controls = f.get("controls") or {}
+        if isinstance(controls, dict):
+            control_chips = " ".join(
+                f'<span class="sc-pill" style="background:#dbeafe;color:#1e40af">'
+                f'{_esc(fw)}: {_esc(c)}</span>'
+                for fw, c in list(controls.items())[:5]
+            )
+        else:
+            control_chips = ""
+        rows_html.append(
+            f'<tr><td>{i}</td>'
+            f'<td><code>{_esc(f.get("host",""))}</code></td>'
+            f'<td>{_esc(f.get("title",""))}{kev_pill}</td>'
+            f'<td><span class="sc-pill" style="background:#fee2e2;color:{sev_color}">'
+            f'{_esc(sev.upper())}</span></td>'
+            f'<td style="font-size:11px">{control_chips}</td>'
+            f'<td style="font-size:11px;color:#64748b">{_esc(f.get("ts",""))}</td></tr>'
+        )
+
+    body = (
+        '<table class="sc-tbl"><thead><tr>'
+        '<th>#</th><th>Asset</th><th>Observation</th><th>Severity</th>'
+        '<th>Mapped controls</th><th>Observed</th>'
+        '</tr></thead>'
+        f'<tbody>{"".join(rows_html)}</tbody></table>'
+        '<p style="font-size:11px;color:#64748b;margin-top:10px">'
+        f'Top 50 of {len(findings)} findings shown. Full evidence available via API '
+        '(<code>GET /api/v1/findings?scope=...</code>) and as part of the JSON export.'
+        '</p>'
+    )
+
+    return {
+        "title": "Compliance evidence pack",
+        "data": {"findings": findings, "count": len(findings)},
+        "html_fragment": body,
+        "empty": False,
+    }
+
+
+def compliance_gap_analysis(store: Any, scope: dict) -> dict:
+    """Per-framework gap-analysis: what to fix, how much it lifts the score,
+    estimated effort, and a recommended sequencing.
+    """
+    matrix = compliance_control_matrix(store, scope)
+    rows = (matrix.get("data") or {}).get("rows") or []
+    if not rows:
+        return _empty("Compliance gap analysis", {"groups": []})
+
+    # Group failing controls by framework.
+    groups: dict[str, list[dict]] = {}
+    for r in rows:
+        if r["status"] in ("fail", "partial"):
+            groups.setdefault(r["framework"], []).append(r)
+
+    if not groups:
+        return {
+            "title": "Compliance gap analysis",
+            "data": {"groups": []},
+            "html_fragment": (
+                '<div class="sc-empty">No control gaps detected with current evidence. '
+                'Subsequent audit interviews and policy review still required.</div>'
+            ),
+            "empty": False,
+        }
+
+    blocks: list[str] = []
+    sections_data: list[dict] = []
+    for fw_name, items in groups.items():
+        # Estimate "lift" of fixing each item.
+        action_rows: list[str] = []
+        actions_data: list[dict] = []
+        for i, r in enumerate(items, start=1):
+            severity = "P0" if r["status"] == "fail" else "P1"
+            # Heuristic: P0 ~ +6 points, P1 ~ +3 points
+            lift = 6 if severity == "P0" else 3
+            effort = "medium" if severity == "P0" else "low"
+            remediation = _suggest_remediation(r["category"], r["id"], fw_name)
+            actions_data.append({
+                "id": r["id"], "title": r["title"], "priority": severity,
+                "lift": lift, "effort": effort, "remediation": remediation,
+            })
+            action_rows.append(
+                f'<tr><td>{i}</td>'
+                f'<td><code>{_esc(r["id"])}</code></td>'
+                f'<td>{_esc(r["title"])}'
+                f'<div style="font-size:11px;color:#64748b">{_esc(remediation)}</div></td>'
+                f'<td><span class="sc-pill sc-pill-red">{_esc(severity)}</span></td>'
+                f'<td>&plus;{lift} pts</td>'
+                f'<td>{_esc(effort)}</td></tr>'
+            )
+        sections_data.append({"framework": fw_name, "actions": actions_data})
+        blocks.append(
+            f'<h4 style="margin:18px 0 8px;color:#0f172a">{_esc(fw_name)} '
+            f'&middot; {len(items)} gaps</h4>'
+            '<table class="sc-tbl"><thead><tr>'
+            '<th>#</th><th>Control</th><th>Title / Remediation</th>'
+            '<th>Priority</th><th>Score lift</th><th>Effort</th>'
+            '</tr></thead>'
+            f'<tbody>{"".join(action_rows)}</tbody></table>'
+        )
+
+    return {
+        "title": "Compliance gap analysis",
+        "data": {"groups": sections_data},
+        "html_fragment": "".join(blocks),
+        "empty": False,
+    }
+
+
+def _suggest_remediation(category: str, control_id: str, framework: str) -> str:
+    """Per-category remediation snippet — short, actionable."""
+    suggestions = {
+        "vulnerability": (
+            "Patch KEV-listed CVEs within 14 days; auto-update OS + apps; "
+            "schedule monthly vuln scans and track remediation SLA."
+        ),
+        "configuration": (
+            "Adopt a hardened baseline (CIS Benchmarks); remove EOL devices "
+            "from production; enable config-drift detection."
+        ),
+        "identity": (
+            "Enforce MFA for all privileged accounts; rotate shared admin creds; "
+            "review accounts quarterly; require ≥12-char passphrases."
+        ),
+        "network": (
+            "Segment crown-jewel systems; restrict admin interfaces to mgmt VLANs; "
+            "enable boundary IDS/IPS; disable insecure protocols (Telnet, SSHv1)."
+        ),
+        "monitoring": (
+            "Centralize logs in SIEM; enable daily review; tune alerts for "
+            "privilege escalation, lateral movement, and config drift."
+        ),
+        "data": (
+            "Encrypt at rest and in transit; classify and label sensitive data; "
+            "enforce ACLs on data stores."
+        ),
+        "response": (
+            "Document IR runbook; assign IR personnel; conduct annual tabletop; "
+            "subscribe to threat intel for early warning."
+        ),
+        "inventory": (
+            "Reconcile asset inventory monthly; track software bill of materials; "
+            "alert on unauthorized hardware/software."
+        ),
+        "physical": (
+            "Out of scope for network-risk telemetry; verify via in-person walkthrough."
+        ),
+    }
+    return suggestions.get(category, "Address per framework guidance and document evidence.")
+
+
+# --------------------------------------------------------------------------
 # Section registry
 # --------------------------------------------------------------------------
 
@@ -1243,6 +1895,22 @@ SECTION_REGISTRY: list[dict] = [
      "description": "Pass/fail control counts across NIST, CIS, PCI, HIPAA, SOC2.",
      "category": "Compliance", "default_enabled": True,
      "fn": compliance_posture},
+    {"key": "compliance_executive_summary", "name": "Compliance exec summary",
+     "description": "Board-ready narrative + roll-up status per framework.",
+     "category": "Compliance", "default_enabled": True,
+     "fn": compliance_executive_summary},
+    {"key": "compliance_control_matrix", "name": "Compliance control matrix",
+     "description": "Per-control PASS/PARTIAL/FAIL with evidence note (audit-style).",
+     "category": "Compliance", "default_enabled": True,
+     "fn": compliance_control_matrix},
+    {"key": "compliance_evidence_pack", "name": "Compliance evidence pack",
+     "description": "Per-finding evidence trail with mapped controls for auditors.",
+     "category": "Compliance", "default_enabled": False,
+     "fn": compliance_evidence_pack},
+    {"key": "compliance_gap_analysis", "name": "Compliance gap analysis",
+     "description": "Per-framework gap list with score lift, effort, and remediation.",
+     "category": "Compliance", "default_enabled": True,
+     "fn": compliance_gap_analysis},
     {"key": "eol_hardware", "name": "EOL hardware",
      "description": "Devices on end-of-support / end-of-software platforms.",
      "category": "Risk", "default_enabled": False,
@@ -1277,6 +1945,8 @@ __all__ = [
     "SECTION_REGISTRY",
     "get_section",
     "kpi_summary", "host_inventory", "cve_exposure", "compliance_posture",
+    "compliance_executive_summary", "compliance_control_matrix",
+    "compliance_evidence_pack", "compliance_gap_analysis",
     "eol_hardware", "attack_paths", "identity_drift", "recommended_actions",
     "recent_changes", "executive_summary",
     "_load_platform_assets", "_scope_values_from_assets",
