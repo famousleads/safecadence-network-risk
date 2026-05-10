@@ -80,8 +80,14 @@ def compose_report(
     scope: dict | None = None,
     store: Any | None = None,
     title: str = "SafeCadence NetRisk Report",
+    include_delta: bool = False,
 ) -> dict:
-    """Compose a full report dict from the chosen sections + scope."""
+    """Compose a full report dict from the chosen sections + scope.
+
+    When ``include_delta`` is True, attaches a top-level ``delta`` key with
+    the current vs previous snapshot diff (used by the quarterly_review
+    preset and the "Recent changes" section to render sparklines).
+    """
     scope = dict(scope or {})
     keys = list(sections) if sections else [s["key"] for s in SECTION_REGISTRY if s.get("default_enabled")]
 
@@ -126,12 +132,32 @@ def compose_report(
         except Exception:
             pass
 
-    return {
+    delta_payload: dict | None = None
+    if include_delta:
+        try:
+            from safecadence.reports.delta import (
+                compute_delta, decorate_kpi_with_delta,
+            )
+            delta_payload = compute_delta()
+            # Inject sparkline + change badge into the kpi_summary HTML if present.
+            for sec in out_sections:
+                if sec.get("key") == "kpi_summary" and sec.get("html_fragment"):
+                    sec["html_fragment"] = decorate_kpi_with_delta(
+                        sec["html_fragment"], delta=delta_payload
+                    )
+                    break
+        except Exception:
+            delta_payload = None
+
+    out: dict[str, Any] = {
         "title": title,
         "generated_at": _now_iso(),
         "scope": scope,
         "sections": out_sections,
     }
+    if delta_payload is not None:
+        out["delta"] = delta_payload
+    return out
 
 
 __all__ = ["compose_report", "list_section_keys", "list_scope_keys"]

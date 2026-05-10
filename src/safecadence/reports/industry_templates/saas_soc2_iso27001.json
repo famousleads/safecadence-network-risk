@@ -1,0 +1,29 @@
+{
+  "id": "saas_soc2_iso27001",
+  "name": "SaaS (SOC 2 Type II / ISO 27001)",
+  "description": "Multi-framework report for SaaS providers: SOC 2 Type II + ISO 27001 + ISO 27017. Surfaces shared-responsibility boundaries and multi-tenancy isolation evidence.",
+  "industry": "saas",
+  "regulations": ["SOC 2 Type II", "ISO/IEC 27001", "ISO/IEC 27017"],
+  "audience": "auditor",
+  "icon": "trend",
+  "sections": [
+    "kpi_summary",
+    "executive_summary",
+    "compliance_posture",
+    "host_inventory",
+    "cve_exposure",
+    "shared_responsibility",
+    "tenancy_isolation",
+    "recommended_actions"
+  ],
+  "scope_defaults": {"compliance_frameworks": ["soc2", "iso27001", "iso27017"]},
+  "narrative_tone": "audit",
+  "extras": {
+    "include_evidence_appendix": true,
+    "include_control_mappings": true,
+    "include_industry_glossary": true,
+    "max_pages_hint": 30
+  },
+  "narrative_persona": "VP of Security preparing a SOC 2 Type II observation period",
+  "icon_svg": "<svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 17l6-6 4 4 8-9\"/><path d=\"M14 6h7v7\"/></svg>"
+}

@@ -1,0 +1,29 @@
+{
+  "id": "defense_cmmc_fedramp",
+  "name": "Defense / Federal (CMMC 2.0 / FedRAMP)",
+  "description": "CMMC 2.0 Level 2 and FedRAMP Moderate focused report. Maps NetRisk evidence to NIST 800-171 / 800-53 controls, surfaces CUI handling and supply-chain risks.",
+  "industry": "defense",
+  "regulations": ["CMMC 2.0 Level 2", "FedRAMP Moderate", "NIST SP 800-171", "NIST SP 800-53"],
+  "audience": "auditor",
+  "icon": "wrench",
+  "sections": [
+    "kpi_summary",
+    "executive_summary",
+    "compliance_posture",
+    "host_inventory",
+    "cve_exposure",
+    "cui_handling",
+    "supply_chain",
+    "recommended_actions"
+  ],
+  "scope_defaults": {"compliance_frameworks": ["nist-800-171", "nist-800-53"]},
+  "narrative_tone": "audit",
+  "extras": {
+    "include_evidence_appendix": true,
+    "include_control_mappings": true,
+    "include_industry_glossary": true,
+    "max_pages_hint": 50
+  },
+  "narrative_persona": "ISSO preparing a CMMC Level 2 readiness package",
+  "icon_svg": "<svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 2l9 4v6c0 5-4 9-9 10-5-1-9-5-9-10V6l9-4z\"/><path d=\"M8 11l3 3 5-5\"/></svg>"
+}

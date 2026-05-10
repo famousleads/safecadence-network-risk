@@ -1,0 +1,29 @@
+{
+  "id": "finance_pci_sox",
+  "name": "Financial services (PCI DSS 4.0 / SOX)",
+  "description": "PCI DSS 4.0 and Sarbanes-Oxley focused report. Includes cardholder-data-flow context and segregation-of-duties gaps for retail banking, payments, or treasury workloads.",
+  "industry": "finance",
+  "regulations": ["PCI DSS 4.0", "SOX 404", "SOC 2"],
+  "audience": "auditor",
+  "icon": "shield",
+  "sections": [
+    "kpi_summary",
+    "executive_summary",
+    "compliance_posture",
+    "host_inventory",
+    "cve_exposure",
+    "cardholder_data_flow",
+    "segregation_of_duties",
+    "recommended_actions"
+  ],
+  "scope_defaults": {"compliance_frameworks": ["pci", "soc2"]},
+  "narrative_tone": "audit",
+  "extras": {
+    "include_evidence_appendix": true,
+    "include_control_mappings": true,
+    "include_industry_glossary": true,
+    "max_pages_hint": 36
+  },
+  "narrative_persona": "internal auditor at a mid-size payments processor",
+  "icon_svg": "<svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 3l8 3v6c0 5-3.4 8.5-8 9-4.6-.5-8-4-8-9V6l8-3z\"/><path d=\"M9 12l2 2 4-4\"/></svg>"
+}

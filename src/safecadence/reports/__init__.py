@@ -36,6 +36,39 @@ try:
         new_template_id,
         save_template,
     )
+    from safecadence.reports.presets import (
+        apply_preset,
+        get_preset,
+        list_presets,
+    )
+    from safecadence.reports.delta import (
+        snapshot_now,
+        list_snapshots,
+        get_snapshot,
+        compute_delta,
+        trend_series,
+        cleanup_old_snapshots,
+    )
+    from safecadence.reports.webhooks import (
+        list_webhook_endpoints,
+        add_webhook_endpoint,
+        remove_webhook_endpoint,
+        fire_webhook,
+        fire_all_webhooks,
+        notify_completion,
+    )
+    from safecadence.reports.industry import (
+        list_industry_templates,
+        get_industry_template,
+        apply_industry_template,
+    )
+    from safecadence.reports.ticketing import (
+        list_ticketing_integrations,
+        add_ticketing_integration,
+        remove_ticketing_integration,
+        auto_create_tickets,
+        list_created_tickets,
+    )
     _WIZARD_OK = True
 except Exception:  # pragma: no cover
     _WIZARD_OK = False
@@ -50,4 +83,13 @@ __all__ = [
     "render_html", "render_json", "render_pdf",
     "save_template", "load_template", "list_templates", "delete_template",
     "new_template_id",
+    "list_presets", "get_preset", "apply_preset",
+    # Round 2: delta / webhooks / industry / ticketing
+    "snapshot_now", "list_snapshots", "get_snapshot",
+    "compute_delta", "trend_series", "cleanup_old_snapshots",
+    "list_webhook_endpoints", "add_webhook_endpoint", "remove_webhook_endpoint",
+    "fire_webhook", "fire_all_webhooks", "notify_completion",
+    "list_industry_templates", "get_industry_template", "apply_industry_template",
+    "list_ticketing_integrations", "add_ticketing_integration",
+    "remove_ticketing_integration", "auto_create_tickets", "list_created_tickets",
 ]

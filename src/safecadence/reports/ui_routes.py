@@ -37,6 +37,16 @@ from safecadence.reports.builder import (
 )
 from safecadence.reports import templates as _tpl
 from safecadence.reports.renderers import render_html, render_json, render_pdf
+from safecadence.reports.presets import (
+    apply_preset,
+    get_preset,
+    list_presets,
+    render_preset_card_html,
+)
+from safecadence.reports import delta as _delta
+from safecadence.reports import webhooks as _wh
+from safecadence.reports import industry as _industry
+from safecadence.reports import ticketing as _tk
 
 
 def _is_readonly() -> bool:
@@ -132,6 +142,19 @@ _WIZARD_BODY = """
 .rep-msg{padding:10px;border-radius:8px;background:#1a2240;color:#cbd2e6;font-size:13px}
 .rep-readonly{background:#3a1f1f;color:#fda4af;border:1px solid #7f1d1d;border-radius:8px;padding:8px 12px;
   font-size:12px;margin-bottom:14px}
+.rep-presets{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.rep-preset-card{display:flex;gap:12px;align-items:flex-start;padding:14px;border-radius:10px;
+  background:#0b1020;border:1px solid #26315b;color:#e7ecf5;cursor:pointer;text-align:left;
+  font:inherit;transition:border-color .15s ease}
+.rep-preset-card:hover{border-color:#7c5cff;background:#13193a}
+.rep-preset-card.active{border-color:#1f6f6a;box-shadow:0 0 0 2px #1f6f6a55}
+.rep-preset-icon{display:inline-flex;width:36px;height:36px;border-radius:8px;background:#1f6f6a22;
+  align-items:center;justify-content:center;color:#5fc6bc;flex:none}
+.rep-preset-body{display:flex;flex-direction:column;gap:4px;min-width:0}
+.rep-preset-name{font-weight:700;font-size:14px;color:#fff}
+.rep-preset-desc{font-size:12px;color:#cbd2e6;line-height:1.45}
+.rep-preset-meta{display:flex;gap:10px;font-size:10px;text-transform:uppercase;
+  letter-spacing:0.06em;color:#8b95b1;margin-top:6px}
 </style>
 
 <div class="rep-wrap">
@@ -140,13 +163,33 @@ _WIZARD_BODY = """
   </div>
 
   <div class="rep-steps">
-    <div class="rep-step active" data-step="1" onclick="repGo(1)">1. Sections</div>
+    <div class="rep-step active" data-step="0" onclick="repGo(0)">0. Template</div>
+    <div class="rep-step" data-step="1" onclick="repGo(1)">1. Sections</div>
     <div class="rep-step" data-step="2" onclick="repGo(2)">2. Scope</div>
     <div class="rep-step" data-step="3" onclick="repGo(3)">3. Preview</div>
     <div class="rep-step" data-step="4" onclick="repGo(4)">4. Export</div>
+    <div class="rep-step" data-step="5" onclick="repGo(5)">5. Notify</div>
+    <div class="rep-step" data-step="6" onclick="repGo(6)">6. Tickets</div>
   </div>
 
-  <div id="rep-step1" class="rep-card">
+  <div id="rep-step0" class="rep-card">
+    <h3>Choose a starting point</h3>
+    <p style="color:#8b95b1;font-size:13px;margin:0 0 14px">
+      Pick a stakeholder template to pre-fill sections, scope, and tone &mdash; or pick an industry template.
+    </p>
+    <div class="rep-tabs" style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="rep-btn rep-tab active" data-tab="stakeholder" onclick="repTab(this,'stakeholder')">Stakeholder</button>
+      <button class="rep-btn rep-tab" data-tab="industry" onclick="repTab(this,'industry')">By industry</button>
+    </div>
+    <div id="rep-presets-grid" class="rep-presets" data-tab="stakeholder"></div>
+    <div id="rep-industry-grid" class="rep-presets" data-tab="industry" style="display:none"></div>
+    <div class="rep-actions">
+      <button class="rep-btn" onclick="repApplyPreset('')">Custom (start blank)</button>
+      <button class="rep-btn primary" onclick="repGo(1)">Skip &rarr; Sections</button>
+    </div>
+  </div>
+
+  <div id="rep-step1" class="rep-card" style="display:none">
     <h3>Pick the sections to include</h3>
     <div id="rep-section-grid" class="rep-grid"></div>
     <div class="rep-actions">
@@ -201,6 +244,69 @@ _WIZARD_BODY = """
     </div>
   </div>
 
+  <div id="rep-step5" class="rep-card" style="display:none">
+    <h3>Notifications &mdash; webhooks</h3>
+    <p style="color:#8b95b1;font-size:13px">
+      Slack, Teams, or generic JSON. Outgoing requests carry an
+      <code>X-SafeCadence-Signature</code> header when a secret is set.
+    </p>
+    <div id="rep-wh-list" class="rep-tpls" style="margin-bottom:14px"></div>
+    <div class="rep-row">
+      <div><label>URL</label><input id="rep-wh-url" placeholder="https://hooks.slack.com/..."></div>
+      <div><label>Kind</label>
+        <select id="rep-wh-kind">
+          <option value="slack">Slack</option>
+          <option value="teams">Microsoft Teams</option>
+          <option value="generic">Generic JSON</option>
+        </select>
+      </div>
+      <div><label>Secret (optional)</label><input id="rep-wh-secret" type="password" placeholder="HMAC secret"></div>
+    </div>
+    <div class="rep-actions">
+      <button class="rep-btn primary" onclick="repAddWebhook()">+ Add webhook</button>
+    </div>
+    <div id="rep-wh-msg" class="rep-msg" style="display:none;margin-top:10px"></div>
+  </div>
+
+  <div id="rep-step6" class="rep-card" style="display:none">
+    <h3>Push findings to ticketing</h3>
+    <p style="color:#8b95b1;font-size:13px">
+      Auto-create tickets in Jira, ServiceNow, GitHub, or Linear. Findings are
+      deduped by external id so re-running is safe.
+    </p>
+    <div id="rep-tk-list" class="rep-tpls" style="margin-bottom:14px"></div>
+    <div class="rep-row">
+      <div><label>Kind</label>
+        <select id="rep-tk-kind">
+          <option value="jira">Jira</option>
+          <option value="servicenow">ServiceNow</option>
+          <option value="github">GitHub Issues</option>
+          <option value="linear">Linear</option>
+          <option value="generic">Generic</option>
+        </select>
+      </div>
+      <div><label>URL / repo / instance</label><input id="rep-tk-url"></div>
+      <div><label>Project / team key</label><input id="rep-tk-project"></div>
+    </div>
+    <div class="rep-row">
+      <div><label>Auth email</label><input id="rep-tk-email"></div>
+      <div><label>Auth token</label><input id="rep-tk-token" type="password"></div>
+    </div>
+    <div class="rep-actions">
+      <button class="rep-btn" onclick="repAddTicketing()">+ Add integration</button>
+      <label style="color:#8b95b1;font-size:12px;display:flex;align-items:center;gap:6px">
+        Threshold
+        <select id="rep-tk-threshold">
+          <option value="critical">Critical only</option>
+          <option value="high" selected>High and above</option>
+          <option value="medium">Medium and above</option>
+        </select>
+      </label>
+      <button class="rep-btn primary" onclick="repCreateTickets()">Create tickets now</button>
+    </div>
+    <div id="rep-tk-msg" class="rep-msg" style="display:none;margin-top:10px"></div>
+  </div>
+
   <div id="rep-step4" class="rep-card" style="display:none">
     <h3>Export this report</h3>
     <div class="rep-actions">
@@ -220,44 +326,132 @@ _WIZARD_BODY = """
 
 _WIZARD_JS = """
 const repState = {
-  step: 1,
+  step: 0,
   sections: [],
   scope: { site:'', criticality:[], asset_type:[], vendor:[], date_range:{} },
-  meta: { sections: [], scopes: [] },
+  meta: { sections: [], scopes: [], presets: [] },
   scopeValues: { sites: [], vendors: [] },
   templateId: null,
+  presetId: null,
   readonly: false,
 };
 let repTimer = null;
 
 function repGo(n) {
   repState.step = n;
-  for (let i=1;i<=4;i++) {
-    document.getElementById('rep-step'+i).style.display = (i===n) ? '' : 'none';
-    document.querySelectorAll('.rep-step').forEach(el=>{
-      el.classList.toggle('active', String(el.dataset.step)===String(n));
-    });
+  for (let i=0;i<=6;i++) {
+    const el = document.getElementById('rep-step'+i);
+    if (el) el.style.display = (i===n) ? '' : 'none';
   }
+  document.querySelectorAll('.rep-step').forEach(el=>{
+    el.classList.toggle('active', String(el.dataset.step)===String(n));
+  });
   if (n===3) repPreview();
   if (n===4) repLoadTemplates();
+  if (n===5) repLoadWebhooks();
+  if (n===6) repLoadTicketing();
+}
+
+function repTab(btn, name) {
+  document.querySelectorAll('.rep-tab').forEach(b => b.classList.toggle('active', b===btn));
+  document.querySelectorAll('[data-tab]').forEach(el => {
+    if (el.classList.contains('rep-tab')) return;
+    el.style.display = (el.dataset.tab === name) ? '' : 'none';
+  });
 }
 
 async function repLoadMeta() {
   try {
     const sec = await fetch('/api/reports/sections').then(r=>r.json());
     const sco = await fetch('/api/reports/scopes').then(r=>r.json());
+    let pre = {presets: []};
+    try { pre = await fetch('/api/reports/presets').then(r=>r.json()); } catch(e){}
+    let ind = {templates: []};
+    try { ind = await fetch('/api/reports/industry-templates').then(r=>r.json()); } catch(e){}
     repState.meta.sections = sec.sections || [];
     repState.meta.scopes = sco.scopes || [];
+    repState.meta.presets = pre.presets || [];
+    repState.meta.industry = ind.templates || [];
     repState.scopeValues.sites = sco.values?.sites || [];
     repState.scopeValues.vendors = sco.values?.vendors || [];
     repState.readonly = !!sco.readonly;
     if (repState.readonly) document.getElementById('rep-readonly-banner').style.display='block';
     repState.sections = repState.meta.sections.filter(s=>s.default_enabled).map(s=>s.key);
+    repRenderPresets();
+    repRenderIndustry();
     repRenderSections();
     repRenderScope();
   } catch(e) {
     console.error(e);
   }
+}
+
+function repRenderIndustry() {
+  const grid = document.getElementById('rep-industry-grid');
+  if (!grid) return;
+  const items = repState.meta.industry || [];
+  if (!items.length) { grid.innerHTML = '<div class="rep-msg">No industry templates installed.</div>'; return; }
+  grid.innerHTML = items.map(t => (
+    `<button type="button" class="rep-preset-card" onclick="repApplyIndustry('${repEsc(t.id)}')">
+      <span class="rep-preset-icon">${t.icon_svg || ''}</span>
+      <span class="rep-preset-body">
+        <span class="rep-preset-name">${repEsc(t.name)}</span>
+        <span class="rep-preset-desc">${repEsc(t.description||'')}</span>
+        <span class="rep-preset-meta">
+          <span>${repEsc((t.industry||'').toUpperCase())}</span>
+          <span>${(t.regulations||[]).length} frameworks</span>
+        </span>
+      </span>
+    </button>`
+  )).join('');
+}
+
+async function repApplyIndustry(tplId) {
+  try {
+    const r = await fetch('/api/reports/industry-templates/' + encodeURIComponent(tplId) + '/apply', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}'
+    }).then(r=>r.json());
+    if (r && r.sections) {
+      repState.presetId = null;
+      repState.industryTemplateId = tplId;
+      repState.sections = r.sections;
+      repState.scope = Object.assign({site:'',criticality:[],asset_type:[],vendor:[],date_range:{}}, r.scope || {});
+      repRenderSections();
+      repRenderScope();
+      repGo(3);
+    }
+  } catch(e) { console.error(e); }
+}
+
+function repRenderPresets() {
+  const grid = document.getElementById('rep-presets-grid');
+  if (!grid) return;
+  if (!repState.meta.presets.length) {
+    grid.innerHTML = '<div class="rep-msg">No presets installed.</div>';
+    return;
+  }
+  grid.innerHTML = repState.meta.presets.map(p => p.card_html || '').join('');
+}
+
+async function repApplyPreset(presetId) {
+  if (!presetId) {
+    repState.presetId = null;
+    repGo(1);
+    return;
+  }
+  try {
+    const r = await fetch('/api/reports/presets/' + encodeURIComponent(presetId) + '/apply', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}'
+    }).then(r=>r.json());
+    if (r && r.sections) {
+      repState.presetId = presetId;
+      repState.sections = r.sections;
+      repState.scope = Object.assign({site:'',criticality:[],asset_type:[],vendor:[],date_range:{}}, r.scope || {});
+      repRenderSections();
+      repRenderScope();
+      repGo(3);
+    }
+  } catch(e) { console.error(e); }
 }
 
 function repRenderSections() {
@@ -350,10 +544,14 @@ async function repPreview() {
   const pv = document.getElementById('rep-preview');
   pv.innerHTML = '<div style="padding:24px;color:#5b6685">Building preview...</div>';
   try {
+    const payload = {
+      sections: repState.sections, scope: repState.scope,
+      preset_id: repState.presetId || null,
+    };
     const r = await fetch('/api/reports/compose', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({sections: repState.sections, scope: repState.scope})
+      body: JSON.stringify(payload)
     });
     const j = await r.json();
     const stamp = document.getElementById('rep-stamp');
@@ -363,7 +561,7 @@ async function repPreview() {
     const html = await fetch('/api/reports/render-html', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({sections: repState.sections, scope: repState.scope})
+      body: JSON.stringify(payload)
     }).then(r=>r.text());
     iframe.srcdoc = html;
   } catch(e) {
@@ -464,6 +662,115 @@ function repEsc(s) {
   }[c]));
 }
 
+// --- webhooks ---
+async function repLoadWebhooks() {
+  try {
+    const r = await fetch('/api/reports/webhooks').then(r=>r.json());
+    const el = document.getElementById('rep-wh-list');
+    if (!r.webhooks || !r.webhooks.length) {
+      el.innerHTML = '<div class="rep-msg">No webhooks configured.</div>';
+      return;
+    }
+    el.innerHTML = r.webhooks.map(w => (
+      `<div class="rep-tpl">
+        <strong>${repEsc(w.kind)}</strong> &middot; <small style="color:#8b95b1">${repEsc(w.url)}</small><br>
+        <small style="color:#8b95b1">last status: ${repEsc(w.last_status==null?'—':w.last_status)} &middot; ${repEsc(w.last_fired_at||'never fired')}</small>
+        <div style="margin-top:6px;display:flex;gap:6px">
+          <button class="rep-btn" onclick="repTestWebhook('${repEsc(w.id)}')">Test</button>
+          <button class="rep-btn" onclick="repRemoveWebhook('${repEsc(w.id)}')">Remove</button>
+        </div>
+      </div>`
+    )).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function repAddWebhook() {
+  if (repState.readonly) { alert('Read-only demo: cannot add webhooks.'); return; }
+  const url = document.getElementById('rep-wh-url').value.trim();
+  const kind = document.getElementById('rep-wh-kind').value;
+  const secret = document.getElementById('rep-wh-secret').value || null;
+  if (!url) { alert('URL is required'); return; }
+  const r = await fetch('/api/reports/webhooks', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({url, kind, secret})
+  });
+  if (r.status === 403) { alert('Read-only demo: cannot add webhooks.'); return; }
+  document.getElementById('rep-wh-url').value = '';
+  document.getElementById('rep-wh-secret').value = '';
+  repLoadWebhooks();
+}
+
+async function repRemoveWebhook(id) {
+  if (repState.readonly) return;
+  await fetch('/api/reports/webhooks/' + encodeURIComponent(id), {method:'DELETE'});
+  repLoadWebhooks();
+}
+
+async function repTestWebhook(id) {
+  const r = await fetch('/api/reports/webhooks/test', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({id})
+  }).then(r=>r.json());
+  const m = document.getElementById('rep-wh-msg');
+  m.style.display=''; m.textContent = 'Webhook test: status=' + (r.status||0) + (r.ok?' (ok)':' (failed)');
+}
+
+// --- ticketing ---
+async function repLoadTicketing() {
+  try {
+    const r = await fetch('/api/reports/ticketing/integrations').then(r=>r.json());
+    const el = document.getElementById('rep-tk-list');
+    if (!r.integrations || !r.integrations.length) {
+      el.innerHTML = '<div class="rep-msg">No ticketing integrations configured.</div>';
+      return;
+    }
+    el.innerHTML = r.integrations.map(i => (
+      `<div class="rep-tpl">
+        <strong>${repEsc(i.kind)}</strong> &middot; ${repEsc(i.project)}<br>
+        <small style="color:#8b95b1">${repEsc(i.url)} &middot; tickets created: ${repEsc(i.tickets_created||0)}</small>
+        <div style="margin-top:6px"><button class="rep-btn" onclick="repRemoveTicketing('${repEsc(i.id)}')">Remove</button></div>
+      </div>`
+    )).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function repAddTicketing() {
+  if (repState.readonly) { alert('Read-only demo: cannot add integrations.'); return; }
+  const body = {
+    kind: document.getElementById('rep-tk-kind').value,
+    url: document.getElementById('rep-tk-url').value.trim(),
+    project: document.getElementById('rep-tk-project').value.trim(),
+    auth_email: document.getElementById('rep-tk-email').value.trim() || null,
+    auth_token: document.getElementById('rep-tk-token').value || null,
+  };
+  const r = await fetch('/api/reports/ticketing/integrations', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  if (r.status === 403) { alert('Read-only demo.'); return; }
+  if (!r.ok) { alert('Add failed: '+r.status); return; }
+  ['rep-tk-url','rep-tk-project','rep-tk-email','rep-tk-token'].forEach(id => document.getElementById(id).value='');
+  repLoadTicketing();
+}
+
+async function repRemoveTicketing(id) {
+  if (repState.readonly) return;
+  await fetch('/api/reports/ticketing/integrations/' + encodeURIComponent(id), {method:'DELETE'});
+  repLoadTicketing();
+}
+
+async function repCreateTickets() {
+  if (repState.readonly) { alert('Read-only demo: tickets not created.'); return; }
+  const sel = document.getElementById('rep-tk-threshold').value;
+  const r = await fetch('/api/reports/ticketing/auto-create', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({sections: repState.sections, scope: repState.scope,
+                          severity_threshold: sel})
+  }).then(r=>r.json()).catch(e=>({error:String(e)}));
+  const m = document.getElementById('rep-tk-msg');
+  m.style.display=''; m.textContent = 'Created: ' + (r.created||0) + ', deduped: ' + (r.skipped_existing||0);
+}
+
 repLoadMeta();
 """
 
@@ -537,35 +844,94 @@ def _make_router():
             "readonly": _is_readonly(),
         }
 
-    @router.post("/api/reports/compose")
-    def api_compose(payload: dict = Body(default={})) -> dict:
+    def _resolve_payload(payload: dict) -> tuple[list | None, dict, dict | None, bool]:
+        """Pull (sections, scope, preset, include_delta) out of a payload."""
+        preset = None
         sections = payload.get("sections") or None
         scope = payload.get("scope") or {}
-        return compose_report(sections=sections, scope=scope)
+        pid = payload.get("preset_id")
+        iid = payload.get("industry_template_id")
+        include_delta = bool(payload.get("include_delta") or False)
+        if pid:
+            try:
+                preset = apply_preset(pid, scope)
+            except ValueError:
+                preset = None
+            if preset:
+                if not sections:
+                    sections = preset.get("sections")
+                if not scope:
+                    scope = preset.get("scope") or {}
+                if (preset.get("render_options") or {}).get("extras", {}).get("include_delta"):
+                    include_delta = True
+        if iid and not preset:
+            try:
+                preset = _industry.apply_industry_template(iid, scope)
+            except ValueError:
+                preset = None
+            if preset:
+                if not sections:
+                    sections = preset.get("sections")
+                if not scope:
+                    scope = preset.get("scope") or {}
+        return sections, scope, preset, include_delta
+
+    @router.get("/api/reports/presets")
+    def api_presets() -> dict:
+        out = []
+        for p in list_presets():
+            p["card_html"] = render_preset_card_html(p)
+            out.append(p)
+        return {"presets": out, "readonly": _is_readonly()}
+
+    @router.get("/api/reports/presets/{preset_id}")
+    def api_preset(preset_id: str = PathParam(...)) -> Any:
+        p = get_preset(preset_id)
+        if not p:
+            raise HTTPException(status_code=404, detail="not_found")
+        return p
+
+    @router.post("/api/reports/presets/{preset_id}/apply")
+    def api_preset_apply(preset_id: str = PathParam(...),
+                         payload: dict = Body(default={})) -> Any:
+        try:
+            return apply_preset(preset_id, payload.get("scope") or {})
+        except ValueError:
+            raise HTTPException(status_code=404, detail="not_found")
+
+    @router.post("/api/reports/compose")
+    def api_compose(payload: dict = Body(default={})) -> dict:
+        sections, scope, _preset, incl = _resolve_payload(payload)
+        return compose_report(sections=sections, scope=scope, include_delta=incl)
 
     @router.post("/api/reports/render-html", response_class=HTMLResponse)
     def api_render_html(payload: dict = Body(default={})) -> str:
-        report = compose_report(
-            sections=payload.get("sections") or None,
-            scope=payload.get("scope") or {},
-        )
-        return render_html(report, standalone=True)
+        sections, scope, preset, incl = _resolve_payload(payload)
+        report = compose_report(sections=sections, scope=scope, include_delta=incl)
+        # Notify webhooks (best effort) when not in read-only mode.
+        if not _is_readonly():
+            try:
+                _wh.notify_completion({
+                    "title": report.get("title"),
+                    "kpi": next((s.get("data") for s in report.get("sections", [])
+                                 if s.get("key") == "kpi_summary"), {}),
+                })
+            except Exception:
+                pass
+        return render_html(report, standalone=True, preset=preset)
 
     @router.post("/api/reports/render-json")
     def api_render_json(payload: dict = Body(default={})) -> Response:
-        report = compose_report(
-            sections=payload.get("sections") or None,
-            scope=payload.get("scope") or {},
-        )
+        sections, scope, _preset, incl = _resolve_payload(payload)
+        report = compose_report(sections=sections, scope=scope, include_delta=incl)
         return Response(content=render_json(report), media_type="application/json")
 
     @router.post("/api/reports/render-pdf")
     def api_render_pdf(payload: dict = Body(default={})) -> Response:
-        report = compose_report(
-            sections=payload.get("sections") or None,
-            scope=payload.get("scope") or {},
-        )
-        return Response(content=render_pdf(report), media_type="application/pdf")
+        sections, scope, preset, incl = _resolve_payload(payload)
+        report = compose_report(sections=sections, scope=scope, include_delta=incl)
+        return Response(content=render_pdf(report, preset=preset),
+                        media_type="application/pdf")
 
     @router.get("/api/reports/templates")
     def api_list_templates() -> dict:
@@ -661,6 +1027,152 @@ def _make_router():
         report = compose_report(sections=tpl.get("sections"), scope=tpl.get("scope") or {},
                                 title=tpl.get("name") or "Report")
         return render_html(report, standalone=True)
+
+    # ----------------------------------------------------------------------
+    # Round 2: delta / webhooks / industry / ticketing
+    # ----------------------------------------------------------------------
+
+    @router.get("/api/reports/delta")
+    def api_delta() -> dict:
+        return _delta.compute_delta()
+
+    @router.get("/api/reports/snapshots")
+    def api_list_snapshots() -> dict:
+        return {"snapshots": _delta.list_snapshots(), "readonly": _is_readonly()}
+
+    @router.post("/api/reports/snapshots")
+    def api_take_snapshot(body: dict = Body(default={})) -> Any:
+        if _is_readonly():
+            return _readonly_response()
+        try:
+            return _delta.snapshot_now(label=(body or {}).get("label"))
+        except PermissionError:
+            return _readonly_response()
+
+    @router.get("/api/reports/trend")
+    def api_trend(metric: str = Query("critical"),
+                  days: int = Query(30, ge=1, le=365)) -> dict:
+        return {"metric": metric, "days": days,
+                "values": _delta.trend_series(metric, days=days)}
+
+    # webhooks ---------------------------------------------------------------
+
+    @router.get("/api/reports/webhooks")
+    def api_list_webhooks() -> dict:
+        return {"webhooks": _wh.list_webhook_endpoints(),
+                "readonly": _is_readonly()}
+
+    @router.post("/api/reports/webhooks")
+    def api_add_webhook(body: dict = Body(...)) -> Any:
+        if _is_readonly():
+            return _readonly_response()
+        try:
+            return _wh.add_webhook_endpoint(
+                url=body.get("url") or "",
+                kind=body.get("kind") or "generic",
+                secret=body.get("secret") or None,
+            )
+        except PermissionError:
+            return _readonly_response()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @router.delete("/api/reports/webhooks/{wh_id}")
+    def api_remove_webhook(wh_id: str = PathParam(...)) -> Any:
+        if _is_readonly():
+            return _readonly_response()
+        try:
+            ok = _wh.remove_webhook_endpoint(wh_id)
+        except PermissionError:
+            return _readonly_response()
+        if not ok:
+            raise HTTPException(status_code=404, detail="not_found")
+        return {"ok": True}
+
+    @router.post("/api/reports/webhooks/test")
+    def api_test_webhook(body: dict = Body(default={})) -> Any:
+        wh_id = (body or {}).get("id") or ""
+        if not wh_id:
+            raise HTTPException(status_code=400, detail="id required")
+        return _wh.test_webhook(endpoint_id=wh_id)
+
+    # industry ---------------------------------------------------------------
+
+    @router.get("/api/reports/industry-templates")
+    def api_list_industry() -> dict:
+        return {"templates": _industry.list_industry_templates()}
+
+    @router.get("/api/reports/industry-templates/{tpl_id}")
+    def api_get_industry(tpl_id: str = PathParam(...)) -> Any:
+        t = _industry.get_industry_template(tpl_id)
+        if not t:
+            raise HTTPException(status_code=404, detail="not_found")
+        return t
+
+    @router.post("/api/reports/industry-templates/{tpl_id}/apply")
+    def api_apply_industry(tpl_id: str = PathParam(...),
+                            payload: dict = Body(default={})) -> Any:
+        try:
+            return _industry.apply_industry_template(
+                tpl_id, (payload or {}).get("scope") or {}
+            )
+        except ValueError:
+            raise HTTPException(status_code=404, detail="not_found")
+
+    # ticketing --------------------------------------------------------------
+
+    @router.get("/api/reports/ticketing/integrations")
+    def api_list_ticketing() -> dict:
+        return {"integrations": _tk.list_ticketing_integrations(),
+                "readonly": _is_readonly()}
+
+    @router.post("/api/reports/ticketing/integrations")
+    def api_add_ticketing(body: dict = Body(...)) -> Any:
+        if _is_readonly():
+            return _readonly_response()
+        try:
+            return _tk.add_ticketing_integration(
+                kind=body.get("kind") or "",
+                url=body.get("url") or "",
+                project=body.get("project") or "",
+                auth_email=body.get("auth_email"),
+                auth_token=body.get("auth_token"),
+            )
+        except PermissionError:
+            return _readonly_response()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @router.delete("/api/reports/ticketing/integrations/{integ_id}")
+    def api_remove_ticketing(integ_id: str = PathParam(...)) -> Any:
+        if _is_readonly():
+            return _readonly_response()
+        try:
+            ok = _tk.remove_ticketing_integration(integ_id)
+        except PermissionError:
+            return _readonly_response()
+        if not ok:
+            raise HTTPException(status_code=404, detail="not_found")
+        return {"ok": True}
+
+    @router.post("/api/reports/ticketing/auto-create")
+    def api_auto_create_tickets(body: dict = Body(default={})) -> Any:
+        if _is_readonly():
+            return _readonly_response()
+        sections, scope, _preset, incl = _resolve_payload(body or {})
+        report = compose_report(sections=sections, scope=scope, include_delta=incl)
+        try:
+            return _tk.auto_create_tickets(
+                report,
+                integration_id=(body or {}).get("integration_id"),
+                severity_threshold=(body or {}).get("severity_threshold") or "high",
+            )
+        except PermissionError:
+            return _readonly_response()
+
+    @router.get("/api/reports/ticketing/tickets")
+    def api_list_tickets(integration_id: str | None = Query(default=None)) -> dict:
+        return {"tickets": _tk.list_created_tickets(integration_id=integration_id)}
 
     return router
 

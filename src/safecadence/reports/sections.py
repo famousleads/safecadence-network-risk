@@ -25,6 +25,19 @@ import os
 from collections import Counter
 from typing import Any
 
+try:
+    from safecadence.reports.visuals import (
+        attack_path_graph,
+        compliance_heatmap,
+        compliance_radar,
+        cve_badge,
+        severity_bars,
+        severity_donut,
+    )
+    _VISUALS_OK = True
+except Exception:  # pragma: no cover
+    _VISUALS_OK = False
+
 
 # --------------------------------------------------------------------------
 # helpers
@@ -290,10 +303,24 @@ def kpi_summary(store: Any, scope: dict) -> dict:
                 f'<div class="sc-kpi-lbl">{_esc(k)}</div></div>'
                 for k, v in cards
             )
+            viz = ""
+            if _VISUALS_OK:
+                sev_counts = {
+                    "critical": data["critical"],
+                    "high": data["high"],
+                    "medium": data["medium"],
+                    "low": data["low"],
+                }
+                viz = (
+                    '<div class="sc-viz-row" style="margin-top:14px">'
+                    f'<div class="sc-viz-col">{severity_donut(sev_counts)}</div>'
+                    f'<div class="sc-viz-col">{severity_bars(sev_counts)}</div>'
+                    '</div>'
+                )
             return {
                 "title": "KPI summary",
                 "data": data,
-                "html_fragment": f'<div class="sc-kpi-grid">{cards_html}</div>',
+                "html_fragment": f'<div class="sc-kpi-grid">{cards_html}</div>{viz}',
                 "empty": False,
             }
         return _empty("KPI summary",
@@ -345,10 +372,24 @@ def kpi_summary(store: Any, scope: dict) -> dict:
         f'<div class="sc-kpi-lbl">{_esc(k)}</div></div>'
         for k, v in cards
     )
+    viz = ""
+    if _VISUALS_OK:
+        sev_counts = {
+            "critical": data["critical"],
+            "high": data["high"],
+            "medium": data["medium"],
+            "low": data["low"],
+        }
+        viz = (
+            '<div class="sc-viz-row" style="margin-top:14px">'
+            f'<div class="sc-viz-col">{severity_donut(sev_counts)}</div>'
+            f'<div class="sc-viz-col">{severity_bars(sev_counts)}</div>'
+            '</div>'
+        )
     return {
         "title": "KPI summary",
         "data": data,
-        "html_fragment": f'<div class="sc-kpi-grid">{cards_html}</div>',
+        "html_fragment": f'<div class="sc-kpi-grid">{cards_html}</div>{viz}',
         "empty": False,
     }
 
@@ -514,19 +555,22 @@ def cve_exposure(store: Any, scope: dict) -> dict:
             })
         if host_entries:
             host_entries.sort(key=lambda x: (-1 if x["kev"] else 0, -int(x["count"])))
-            _kev_badge = '<span class="sc-pill sc-pill-red">KEV</span>'
+            def _badge(c):
+                if _VISUALS_OK:
+                    return cve_badge(c.get("severity") or "high",
+                                     kev=bool(c.get("kev")), exploit=bool(c.get("kev")))
+                return '<span class="sc-pill sc-pill-red">KEV</span>' if c.get("kev") else ""
             body_rows = "".join(
                 "<tr>"
                 f"<td><code>{_esc(c['id'])}</code></td>"
                 f"<td>{_esc(c['host'])}</td>"
-                f"<td>{(_kev_badge if c['kev'] else '')}</td>"
-                f"<td>{_esc(c['severity'])}</td>"
+                f"<td>{_badge(c)}</td>"
                 f"<td>{_esc(c['summary'][:120])}</td>"
                 "</tr>"
                 for c in host_entries[:200]
             )
-            head = ("<thead><tr><th>CVEs</th><th>Host</th><th>KEV</th>"
-                    "<th>Severity</th><th>Summary</th></tr></thead>")
+            head = ("<thead><tr><th>CVEs</th><th>Host</th><th>Severity</th>"
+                    "<th>Summary</th></tr></thead>")
             return {
                 "title": "CVE exposure",
                 "data": {"cves": host_entries, "count": len(host_entries)},
@@ -539,18 +583,28 @@ def cve_exposure(store: Any, scope: dict) -> dict:
         by_cve.values(),
         key=lambda x: (-1 if x.get("kev") else 0, -float(x.get("cvss") or 0)),
     )
-    _kev_badge = '<span class="sc-pill sc-pill-red">KEV</span>'
+    def _sev_for(c):
+        s = float(c.get("cvss") or 0)
+        if s >= 9.0: return "critical"
+        if s >= 7.0: return "high"
+        if s >= 4.0: return "medium"
+        return "low"
+    def _badge(c):
+        if _VISUALS_OK:
+            return cve_badge(_sev_for(c), kev=bool(c.get("kev")),
+                             exploit=bool(c.get("kev")))
+        return '<span class="sc-pill sc-pill-red">KEV</span>' if c.get("kev") else ""
     body_rows = "".join(
         "<tr>"
         f"<td><code>{_esc(c['id'])}</code></td>"
         f"<td>{_esc(c['cvss'])}</td>"
-        f"<td>{(_kev_badge if c['kev'] else '')}</td>"
+        f"<td>{_badge(c)}</td>"
         f"<td>{len(c['hosts'])}</td>"
         f"<td>{_esc(c['summary'][:120])}</td>"
         "</tr>"
         for c in cves[:200]
     )
-    head = ("<thead><tr><th>CVE</th><th>CVSS</th><th>KEV</th>"
+    head = ("<thead><tr><th>CVE</th><th>CVSS</th><th>Severity</th>"
             "<th>Hosts</th><th>Summary</th></tr></thead>")
     return {
         "title": "CVE exposure",
@@ -670,10 +724,31 @@ def compliance_posture(store: Any, scope: dict) -> dict:
                         for f in top_failures) + "</ul>" if top_failures else "")
                     + "</div>"
                 )
+            radar = compliance_radar(out_frameworks) if _VISUALS_OK else ""
+            # Build a heatmap of all top failing controls flagged "fail"
+            controls_for_heat = []
+            for fw in out_frameworks:
+                for c in fw.get("top_failures") or fw.get("top_failing") or []:
+                    controls_for_heat.append({
+                        "control": c.get("id") or c.get("control") or "",
+                        "status": "fail",
+                    })
+                # add some "pass" filler proportional to fw['pass'] for visual balance
+                for _ in range(min(20, int(fw.get("pass") or fw.get("passing") or 0))):
+                    controls_for_heat.append({"control": fw["framework"], "status": "pass"})
+            heat = compliance_heatmap(controls_for_heat) if (_VISUALS_OK and controls_for_heat) else ""
+            viz = ""
+            if radar or heat:
+                viz = (
+                    '<div class="sc-viz-row" style="margin-bottom:14px">'
+                    f'<div class="sc-viz-col">{radar}</div>'
+                    f'<div class="sc-viz-col">{heat}</div>'
+                    '</div>'
+                )
             return {
                 "title": "Compliance posture",
                 "data": {"frameworks": out_frameworks},
-                "html_fragment": '<div class="sc-cards">' + "".join(cards_html) + "</div>",
+                "html_fragment": viz + '<div class="sc-cards">' + "".join(cards_html) + "</div>",
                 "empty": False,
             }
         return _empty("Compliance posture", {"frameworks": []})
@@ -684,9 +759,11 @@ def compliance_posture(store: Any, scope: dict) -> dict:
         p = fw_pass[fw]
         f = fw_fail[fw]
         top = failing[fw].most_common(5)
+        total = max(1, p + f)
+        score = int(round((p / total) * 100))
         out_frameworks.append({
             "framework": fw,
-            "pass": p, "fail": f,
+            "pass": p, "fail": f, "score": score,
             "top_failing": [{"control": k, "count": v} for k, v in top],
         })
         cards_html.append(
@@ -696,10 +773,26 @@ def compliance_posture(store: Any, scope: dict) -> dict:
             + ("<ul>" + "".join(f"<li>{_esc(k)} ({v})</li>" for k, v in top) + "</ul>" if top else "")
             + "</div>"
         )
+    radar = compliance_radar(out_frameworks) if _VISUALS_OK else ""
+    controls_for_heat = []
+    for fw in out_frameworks:
+        for c in fw.get("top_failing") or []:
+            controls_for_heat.append({"control": c.get("control"), "status": "fail"})
+        for _ in range(min(20, int(fw.get("pass") or 0))):
+            controls_for_heat.append({"control": fw["framework"], "status": "pass"})
+    heat = compliance_heatmap(controls_for_heat) if (_VISUALS_OK and controls_for_heat) else ""
+    viz = ""
+    if radar or heat:
+        viz = (
+            '<div class="sc-viz-row" style="margin-bottom:14px">'
+            f'<div class="sc-viz-col">{radar}</div>'
+            f'<div class="sc-viz-col">{heat}</div>'
+            '</div>'
+        )
     return {
         "title": "Compliance posture",
         "data": {"frameworks": out_frameworks},
-        "html_fragment": '<div class="sc-cards">' + "".join(cards_html) + "</div>",
+        "html_fragment": viz + '<div class="sc-cards">' + "".join(cards_html) + "</div>",
         "empty": False,
     }
 
@@ -848,10 +941,22 @@ def attack_paths(store: Any, scope: dict) -> dict:
         for p in paths[:50]
     )
     head = "<thead><tr><th>From</th><th></th><th>To</th><th>Hops</th><th>Why</th></tr></thead>"
+    graph_html = ""
+    if _VISUALS_OK:
+        nodes = [{"id": "internet", "label": "Internet", "kind": "internet", "tier": 0}]
+        seen = {"internet"}
+        edges = []
+        for p in paths[:8]:
+            target = p.get("to") or "?"
+            if target not in seen:
+                nodes.append({"id": target, "label": target, "kind": "asset", "tier": 2})
+                seen.add(target)
+            edges.append({"from": p.get("from") or "internet", "to": target})
+        graph_html = attack_path_graph(nodes, edges)
     return {
         "title": "Attack paths",
         "data": {"paths": paths, "count": len(paths)},
-        "html_fragment": f'<table class="sc-tbl">{head}<tbody>{body_rows}</tbody></table>',
+        "html_fragment": (graph_html + f'<table class="sc-tbl">{head}<tbody>{body_rows}</tbody></table>'),
         "empty": False,
     }
 
