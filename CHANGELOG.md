@@ -1,5 +1,67 @@
 # Changelog
 
+## [10.3.0] — 2026-05-10
+
+### Polished Office-grade deliverables + inventory ergonomics
+
+**5-format export with embedded charts**
+- New `POST /api/reports/render-download` endpoint accepts `format=html|pdf|json|docx|pptx` — one-shot composed download, works in read-only mode without saving a template
+- Ephemeral share links via `POST /api/reports/share-link` → `GET /r-live/{token}` (base64-encoded payload, no template save required)
+- Real PNG charts embedded in DOCX and PPTX (PIL-based engine): severity donut, compliance radar, vendor-concentration bar, sparkline trend, risk gauge, logo mark, cover hero
+
+**DOCX overhaul — proper Word document**
+- Cover page with logo mark, eyebrow, big title, italic subtitle, confidence pill, branded metadata table, "Confidential" footnote
+- Header + footer applied to every page (Page X of N via field codes, classification line)
+- Branded numbered headings with `keepNext` so headings never sit orphaned
+- Drop-cap executive summary (36pt teal first letter) + auto-generated pull quote from the most striking KPI
+- Risk dashboard: real severity donut chart + 5 KPI tiles with colored top accents + 30-day critical-CVE sparkline trend
+- Compliance scorecard: real radar chart above the framework table
+- Industry-benchmark page (peer medians: NIST 71, CIS 76, PCI 83, HIPAA 70, SOC 2 79)
+- Risk register table (RR-001…) with owner, target date by priority, status, mitigation
+- Vendor concentration analysis with hbar chart + commentary
+- Site heatmap (sites × severity, intensity-shaded cells)
+- What-if delta tile (before → after posture lift from completing P0 actions)
+- Quarter-over-quarter comparison via `delta.compute_delta()` with baseline fallback
+- Glossary appendix (CVE, CVSS, EPSS, KEV, EOL, EOS, MFA, CDE, ePHI, ATT&CK, NVD)
+- Sign-off page with three signature lines (Prepared / Reviewed / Approved)
+- Revision history table
+
+**PPTX overhaul — proper 16:9 presentation**
+- Cover slide with full-bleed PIL-rendered hero image (abstract network mesh) and big risk-index number
+- Speaker notes on every slide via dedicated `notesSlide` parts (linked to a notesMaster)
+- Section divider slides (Part I / II / III) between major topic groups
+- Risk-dashboard slide: 5 colored KPI tiles + embedded severity donut chart
+- Compliance scorecard slide: embedded radar chart + per-framework rows
+- Visual table slides for CVE exposure, host inventory, EOL hardware, control matrix (no more bullet dumps)
+- Top-findings slide with severity badges
+- Prioritized action plan slide with P0/P1/P2/P3 color badges
+- Closing slide
+
+**Compliance promoted to flagship feature** (within reports)
+- Four new sections beyond `compliance_posture`:
+  - `compliance_executive_summary`: board-ready narrative + roll-up
+  - `compliance_control_matrix`: per-control PASS/PARTIAL/FAIL with evidence note
+  - `compliance_gap_analysis`: per-framework gaps with score lift + remediation
+  - `compliance_evidence_pack`: per-finding evidence trail with mapped controls
+- New `_COMPLIANCE_LIBRARY` with canonical control mappings for NIST 800-53 Rev 5, CIS v8, PCI DSS v4.0, HIPAA Security Rule, SOC 2 — ~70 controls
+- `compliance_audit` preset rebuilt to include all four new compliance sections in audit-friendly order
+
+**Reports wizard UX**
+- Picking a preset/industry template lands on Step 1 (Sections) so you can review and tweak before previewing — no longer jumps to Preview
+- Preset / industry cards toggle `.rep-preset-card.active` for immediate visual feedback
+- Step 4 (Export) gains Word + PowerPoint download buttons next to HTML/PDF/JSON
+- Read-only-mode-aware share link button (uses ephemeral path)
+
+**Inventory page**
+- Fixed header/data column mis-alignment (no more nested `<td colspan="0">` invalid HTML)
+- **Resizable columns** — drag the right edge of any header to widen/narrow; widths persist per-user via localStorage
+- **Row density toggle** — Compact / Normal / Comfortable, also persists per-user
+- "↺ Widths" reset button
+
+**Tests**: 116 passing, 0 XML leaks across all Office outputs, all XML well-formed.
+
+---
+
 ## [10.2.0] — 2026-05-10
 
 ### A+++ Reports flagship — turns NetRisk into the only network-risk platform with a first-class report builder.

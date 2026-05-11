@@ -165,6 +165,11 @@ _INVENTORY_BODY = """
   <button class="alt" style="width:auto;padding:6px 12px;font-size:12px" data-f="crown">Crown jewels</button>
   <span style="flex:1"></span>
   <button class="alt" style="width:auto;padding:6px 12px;font-size:12px"
+          onclick="invToggleDensity()" title="Toggle row density"
+          id="density-btn">↕ Density</button>
+  <button class="alt" style="width:auto;padding:6px 12px;font-size:12px"
+          onclick="invResetWidths()" title="Reset column widths">↺ Widths</button>
+  <button class="alt" style="width:auto;padding:6px 12px;font-size:12px"
           onclick="toggleColumnPicker()">⚙ Columns</button>
 </div>
 
@@ -179,8 +184,33 @@ _INVENTORY_BODY = """
   </div>
 </div>
 
-<div class="card" style="padding:0;overflow-x:auto">
-  <table id="tbl">
+<style>
+  /* Resizable column handles for the inventory table */
+  #tbl { table-layout: fixed; width: 100%; border-collapse: collapse; }
+  #tbl th { position: relative; overflow: hidden; text-overflow: ellipsis;
+            white-space: nowrap; }
+  #tbl td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #tbl .col-resizer {
+    position: absolute; top: 0; right: 0; bottom: 0; width: 6px;
+    cursor: col-resize; user-select: none;
+    background: transparent; z-index: 5;
+  }
+  #tbl .col-resizer::after {
+    content: ""; position: absolute; top: 25%; right: 2px; bottom: 25%;
+    width: 1px; background: var(--border, #26315b);
+  }
+  #tbl .col-resizer:hover, #tbl .col-resizer.dragging {
+    background: rgba(124, 92, 255, 0.18);
+  }
+  /* Body cell density variants */
+  #tbl.density-compact td, #tbl.density-compact th { padding: 4px 8px; font-size: 12px; }
+  #tbl.density-comfortable td, #tbl.density-comfortable th { padding: 14px 12px; }
+  /* Allow content to be revealed on hover when text is clipped */
+  #tbl tbody tr:hover td { white-space: normal; }
+</style>
+
+<div class="card" style="padding:0;overflow-x:auto" id="tbl-wrap">
+  <table id="tbl" class="density-normal">
     <thead id="tbl-head"></thead>
     <tbody><tr><td colspan="9" class="muted" style="padding:36px;text-align:center">Loading…</td></tr></tbody>
   </table>
@@ -325,6 +355,71 @@ function saveColPrefs() {
     JSON.stringify(COLS.filter(c => c.on).map(c => c.k)));
 }
 
+// ---- Column resize + density (v9.41) -------------------------------------
+function loadColWidths() {
+  try {
+    return JSON.parse(localStorage.getItem("SC_INV_WIDTHS") || "{}") || {};
+  } catch (e) { return {}; }
+}
+function saveColWidth(key, px) {
+  const w = loadColWidths();
+  w[key] = Math.max(48, Math.round(px));
+  localStorage.setItem("SC_INV_WIDTHS", JSON.stringify(w));
+}
+function invResetWidths() {
+  localStorage.removeItem("SC_INV_WIDTHS");
+  renderTable();
+}
+function attachResizers() {
+  document.querySelectorAll("#tbl th .col-resizer").forEach(handle => {
+    handle.addEventListener("mousedown", evt => {
+      evt.preventDefault(); evt.stopPropagation();
+      const th = handle.parentElement;
+      const key = handle.dataset.colkey;
+      const startX = evt.pageX;
+      const startW = th.getBoundingClientRect().width;
+      handle.classList.add("dragging");
+      document.body.style.cursor = "col-resize";
+      function onMove(e) {
+        const dx = e.pageX - startX;
+        const newW = Math.max(48, startW + dx);
+        th.style.width = newW + "px";
+      }
+      function onUp() {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        handle.classList.remove("dragging");
+        document.body.style.cursor = "";
+        const finalW = th.getBoundingClientRect().width;
+        saveColWidth(key, finalW);
+      }
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    });
+  });
+}
+
+const _DENSITY_LIST = ["compact", "normal", "comfortable"];
+function _loadDensity() {
+  return localStorage.getItem("SC_INV_DENSITY") || "normal";
+}
+function _applyDensity() {
+  const tbl = document.getElementById("tbl");
+  if (!tbl) return;
+  const d = _loadDensity();
+  _DENSITY_LIST.forEach(k => tbl.classList.remove("density-" + k));
+  tbl.classList.add("density-" + d);
+  const btn = document.getElementById("density-btn");
+  if (btn) btn.textContent = "↕ " + d.charAt(0).toUpperCase() + d.slice(1);
+}
+function invToggleDensity() {
+  const cur = _loadDensity();
+  const idx = (_DENSITY_LIST.indexOf(cur) + 1) % _DENSITY_LIST.length;
+  localStorage.setItem("SC_INV_DENSITY", _DENSITY_LIST[idx]);
+  _applyDensity();
+}
+document.addEventListener("DOMContentLoaded", _applyDensity);
+
 function renderColPicker() {
   const host = document.getElementById("col-checks");
   host.innerHTML = COLS.map(c => `
@@ -383,13 +478,21 @@ function renderTable() {
     assets = assets.filter(a => (a.identity || {}).asset_type === CUR_FILTER);
   }
   const visible = COLS.filter(c => c.on);
+  const savedWidths = loadColWidths();
   document.getElementById("tbl-head").innerHTML =
     "<tr>" +
     `<th style="width:24px"><input type="checkbox" id="inv-all"
        onclick="invToggleAll(this.checked)" style="width:auto"/></th>` +
-    visible.map(c => `<th>${c.l}</th>`).join("") +
+    visible.map(c => {
+      const w = savedWidths[c.k];
+      const wattr = w ? ` style="width:${w}px"` : "";
+      return `<th data-colkey="${c.k}"${wattr}>${c.l}` +
+             `<span class="col-resizer" data-colkey="${c.k}"></span></th>`;
+    }).join("") +
     `<th style="width:40px"></th>` +
     "</tr>";
+  attachResizers();
+  _applyDensity();
   const tbody = document.querySelector("#tbl tbody");
   if (!assets.length) {
     tbody.innerHTML = `<tr><td colspan="${visible.length+2}" class="muted" style="padding:24px">
@@ -398,36 +501,23 @@ function renderTable() {
   }
   tbody.innerHTML = assets.map(a => {
     const aid = (a.identity || {}).asset_id || "";
-    const cells = visible.map(c => `<td>${c.fn(a) || ""}</td>`).join("");
+    const click = `location.href='/asset/${encodeURIComponent(aid)}'`;
+    // One <td> per visible column, each with the row-click handler. The
+    // previous implementation nested <td>s inside a colspan="0" wrapper,
+    // which produced invalid HTML and visible header/data mis-alignment.
+    const cells = visible.map(c =>
+      `<td style="cursor:pointer" onclick="${click}">${c.fn(a) || ""}</td>`
+    ).join("");
     return `<tr data-aid="${aid}">
       <td onclick="event.stopPropagation()">
         <input type="checkbox" class="inv-pick" value="${aid}"
                style="width:auto" onclick="invSelChange()"/>
-      </td>
-      <td onclick="location.href='/asset/${encodeURIComponent(aid)}'"
-          style="cursor:pointer" colspan="0">${cells}</td>
-      <td style="text-align:right">
+      </td>${cells}<td style="text-align:right">
         <span style="cursor:pointer;font-size:18px;color:var(--muted);
               padding:4px 8px" onclick="invKebab(event,'${aid}')">⋯</span>
       </td>
     </tr>`;
   }).join("");
-  // Fix the colspan trick: split the cell string back into proper td's
-  document.querySelectorAll("#tbl tbody tr").forEach(tr => {
-    const middle = tr.children[1];
-    if (middle && middle.colSpan === 0) {
-      const html = middle.innerHTML;
-      const tmpl = document.createElement("template");
-      tmpl.innerHTML = html;
-      const tds = Array.from(tmpl.content.children);
-      const click = middle.getAttribute("onclick");
-      middle.replaceWith(...tds.map(td => {
-        td.style.cursor = "pointer";
-        td.setAttribute("onclick", click);
-        return td;
-      }));
-    }
-  });
   invSelChange();
 }
 

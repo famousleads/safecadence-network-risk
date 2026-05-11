@@ -590,7 +590,7 @@ def test_each_preset_renders_without_crash(populated_store, pid):
     out = render_html(r, standalone=True, preset=preset)
     assert out.startswith("<!doctype html>")
     assert "OVERALL RISK INDEX" in out
-    assert "SafeCadence NetRisk v10.1.0" in out
+    assert "SafeCadence NetRisk v10.3.0" in out
 
 
 def test_render_html_includes_visuals(populated_store):

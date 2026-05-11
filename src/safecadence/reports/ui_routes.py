@@ -438,7 +438,8 @@ async function repApplyIndustry(tplId) {
       repState.scope = Object.assign({site:'',criticality:[],asset_type:[],vendor:[],date_range:{}}, r.scope || {});
       repRenderSections();
       repRenderScope();
-      repGo(3);
+      // Land on Step 1 (Sections) so the user can review/tweak before preview.
+      repGo(1);
     } else {
       alert('Could not apply that industry template. Try again.');
     }
@@ -481,7 +482,9 @@ async function repApplyPreset(presetId) {
       repState.scope = Object.assign({site:'',criticality:[],asset_type:[],vendor:[],date_range:{}}, r.scope || {});
       repRenderSections();
       repRenderScope();
-      repGo(3);
+      // Land on Step 1 (Sections) so the user can review/tweak the pre-filled
+      // section list before previewing.
+      repGo(1);
     } else if (r && r.detail) {
       alert('Could not apply preset: ' + r.detail);
     } else {
@@ -653,8 +656,11 @@ async function repShareLink() {
       msg.innerHTML =
         'Share link (anyone with the link can view): ' +
         '<a href="' + repEsc(url) + '" target="_blank">' + repEsc(url) + '</a>' +
-        ' <button class="rep-btn" onclick="navigator.clipboard.writeText(\'' +
-        repEsc(url) + '\').then(()=>{this.textContent=\'Copied\'})">Copy</button>';
+        ' <button type="button" class="rep-btn" id="rep-copy-share">Copy</button>';
+      const cbtn = document.getElementById('rep-copy-share');
+      if (cbtn) cbtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(url).then(() => { cbtn.textContent = 'Copied'; });
+      });
       return;
     }
   } catch(e) { /* fall through to saved-template path */ }

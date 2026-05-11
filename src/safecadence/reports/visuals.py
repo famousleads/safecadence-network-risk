@@ -483,10 +483,11 @@ def kpi_card(label: str, value: Any, sub: str = "", tone: str = "info",
     p = PALETTE.get(tone) or PALETTE["info"]
     spark_html = sparkline(spark or [], color=p["stroke"]) if spark else ""
     sub_html = f'<div class="sc-kpi-sub">{_esc(sub)}</div>' if sub else ""
+    tone_class = f" tone-{_esc(tone)}" if tone and tone != "info" else ""
     return (
-        f'<div class="sc-kpi" style="border-color:{p["stroke"]}33">'
+        f'<div class="sc-kpi{tone_class}">'
         f'<div class="sc-kpi-lbl">{_esc(label)}</div>'
-        f'<div class="sc-kpi-num" style="color:{p["fg"] if tone != "info" else "#0f172a"}">'
+        f'<div class="sc-kpi-num" style="color:{p["fg"] if tone != "info" else "#0b1220"}">'
         f'{_esc(value)}</div>'
         f'{sub_html}'
         f'<div class="sc-kpi-spark">{spark_html}</div>'
