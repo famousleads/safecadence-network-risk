@@ -27,8 +27,14 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[ai]"
-          pip install pytest
+          # Install with [ai,server] so fastapi / httpx / sqlalchemy / etc.
+          # are available — many v9+ tests import fastapi directly without
+          # pytest.importorskip, and v10.5+ added more server-side endpoints.
+          # Pin pydantic <2.13 (2.13 broke FastAPI's OpenAPI generation).
+          pip install -e ".[ai,server]" "pydantic<2.13"
+          # Pillow is needed by the v10.4+ PIL chart engine in
+          # safecadence.reports.chart_png.
+          pip install pytest pillow
 
       - name: Run tests
         run: pytest -v
