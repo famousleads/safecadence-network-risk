@@ -154,6 +154,27 @@ _INVENTORY_BODY = """
           onclick="invToggleAll(false)">✗ Clear</button>
 </div>
 
+<!-- v10.4 — live search across hostname / vendor / site / IP -->
+<div style="margin-bottom:10px">
+  <input type="text" id="inv-search" placeholder="🔎  Search hostname, vendor, site, IP…"
+    style="width:100%;padding:10px 14px;border:1px solid var(--border,#26315b);
+    background:var(--surface,#0b1020);color:var(--text,#e7ecf5);
+    border-radius:8px;font-size:14px"
+    oninput="invSearchOnInput()">
+</div>
+
+<!-- v10.4 — column profile presets (quick-pick analyst layouts) -->
+<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+  <button class="alt" style="width:auto;padding:4px 10px;font-size:11px"
+    onclick="invApplyProfile('compact')">Compact (10 cols)</button>
+  <button class="alt" style="width:auto;padding:4px 10px;font-size:11px"
+    onclick="invApplyProfile('security')">Security focus</button>
+  <button class="alt" style="width:auto;padding:4px 10px;font-size:11px"
+    onclick="invApplyProfile('compliance')">Compliance focus</button>
+  <button class="alt" style="width:auto;padding:4px 10px;font-size:11px"
+    onclick="invApplyProfile('lifecycle')">Lifecycle / EOL</button>
+</div>
+
 <!-- Filters -->
 <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center" id="filters">
   <button class="alt" style="width:auto;padding:6px 12px;font-size:12px" data-f="all">All</button>
@@ -171,6 +192,12 @@ _INVENTORY_BODY = """
           onclick="invResetWidths()" title="Reset column widths">↺ Widths</button>
   <button class="alt" style="width:auto;padding:6px 12px;font-size:12px"
           onclick="toggleColumnPicker()">⚙ Columns</button>
+  <button class="alt" style="width:auto;padding:6px 12px;font-size:12px"
+          onclick="invToggleViewsPicker()">★ Views</button>
+  <button class="alt" style="width:auto;padding:6px 12px;font-size:12px"
+          onclick="invExport('csv')">⬇ CSV</button>
+  <button class="alt" style="width:auto;padding:6px 12px;font-size:12px"
+          onclick="invExport('xlsx')">⬇ Excel</button>
 </div>
 
 <!-- Column picker (hidden by default) -->
@@ -182,6 +209,19 @@ _INVENTORY_BODY = """
   <div id="col-checks" style="display:grid;gap:6px;
        grid-template-columns:repeat(auto-fill,minmax(180px,1fr));font-size:12px">
   </div>
+</div>
+
+<!-- v10.4 — saved views picker (hidden by default) -->
+<div class="card" id="views-picker" style="display:none;padding:14px 16px;margin-top:8px">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+    <strong style="font-size:13px">Saved views</strong>
+    <span style="flex:1"></span>
+    <input id="view-name-input" type="text" placeholder="View name"
+      style="padding:6px 10px;border:1px solid var(--border,#26315b);background:#0b1020;color:#e7ecf5;border-radius:6px">
+    <button class="primary" style="width:auto;padding:6px 12px;font-size:12px"
+      onclick="invSaveView()">Save current as view</button>
+  </div>
+  <div id="saved-views-list"></div>
 </div>
 
 <style>
@@ -220,6 +260,17 @@ _INVENTORY_BODY = """
 _INVENTORY_SCRIPT = r"""
 let ALL_ASSETS = [];
 let CUR_FILTER = "all";
+// v10.4 — live search state + debounce timer (300ms)
+let CUR_SEARCH = "";
+let _SEARCH_TIMER = null;
+function invSearchOnInput() {
+  if (_SEARCH_TIMER) clearTimeout(_SEARCH_TIMER);
+  _SEARCH_TIMER = setTimeout(() => {
+    const el = document.getElementById("inv-search");
+    CUR_SEARCH = (el && el.value || "").trim().toLowerCase();
+    renderTable();
+  }, 300);
+}
 
 // Column registry — each entry knows how to render its cell from an asset dict.
 function pickIp(a) {
@@ -477,6 +528,19 @@ function renderTable() {
   } else if (CUR_FILTER !== "all") {
     assets = assets.filter(a => (a.identity || {}).asset_type === CUR_FILTER);
   }
+  // v10.4 — live search across hostname / vendor / site / IP / owner / tags
+  if (CUR_SEARCH) {
+    assets = assets.filter(a => {
+      const id = a.identity || {};
+      const haystack = [
+        id.hostname, id.asset_id, id.vendor, id.site, id.owner,
+        ...((a.interfaces || []).map(i => i && (i.ip_address || i.ip)).filter(Boolean)),
+        ...((id.tags || [])),
+        id.mgmt_ip, id.ip,
+      ].filter(Boolean).join(" ").toLowerCase();
+      return haystack.includes(CUR_SEARCH);
+    });
+  }
   const visible = COLS.filter(c => c.on);
   const savedWidths = loadColWidths();
   document.getElementById("tbl-head").innerHTML =
@@ -505,9 +569,14 @@ function renderTable() {
     // One <td> per visible column, each with the row-click handler. The
     // previous implementation nested <td>s inside a colspan="0" wrapper,
     // which produced invalid HTML and visible header/data mis-alignment.
-    const cells = visible.map(c =>
-      `<td style="cursor:pointer" onclick="${click}">${c.fn(a) || ""}</td>`
-    ).join("");
+    // v10.4 — editable columns (owner/site/criticality) wired with a
+    // data-edit attribute; dblclick handler at the tbody level (below)
+    // swaps the cell content for an inline input/select.
+    const cells = visible.map(c => {
+      const editable = (c.k === "owner" || c.k === "site" || c.k === "criticality");
+      const editAttr = editable ? ` data-edit="${c.k}" data-aid="${aid}" title="Double-click to edit"` : "";
+      return `<td style="cursor:pointer" onclick="${click}"${editAttr}>${c.fn(a) || ""}</td>`;
+    }).join("");
     return `<tr data-aid="${aid}">
       <td onclick="event.stopPropagation()">
         <input type="checkbox" class="inv-pick" value="${aid}"
@@ -518,6 +587,7 @@ function renderTable() {
       </td>
     </tr>`;
   }).join("");
+  _bindInlineEdit();
   invSelChange();
 }
 
@@ -1688,6 +1758,322 @@ async function manualSubmit(enrich) {
     }, 250);
   }
 })();
+
+// ============================================================
+// v10.4 — Saved filter views (★ Views button)
+// ============================================================
+// A "view" is a named bundle of:
+//   { filter:  current category filter (data-f)
+//     search:  current search-box query
+//     cols:    keys of currently-visible columns
+//     widths:  per-column saved widths
+//     density: current density preset }
+// Stored in localStorage["SC_INV_VIEWS"] as a plain object keyed by name.
+const _VIEWS_LS_KEY = "SC_INV_VIEWS";
+function loadViews() {
+  try { return JSON.parse(localStorage.getItem(_VIEWS_LS_KEY) || "{}") || {}; }
+  catch (e) { return {}; }
+}
+function saveViews(views) {
+  localStorage.setItem(_VIEWS_LS_KEY, JSON.stringify(views || {}));
+}
+function _seedDefaultViewsIfEmpty() {
+  const v = loadViews();
+  if (Object.keys(v).length) return;
+  v["Crown jewels"] = {
+    filter: "crown", search: "",
+    cols: ["crit","safe","name","mgmt_ip","vendor","site","owner","cves","health"],
+    widths: {}, density: "normal",
+  };
+  v["Critical risk score"] = {
+    filter: "all", search: "",
+    cols: ["crit","safe","name","vendor","site","cves","crit_cve","risk","health","findings"],
+    widths: {}, density: "normal",
+  };
+  v["Network gear only"] = {
+    filter: "network", search: "",
+    cols: ["crit","safe","name","mgmt_ip","vendor","model","type","site","cves","health"],
+    widths: {}, density: "normal",
+  };
+  saveViews(v);
+}
+function invToggleViewsPicker() {
+  const p = document.getElementById("views-picker");
+  if (!p) return;
+  if (p.style.display === "none" || !p.style.display) {
+    _seedDefaultViewsIfEmpty();
+    invRenderViewsList();
+    p.style.display = "block";
+  } else {
+    p.style.display = "none";
+  }
+}
+function invSaveView() {
+  const nameEl = document.getElementById("view-name-input");
+  let name = (nameEl && nameEl.value || "").trim();
+  if (!name) {
+    name = prompt("Name this view:");
+    if (!name) return;
+    name = name.trim();
+    if (!name) return;
+  }
+  const views = loadViews();
+  views[name] = {
+    filter: CUR_FILTER,
+    search: CUR_SEARCH,
+    cols: COLS.filter(c => c.on).map(c => c.k),
+    widths: loadColWidths(),
+    density: _loadDensity(),
+  };
+  saveViews(views);
+  if (nameEl) nameEl.value = "";
+  invRenderViewsList();
+}
+function invApplyView(name) {
+  const views = loadViews();
+  const v = views[name];
+  if (!v) return;
+  // Restore filter
+  CUR_FILTER = v.filter || "all";
+  document.querySelectorAll("#filters button[data-f]").forEach(b => {
+    b.style.background = (b.dataset.f === CUR_FILTER)
+      ? "var(--accent-soft)" : "var(--panel-2)";
+  });
+  // Restore search box
+  CUR_SEARCH = v.search || "";
+  const sEl = document.getElementById("inv-search");
+  if (sEl) sEl.value = CUR_SEARCH;
+  // Restore columns
+  if (Array.isArray(v.cols)) {
+    for (const c of COLS) c.on = v.cols.includes(c.k);
+    saveColPrefs();
+  }
+  // Restore widths
+  if (v.widths && typeof v.widths === "object") {
+    localStorage.setItem("SC_INV_WIDTHS", JSON.stringify(v.widths));
+  }
+  // Restore density
+  if (v.density) {
+    localStorage.setItem("SC_INV_DENSITY", v.density);
+  }
+  renderTable();
+}
+function invDeleteView(name) {
+  const views = loadViews();
+  if (!(name in views)) return;
+  if (!confirm(`Delete view "${name}"?`)) return;
+  delete views[name];
+  saveViews(views);
+  invRenderViewsList();
+}
+function invRenderViewsList() {
+  const host = document.getElementById("saved-views-list");
+  if (!host) return;
+  const views = loadViews();
+  const names = Object.keys(views);
+  if (!names.length) {
+    host.innerHTML = `<div class="muted" style="padding:8px 4px;font-size:12px">
+      No saved views yet. Configure filters + columns + density, then click
+      "Save current as view".</div>`;
+    return;
+  }
+  host.innerHTML = names.map(n => {
+    const v = views[n] || {};
+    const meta = [
+      v.filter && v.filter !== "all" ? `filter: ${v.filter}` : null,
+      v.search ? `search: "${v.search}"` : null,
+      (v.cols || []).length ? `${(v.cols||[]).length} cols` : null,
+      v.density && v.density !== "normal" ? `density: ${v.density}` : null,
+    ].filter(Boolean).join(" · ");
+    const safeName = String(n).replace(/'/g, "\\'");
+    return `<div class="card" style="padding:10px 12px;margin-bottom:6px;
+         display:flex;align-items:center;gap:10px">
+       <div style="flex:1">
+         <strong style="font-size:13px">${n}</strong>
+         <div class="muted" style="font-size:11px;margin-top:2px">${meta || "no filters"}</div>
+       </div>
+       <button class="primary" style="width:auto;padding:4px 10px;font-size:12px"
+         onclick="invApplyView('${safeName}')">Apply</button>
+       <button class="alt" style="width:auto;padding:4px 10px;font-size:12px"
+         onclick="invDeleteView('${safeName}')">Delete</button>
+     </div>`;
+  }).join("");
+}
+
+// ============================================================
+// v10.4 — Inline edit (double-click cell on owner/site/criticality)
+// ============================================================
+// Saves via POST /api/platform/asset/<aid>/field {field, value}.
+// If that endpoint isn't registered, the call returns non-2xx and the
+// UI reverts. The same write would also be blocked when SC_READONLY=1.
+async function invSaveField(aid, field, value) {
+  try {
+    const r = await fetch(`/api/platform/asset/${encodeURIComponent(aid)}/field`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({field, value})
+    });
+    if (!r.ok) throw new Error("save failed: " + r.status);
+    return true;
+  } catch (e) {
+    alert("Could not save: " + e.message);
+    return false;
+  }
+}
+const _CRITICALITY_OPTIONS = ["", "low", "medium", "high", "crown-jewel"];
+function _bindInlineEdit() {
+  const tbody = document.querySelector("#tbl tbody");
+  if (!tbody || tbody._editBound) return;
+  tbody._editBound = true;
+  tbody.addEventListener("dblclick", (e) => {
+    const cell = e.target.closest("td[data-edit]");
+    if (!cell) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (cell._editing) return;
+    cell._editing = true;
+    const field = cell.dataset.edit;
+    const aid = cell.dataset.aid;
+    const asset = ALL_ASSETS.find(a => (a.identity || {}).asset_id === aid);
+    if (!asset) { cell._editing = false; return; }
+    const original = cell.innerHTML;
+    const currentVal = (asset.identity || {})[field] || "";
+    cell.style.cursor = "text";
+    cell.onclick = (ev) => ev.stopPropagation();
+    let input;
+    if (field === "criticality") {
+      input = document.createElement("select");
+      input.style.cssText = "width:100%;padding:2px 4px;background:#0b1020;color:#e7ecf5;border:1px solid var(--border,#26315b);border-radius:4px";
+      for (const opt of _CRITICALITY_OPTIONS) {
+        const o = document.createElement("option");
+        o.value = opt; o.textContent = opt || "(none)";
+        if (opt === currentVal) o.selected = true;
+        input.appendChild(o);
+      }
+    } else {
+      input = document.createElement("input");
+      input.type = "text";
+      input.value = currentVal;
+      input.style.cssText = "width:100%;padding:2px 4px;background:#0b1020;color:#e7ecf5;border:1px solid var(--border,#26315b);border-radius:4px";
+    }
+    cell.innerHTML = "";
+    cell.appendChild(input);
+    input.focus();
+    if (input.select) try { input.select(); } catch (_) {}
+    let committed = false;
+    const finish = async (commit) => {
+      if (committed) return;
+      committed = true;
+      const newVal = (input.value || "").trim();
+      if (!commit || newVal === currentVal) {
+        cell.innerHTML = original;
+        cell._editing = false;
+        return;
+      }
+      // Optimistic local update
+      const id = asset.identity || (asset.identity = {});
+      id[field] = newVal;
+      // Re-render the cell from the column registry to keep formatting consistent
+      const col = COLS.find(c => c.k === field);
+      cell.innerHTML = (col ? (col.fn(asset) || "") : newVal);
+      cell._editing = false;
+      // Persist; on failure roll back local + display
+      const ok = await invSaveField(aid, field, newVal);
+      if (!ok) {
+        id[field] = currentVal;
+        cell.innerHTML = original;
+      }
+    };
+    input.addEventListener("blur", () => finish(true));
+    input.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") { ev.preventDefault(); finish(true); }
+      else if (ev.key === "Escape") { ev.preventDefault(); finish(false); }
+    });
+    if (input.tagName === "SELECT") {
+      input.addEventListener("change", () => finish(true));
+    }
+  });
+}
+
+// ============================================================
+// v10.4 — CSV / XLSX export
+// ============================================================
+function invExport(fmt) {
+  const visible = COLS.filter(c => c.on);
+  const headers = ['Hostname', ...visible.map(c => c.l), 'AssetID'];
+  let assets = ALL_ASSETS;
+  if (CUR_FILTER === 'crown') {
+    assets = assets.filter(a => (a.identity||{}).criticality === 'crown-jewel');
+  } else if (CUR_FILTER !== 'all') {
+    assets = assets.filter(a => (a.identity||{}).asset_type === CUR_FILTER);
+  }
+  if (CUR_SEARCH) {
+    assets = assets.filter(a => {
+      const id = a.identity || {};
+      return [id.hostname, id.asset_id, id.vendor, id.site, id.owner]
+        .filter(Boolean).join(' ').toLowerCase().includes(CUR_SEARCH);
+    });
+  }
+  const rows = assets.map(a => {
+    const id = a.identity || {};
+    const row = [id.hostname || ''];
+    for (const c of visible) {
+      const raw = c.fn(a) || '';
+      // Strip HTML tags from the formatted cell so the export is plain text
+      const txt = String(raw).replace(/<[^>]+>/g, '').trim();
+      row.push(txt);
+    }
+    row.push(id.asset_id || '');
+    return row;
+  });
+  const today = new Date().toISOString().slice(0, 10);
+  if (fmt === 'csv') {
+    const csv = [headers, ...rows].map(r => r.map(cell => {
+      const s = String(cell);
+      return (s.includes(',') || s.includes('"') || s.includes('\n'))
+        ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(',')).join('\n');
+    const blob = new Blob([csv], {type: 'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `inventory-${today}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+    return;
+  }
+  // XLSX: POST to the server-side renderer. Falls back to CSV on failure.
+  fetch('/api/platform/inventory/xlsx', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({headers, rows})
+  }).then(r => {
+    if (!r.ok) throw new Error('xlsx ' + r.status);
+    return r.blob();
+  }).then(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `inventory-${today}.xlsx`;
+    a.click(); URL.revokeObjectURL(url);
+  }).catch(err => {
+    console.warn('xlsx export failed, falling back to CSV:', err);
+    invExport('csv');
+  });
+}
+
+// ============================================================
+// v10.4 — Column profile presets (quick-pick analyst layouts)
+// ============================================================
+const COL_PROFILES = {
+  compact:    ['crit','safe','name','mgmt_ip','vendor','type','env','site','cves','health'],
+  security:   ['crit','safe','name','mgmt_ip','vendor','cves','crit_cve','telnet','snmp_ins','aaa','ports'],
+  compliance: ['crit','safe','name','vendor','site','owner','compliance','risk','health','findings','license'],
+  lifecycle:  ['crit','safe','name','vendor','model','eol','firmware','support','lic_expiry','last_cfg'],
+};
+function invApplyProfile(name) {
+  const keys = COL_PROFILES[name] || COL_PROFILES.compact;
+  for (const c of COLS) c.on = keys.includes(c.k);
+  saveColPrefs();
+  renderTable();
+}
 
 loadColPrefs();
 loadInventory();

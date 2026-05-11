@@ -280,6 +280,40 @@ def _esc(s: Any) -> str:
     return html.escape(str(s if s is not None else ""))
 
 
+# Section-specific positive empty-state messages — used when a section
+# composer returns ``empty=True``. The default fallback ("No data for X.")
+# is uninspiring; these turn a no-finding result into a positive signal.
+_EMPTY_STATE_MESSAGES: dict[str, str] = {
+    "eol_hardware":
+        "✓ No EOL hardware in scope. All systems on supported platforms.",
+    "attack_paths":
+        "✓ No external attacker paths to crown jewels identified.",
+    "identity_drift":
+        "✓ No dormant privileged accounts or MFA gaps detected.",
+    "recommended_actions":
+        "✓ No outstanding actions. Fleet is in remediated state.",
+    "recent_changes":
+        "✓ No drift events in the report window.",
+    "compliance_evidence_pack":
+        "✓ No active findings to evidence. Clean control coverage.",
+    "cve_exposure":
+        "✓ No CVEs in scope (verify scan freshness).",
+}
+
+
+def _empty_state_text(section_key: str, section_title: str = "") -> str:
+    """Return the positive empty-state message for ``section_key``.
+
+    Falls back to a generic line so we never show "No data for X." in the
+    final renders.
+    """
+    msg = _EMPTY_STATE_MESSAGES.get(section_key or "")
+    if msg:
+        return msg
+    title = section_title or section_key or "this section"
+    return f"✓ No findings in {title}."
+
+
 def _today() -> str:
     return _dt.datetime.now(_dt.timezone.utc).strftime("%B %d, %Y")
 
@@ -363,6 +397,24 @@ def _render_cover(report: dict) -> str:
     n_sections = len(report.get("sections") or [])
     framework_count = len((_compliance_data(report).get("frameworks") or []))
 
+    # Brand overrides (multi-tenant). Defaults remain SafeCadence's.
+    brand = report.get("brand") or {}
+    brand_org_name = (brand.get("org_name") or "").strip()
+    brand_primary = (brand.get("primary_color") or "").strip().lstrip("#") or "1F6F6A"
+    brand_accent = (brand.get("accent_color") or "").strip().lstrip("#") or "5FC6BC"
+    title_suffix = f" — {_esc(brand_org_name)}" if brand_org_name else ""
+
+    prepared_for = (report.get("prepared_for") or "").strip()
+    prepared_for_html = ""
+    if prepared_for:
+        prepared_for_html = (
+            '<div class="sc-prepared-for" style="margin:0 0 14px">'
+            '<div style="font-size:10px;letter-spacing:0.22em;text-transform:uppercase;'
+            'color:#94a3b8;font-weight:700;margin-bottom:4px">Prepared for</div>'
+            '<div style="font-size:18px;font-weight:700;color:#ffffff;line-height:1.3">'
+            f'{_esc(prepared_for)}</div></div>'
+        )
+
     # Build a clean meta dl (always 4 fixed rows) — leave detailed scope to the
     # scope tag row below.
     meta_html = (
@@ -398,20 +450,35 @@ def _render_cover(report: dict) -> str:
 
     doc_id = _dt.datetime.now(_dt.timezone.utc).strftime("SC-%Y%m%d-%H%M")
 
+    # Brand-overridable cover gradient (still dark; primary tints the radial)
+    cover_style = (
+        f'background:linear-gradient(135deg,#0b1220 0%,#{brand_primary} 100%);'
+        if brand_primary != "1F6F6A" else ""
+    )
+    style_attr = f' style="{cover_style}"' if cover_style else ""
+
+    if brand_org_name:
+        logo_html = f'<div class="sc-logo">{_esc(brand_org_name)}</div>'
+        prepared_by = _esc(brand_org_name)
+    else:
+        logo_html = '<div class="sc-logo">SafeCadence<span>·</span>NetRisk</div>'
+        prepared_by = "SafeCadence NetRisk v10.4.0"
+
     return (
-        '<header class="sc-cover">'
+        f'<header class="sc-cover"{style_attr}>'
         '<div class="sc-cover-brand">'
-        '<div class="sc-logo">SafeCadence<span>·</span>NetRisk</div>'
+        f'{logo_html}'
         f'<div class="sc-doc-id">Doc {doc_id} &nbsp;·&nbsp; Confidential</div>'
         '</div>'
         '<div class="sc-cover-inner">'
         '<div>'
+        f'{prepared_for_html}'
         '<p class="sc-eyebrow">Network Security &amp; Compliance Assessment</p>'
-        f'<h1>{title}</h1>'
+        f'<h1>{title}{title_suffix}</h1>'
         '<p class="sc-cover-sub">An evidence-driven security posture deliverable '
         'covering asset risk, vulnerability exposure, control coverage, and prioritized '
         'remediation across applicable compliance frameworks.</p>'
-        f'<span class="sc-confidence">&#9679; {_esc(confidence)}</span>'
+        f'<span class="sc-confidence" style="background:#{brand_accent}">&#9679; {_esc(confidence)}</span>'
         f'{meta_html}'
         f'{scope_tags_html}'
         '</div>'
@@ -422,7 +489,7 @@ def _render_cover(report: dict) -> str:
         f'{int(score)} of 100</div>'
         '</div></div>'
         '<div class="sc-cover-tag">'
-        '<span>Prepared by SafeCadence NetRisk v10.3.0</span>'
+        f'<span>Prepared by {prepared_by}</span>'
         '<span class="sc-divider"></span>'
         '<span>safecadence.com</span>'
         '</div>'
@@ -619,14 +686,19 @@ def render_html(report: dict, *, standalone: bool = True,
     section_blocks: list[str] = []
     for i, s in enumerate(sections, start=1):
         empty_cls = " empty" if s.get("empty") else ""
-        if s.get("key") == "executive_summary" and not s.get("empty"):
+        if s.get("empty"):
+            msg = _empty_state_text(s.get("key", ""), s.get("title", ""))
+            body = f'<div class="sc-empty sc-empty-positive">{_esc(msg)}</div>'
+        elif s.get("key") == "executive_summary":
             body = _render_executive(report, tone=tone)
-        elif s.get("key") == "recommended_actions" and not s.get("empty"):
+        elif s.get("key") == "recommended_actions":
             plan = _render_action_plan(report)
             body = plan or s.get("html_fragment") or ""
         else:
             body = s.get("html_fragment") or (
-                f'<div class="sc-empty">No data for {_esc(s.get("title",""))}.</div>'
+                '<div class="sc-empty sc-empty-positive">'
+                f'{_esc(_empty_state_text(s.get("key", ""), s.get("title", "")))}'
+                '</div>'
             )
         section_blocks.append(
             f'<section class="sc-section{empty_cls}" id="sec-{_esc(s.get("key",""))}">'
@@ -640,16 +712,19 @@ def render_html(report: dict, *, standalone: bool = True,
     toc = _render_toc(report)
 
     rev = _kev_catalog_rev()
+    brand = report.get("brand") or {}
+    brand_org_name = (brand.get("org_name") or "").strip()
+    foot_org = _esc(brand_org_name) if brand_org_name else "SafeCadence"
     foot = (
         '<footer class="sc-foot">'
-        '<strong>SafeCadence NetRisk v10.3.0</strong> &middot; '
+        f'<strong>{foot_org} NetRisk v10.4.0</strong> &middot; '
         f'CISA KEV catalog rev {rev} &middot; '
         'NVD CVE feed &middot; MITRE ATT&amp;CK v15.1<br>'
         'This document contains confidential security findings. Distribute only to '
         'authorized personnel. &copy; ' f'{_dt.datetime.now(_dt.timezone.utc).year} '
-        'SafeCadence. All rights reserved.'
+        f'{foot_org}. All rights reserved.'
         '</footer>'
-        '<div class="sc-foot-bar">SafeCadence &nbsp;·&nbsp; Confidential</div>'
+        f'<div class="sc-foot-bar">{foot_org} &nbsp;·&nbsp; Confidential</div>'
     )
 
     body = (
@@ -990,11 +1065,13 @@ def _docx_inline_image(rid: str | None, *, width_in: float = 6.0,
                         height_in: float = 3.0,
                         align: str = "center",
                         keep_next: bool = False,
-                        keep_lines: bool = True) -> str:
+                        keep_lines: bool = True,
+                        alt_text: str = "") -> str:
     """Return paragraph XML embedding the image as an inline drawing.
 
     If ``rid`` is falsy (PIL unavailable / chart failed), returns an empty
-    string so the caller can degrade gracefully.
+    string so the caller can degrade gracefully. ``alt_text`` is emitted in
+    the ``<wp:docPr descr=...>`` field so screen readers can read it.
     """
     if not rid:
         return ""
@@ -1003,6 +1080,10 @@ def _docx_inline_image(rid: str | None, *, width_in: float = 6.0,
     align_xml = f'<w:jc w:val="{align}"/>' if align else ""
     keep_xml = (('<w:keepNext/>' if keep_next else '')
                 + ('<w:keepLines/>' if keep_lines else ''))
+    # XML-escape alt_text and use it for both docPr.descr and a sensible name
+    safe_alt = html.escape(alt_text, quote=True) if alt_text else ""
+    name_attr = safe_alt or f"Chart {html.escape(str(rid), quote=True)}"
+    descr_attr = f' descr="{safe_alt}"' if safe_alt else ""
     return (
         f'<w:p><w:pPr>{align_xml}{keep_xml}'
         '<w:spacing w:before="40" w:after="60"/></w:pPr>'
@@ -1011,12 +1092,12 @@ def _docx_inline_image(rid: str | None, *, width_in: float = 6.0,
         'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
         f'<wp:extent cx="{cx}" cy="{cy}"/>'
         '<wp:effectExtent l="0" t="0" r="0" b="0"/>'
-        f'<wp:docPr id="{abs(hash(rid)) % 100000 + 1}" name="Chart {rid}"/>'
+        f'<wp:docPr id="{abs(hash(rid)) % 100000 + 1}" name="{name_attr}"{descr_attr}/>'
         '<wp:cNvGraphicFramePr/>'
         '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
         '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
         '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
-        f'<pic:nvPicPr><pic:cNvPr id="{abs(hash(rid)) % 100000 + 1}" name="Chart"/>'
+        f'<pic:nvPicPr><pic:cNvPr id="{abs(hash(rid)) % 100000 + 1}" name="{name_attr}"{descr_attr}/>'
         '<pic:cNvPicPr/></pic:nvPicPr>'
         f'<pic:blipFill>'
         '<a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
@@ -1051,22 +1132,47 @@ def _docx_cover_page(report: dict, media: "_DocxMedia | None" = None) -> str:
     confidence = _confidence_for(kpi)
     n_sections = len(report.get("sections") or [])
     doc_id = _dt.datetime.now(_dt.timezone.utc).strftime("SC-%Y%m%d-%H%M")
+    prepared_for = (report.get("prepared_for") or "").strip()
+    brand = report.get("brand") or {}
+    brand_org_name = (brand.get("org_name") or "").strip()
+    brand_primary = (brand.get("primary_color") or "").strip().lstrip("#") or _DOCX_BRAND_TEAL
+    brand_accent = (brand.get("accent_color") or "").strip().lstrip("#") or _DOCX_BRAND_TEAL_LT
+    brand_dark = _DOCX_BRAND_DARK
+    brand_logo_b64 = brand.get("logo_png_b64") or ""
 
     # Brand strip at the very top: dark shaded paragraph
-    brand_strip = _docx_para([
-        _docx_run("SAFECADENCE", bold=True, size_pt=11, color="FFFFFF"),
-        _docx_run("  ·  ", color="5FC6BC", bold=True, size_pt=11),
-        _docx_run("NETRISK", bold=True, size_pt=11, color=_DOCX_BRAND_TEAL_LT),
-    ], shade=_DOCX_BRAND_DARK, space_before=0, space_after=0, indent_left=180)
+    if brand_org_name:
+        brand_strip = _docx_para([
+            _docx_run(brand_org_name.upper(), bold=True, size_pt=11, color="FFFFFF"),
+            _docx_run("  ·  ", color=brand_accent, bold=True, size_pt=11),
+            _docx_run("SECURITY ASSESSMENT", bold=True, size_pt=11, color=brand_accent),
+        ], shade=brand_dark, space_before=0, space_after=0, indent_left=180)
+    else:
+        brand_strip = _docx_para([
+            _docx_run("SAFECADENCE", bold=True, size_pt=11, color="FFFFFF"),
+            _docx_run("  ·  ", color="5FC6BC", bold=True, size_pt=11),
+            _docx_run("NETRISK", bold=True, size_pt=11, color=_DOCX_BRAND_TEAL_LT),
+        ], shade=_DOCX_BRAND_DARK, space_before=0, space_after=0, indent_left=180)
 
     # Logo mark — embed under brand strip if PIL is available
     logo_block = ""
     if media is not None:
-        logo_png = _docx_chart_png("logo_mark", size=200, on_dark=False)
+        custom_logo_png = None
+        if brand_logo_b64:
+            try:
+                import base64 as _b64
+                custom_logo_png = _b64.b64decode(brand_logo_b64)
+            except Exception:
+                custom_logo_png = None
+        logo_png = custom_logo_png or _docx_chart_png(
+            "logo_mark", size=200, on_dark=False)
         if logo_png:
             rid = media.add(logo_png)
-            logo_block = _docx_inline_image(rid, width_in=0.8, height_in=0.8,
-                                              align="left")
+            logo_block = _docx_inline_image(
+                rid, width_in=0.8, height_in=0.8,
+                align="left",
+                alt_text=(f"{brand_org_name} logo" if brand_org_name
+                          else "SafeCadence NetRisk logo mark"))
 
     # Spacer
     spacer = _docx_para("", space_before=2400, space_after=0)
@@ -1077,9 +1183,10 @@ def _docx_cover_page(report: dict, media: "_DocxMedia | None" = None) -> str:
                    bold=True, size_pt=9, color=_DOCX_BRAND_TEAL),
     ], space_before=0, space_after=160)
 
-    # Title
+    # Title — optionally suffixed with client org name
+    title_text = title + (f" — {brand_org_name}" if brand_org_name else "")
     title_p = _docx_para([
-        _docx_run(title, bold=True, size_pt=32, color=_DOCX_BRAND_DARK),
+        _docx_run(title_text, bold=True, size_pt=32, color=_DOCX_BRAND_DARK),
     ], space_before=0, space_after=120)
 
     # Subtitle
@@ -1127,15 +1234,19 @@ def _docx_cover_page(report: dict, media: "_DocxMedia | None" = None) -> str:
         '</w:tblBorders>'
         '</w:tblPr>'
     )
-    rows_xml = []
-    for label, value in [
+    meta_pairs = []
+    if prepared_for:
+        meta_pairs.append(("Prepared for", prepared_for))
+    meta_pairs.extend([
         ("Report date",     _today()),
         ("Assets in scope", f"{int(kpi.get('hosts') or 0)} systems"),
         ("Sections",        str(n_sections)),
         ("Overall risk",    f"{score} / 100"),
         ("Frameworks",      "NIST 800-53, CIS v8, PCI DSS, HIPAA, SOC 2"),
         ("Document ID",     doc_id),
-    ]:
+    ])
+    rows_xml = []
+    for label, value in meta_pairs:
         label_cell = _docx_tcell([_docx_run(label.upper(), bold=True, size_pt=8,
                                             color=_DOCX_INK_FAINT, uppercase=True)],
                                   width=2800)
@@ -1143,6 +1254,8 @@ def _docx_cover_page(report: dict, media: "_DocxMedia | None" = None) -> str:
         if label == "Overall risk":
             risk_color = (_DOCX_RED if score >= 70 else
                           _DOCX_ORANGE if score >= 40 else _DOCX_GREEN)
+        if label == "Prepared for":
+            risk_color = brand_primary
         value_cell = _docx_tcell([_docx_run(value, bold=True, size_pt=11,
                                             color=risk_color)],
                                   width=6200)
@@ -1261,7 +1374,7 @@ def _docx_kpi_dashboard(report: dict, media: "_DocxMedia | None" = None) -> str:
             "low":      int(kpi.get("low") or 0),
             "info":     0,
         }
-        donut_png = _docx_chart_png("severity_donut", counts, size=320)
+        donut_png = _docx_chart_png("severity_donut", counts, size=480)
         if donut_png:
             rid = media.add(donut_png)
             chart_xml = (
@@ -1271,7 +1384,9 @@ def _docx_kpi_dashboard(report: dict, media: "_DocxMedia | None" = None) -> str:
                            align="center", space_before=40, space_after=20,
                            keep_next=True)
                 + _docx_inline_image(rid, width_in=2.8, height_in=2.8,
-                                       align="center", keep_next=True)
+                                       align="center", keep_next=True,
+                                       alt_text="Severity distribution donut chart "
+                                                "(critical / high / medium / low / info)")
             )
         # Sparkline — descending synthetic trend if no history available
         crit_now = int(kpi.get("critical") or 0)
@@ -1290,7 +1405,7 @@ def _docx_kpi_dashboard(report: dict, media: "_DocxMedia | None" = None) -> str:
                           max(0, base - 3), max(0, base - 4),
                           max(0, base - 5), crit_now]
         spark_png = _docx_chart_png("sparkline", trend_vals,
-                                     width=600, height=80)
+                                     width=900, height=120)
         if spark_png:
             srid = media.add(spark_png)
             sparkline_xml = (
@@ -1300,7 +1415,8 @@ def _docx_kpi_dashboard(report: dict, media: "_DocxMedia | None" = None) -> str:
                            align="center", space_before=120, space_after=20,
                            keep_next=True)
                 + _docx_inline_image(srid, width_in=5.0, height_in=0.7,
-                                       align="center")
+                                       align="center",
+                                       alt_text="30-day critical CVE trend sparkline")
             )
 
     return (_docx_heading("Risk dashboard", level=1, prefix="")
@@ -1324,11 +1440,14 @@ def _docx_compliance_scorecard(report: dict,
 
     radar_xml = ""
     if media is not None:
-        radar_png = _docx_chart_png("compliance_radar", frameworks, size=400)
+        radar_png = _docx_chart_png("compliance_radar", frameworks, size=600)
         if radar_png:
             rid = media.add(radar_png)
             radar_xml = _docx_inline_image(rid, width_in=4.2, height_in=4.2,
-                                            align="center", keep_next=True)
+                                            align="center", keep_next=True,
+                                            alt_text="Compliance radar across "
+                                                     "NIST 800-53, CIS v8, PCI DSS, "
+                                                     "HIPAA, and SOC 2")
     rows = [[
         {"text": "Framework"},
         {"text": "Score",   "align": "center"},
@@ -1407,9 +1526,10 @@ def _docx_section_block(s: dict, report: dict, idx: int) -> str:
     parts = [_docx_heading(title, level=1, prefix=f"{idx:02d}")]
 
     if s.get("empty"):
-        parts.append(_docx_para([_docx_run(f"No data for {title}.",
-                                             size_pt=10, color=_DOCX_INK_FAINT,
-                                             italic=True)],
+        msg = _empty_state_text(key or "", title or "")
+        parts.append(_docx_para([_docx_run(msg,
+                                             size_pt=11, bold=True,
+                                             color=_DOCX_GREEN)],
                                  shade=_DOCX_BG_SOFT))
         return "".join(parts)
 
@@ -1678,7 +1798,7 @@ def _docx_revision_history(report: dict) -> str:
         {"text": "Author"},
     ]]
     rows.append([
-        {"text": "v10.3.0", "bold": True},
+        {"text": "v10.4.0", "bold": True},
         {"text": _today()},
         {"text": "Initial assessment"},
         {"text": "SafeCadence NetRisk"},
@@ -1703,7 +1823,7 @@ def _docx_methodology_section(report: dict) -> str:
         ("Frameworks evaluated", "NIST 800-53 r5, CIS v8, PCI DSS v4.0, HIPAA Security Rule, SOC 2"),
         ("CISA KEV catalog rev", _kev_catalog_rev()),
         ("NVD CVE feed rev",    today + " (NVD 2.0 API snapshot)"),
-        ("Tooling",             "SafeCadence NetRisk v10.3.0 + signal-based config analysis"),
+        ("Tooling",             "SafeCadence NetRisk v10.4.0 + signal-based config analysis"),
         ("Methodology",         "Evidence-driven posture: each finding is mapped to one or more "
                                 "controls and ranked by exploitability, asset criticality, "
                                 "and KEV status before remediation prioritization."),
@@ -1719,7 +1839,11 @@ def _docx_methodology_section(report: dict) -> str:
 
 
 def _docx_risk_register(report: dict) -> str:
-    """Risk register table derived from recommended_actions."""
+    """Risk register table derived from recommended_actions.
+
+    Uses the SLA policy from ``safecadence.reports.sla_policy`` to compute
+    per-row due dates and an "SLA breached" indicator.
+    """
     actions = []
     for s in report.get("sections") or []:
         if s.get("key") == "recommended_actions":
@@ -1728,6 +1852,18 @@ def _docx_risk_register(report: dict) -> str:
     if not actions:
         return ""
 
+    try:
+        from .sla_policy import (
+            compute_due_date as _sla_due,
+            sla_status as _sla_state,
+            load_sla_policy as _load_sla,
+        )
+        _policy = _load_sla()
+    except Exception:
+        _sla_due = None  # type: ignore
+        _sla_state = None  # type: ignore
+        _policy = None
+
     today = _dt.date.today()
     target_days = {"P0": 14, "P1": 30, "P2": 60, "P3": 90}
 
@@ -1735,7 +1871,8 @@ def _docx_risk_register(report: dict) -> str:
         {"text": "ID"},
         {"text": "Finding"},
         {"text": "Owner"},
-        {"text": "Target date", "align": "center"},
+        {"text": "Due date", "align": "center"},
+        {"text": "SLA", "align": "center"},
         {"text": "Status", "align": "center"},
         {"text": "Current mitigation"},
     ]]
@@ -1744,8 +1881,27 @@ def _docx_risk_register(report: dict) -> str:
     for i, a in enumerate(actions[:25], start=1):
         rid = f"RR-{i:03d}"
         pri = a.get("priority") or "P3"
-        days = target_days.get(pri, 60)
-        target = (today + _dt.timedelta(days=days)).isoformat()
+        kev = bool(a.get("kev"))
+        if _sla_due:
+            try:
+                target = _sla_due(pri, kev=kev, base=today, policy=_policy)
+            except Exception:
+                target = (today + _dt.timedelta(
+                    days=target_days.get(pri, 60))).isoformat()
+        else:
+            target = (today + _dt.timedelta(
+                days=target_days.get(pri, 60))).isoformat()
+        state = "ON_TRACK"
+        if _sla_state:
+            try:
+                state = _sla_state(target, today=today)
+            except Exception:
+                state = "ON_TRACK"
+        state_color = {
+            "BREACHED": _DOCX_RED,
+            "DUE_SOON": _DOCX_AMBER,
+            "ON_TRACK": _DOCX_INK_SOFT,
+        }.get(state, _DOCX_INK_SOFT)
         rows.append([
             {"text": rid, "bold": True, "size_pt": 9},
             {"text": a.get("title", ""), "size_pt": 9},
@@ -1753,6 +1909,8 @@ def _docx_risk_register(report: dict) -> str:
              "color": _DOCX_INK_SOFT},
             {"text": target, "align": "center", "size_pt": 9, "bold": True,
              "color": pri_colors.get(pri, _DOCX_INK_SOFT)},
+            {"text": state.replace("_", " "), "align": "center",
+             "size_pt": 9, "bold": True, "color": state_color},
             {"text": "Open", "align": "center", "size_pt": 9, "bold": True,
              "color": "FFFFFF", "shade": _DOCX_INK_FAINT},
             {"text": "None — see action plan", "size_pt": 9,
@@ -1761,12 +1919,13 @@ def _docx_risk_register(report: dict) -> str:
     return (
         _docx_heading("Risk register", level=1, prefix="") +
         _docx_para([_docx_run(
-            "Each open finding has an owner, target remediation date based on "
-            "priority class (P0 = 14 days, P1 = 30, P2 = 60, P3 = 90), and a "
-            "status line for tracking. Update the status column at each weekly "
-            "stand-up.",
+            "Each open finding has an owner, due date driven by the SLA policy "
+            "(P0 = 14 days, P1 = 30, P2 = 60, P3 = 90; KEV items shift to the "
+            "immediate-priority SLA), an SLA breach indicator, and a status line "
+            "for tracking. ON_TRACK rows are within window; DUE_SOON is within "
+            "7 days of breach; BREACHED is past due.",
             size_pt=10, italic=True, color=_DOCX_INK_SOFT)], space_after=160) +
-        _docx_table(rows, widths=[900, 3800, 1800, 1400, 900, 1900])
+        _docx_table(rows, widths=[800, 3400, 1500, 1200, 900, 800, 1700])
     )
 
 
@@ -1823,14 +1982,16 @@ def _docx_vendor_concentration(report: dict, media: "_DocxMedia | None" = None) 
         items = [(name, n) for name, n in sorted_v[:8]]
         png = _docx_chart_png(
             "hbar", items,
-            width=720, height=320,
+            width=1080, height=480,
             title="Critical+High CVEs by Vendor",
             color=_chart_png.TEAL if _chart_png else None,
         )
         if png:
             rid = media.add(png)
             chart_xml = _docx_inline_image(rid, width_in=5.6, height_in=2.5,
-                                             align="center")
+                                             align="center",
+                                             alt_text="Vendor concentration horizontal "
+                                                      "bar chart of critical+high CVEs")
 
     parts = [_docx_heading("Vendor concentration analysis", level=1, prefix="")]
     parts.append(_docx_para([
@@ -2020,7 +2181,20 @@ def _docx_what_if(report: dict) -> str:
 
 
 def _docx_qoq_comparison(report: dict) -> str:
-    """Quarter-over-quarter comparison from delta module if available."""
+    """Legacy v1 QoQ comparison — kept for back-compat. Prefer
+    :func:`_docx_qoq_comparison_v2` which renders a richer 5-column table
+    (prior · current · Δ · Trend) with colored arrows and a clear baseline
+    fallback."""
+    return _docx_qoq_comparison_v2(report)
+
+
+def _docx_qoq_comparison_v2(report: dict) -> str:
+    """Delta / diff report — Metric · Prior · Current · Δ · Trend.
+
+    Pulls real numbers from ``delta.compute_delta()`` when a prior snapshot
+    exists on disk. When no prior snapshot exists, emits a clear baseline
+    message instead of an empty table.
+    """
     parts = [_docx_heading("Quarter-over-quarter comparison", level=1, prefix="")]
     delta = None
     if _delta_mod is not None:
@@ -2028,47 +2202,95 @@ def _docx_qoq_comparison(report: dict) -> str:
             delta = _delta_mod.compute_delta()
         except Exception:
             delta = None
+
     if not delta or not delta.get("available"):
         parts.append(_docx_para([_docx_run(
-            "Establishing baseline — no prior snapshot is on disk yet to "
-            "compare against. The next snapshot will produce a quarter-over-"
-            "quarter view here automatically.",
+            "Baseline assessment — no prior snapshot to compare against. "
+            "Generate this report again in 30 days to see deltas.",
             size_pt=11, italic=True, color=_DOCX_INK_SOFT)], space_after=120))
         return "".join(parts)
 
-    parts.append(_docx_para([_docx_run(delta.get("summary_text", ""),
-                                         size_pt=11, color=_DOCX_INK)],
-                              space_after=160))
+    summary = delta.get("summary_text", "")
+    if summary:
+        parts.append(_docx_para([_docx_run(summary, size_pt=11, color=_DOCX_INK)],
+                                 space_after=160))
+
+    # Headline strip — count of new vs fixed vs regressed
+    new_n = len(delta.get("new_findings") or [])
+    fixed_n = len(delta.get("fixed_findings") or [])
+    regress_n = len(delta.get("regressed") or [])
+    parts.append(_docx_para([
+        _docx_run(f"  +{new_n} new  ", bold=True, size_pt=11, color="FFFFFF",
+                  ),
+    ] if False else [
+        _docx_run(f"  +{new_n} NEW  ", bold=True, size_pt=10,
+                  color="FFFFFF"),
+    ], shade=_DOCX_RED if new_n else _DOCX_INK_FAINT,
+       space_before=0, space_after=40))
+
     rows = [[
-        {"text": "KPI"},
-        {"text": "Last quarter", "align": "center"},
-        {"text": "This quarter", "align": "center"},
+        {"text": "Metric"},
+        {"text": "Prior period", "align": "center"},
+        {"text": "Current period", "align": "center"},
         {"text": "Δ", "align": "center"},
+        {"text": "Trend", "align": "center"},
     ]]
     kpis = delta.get("kpis") or {}
-    label_map = {
-        "hosts": "Hosts in scope", "critical": "Critical CVEs",
-        "high": "High CVEs", "medium": "Medium CVEs", "low": "Low CVEs",
-        "kev": "KEV-listed", "eol": "EOL devices",
-        "eos_software": "EOS software",
-    }
-    for k, label in label_map.items():
+    label_map = [
+        ("hosts",        "Hosts in scope"),
+        ("critical",     "Critical CVEs"),
+        ("high",         "High CVEs"),
+        ("kev",          "KEV-listed"),
+        ("eol",          "EOL devices"),
+        ("eos_software", "EOS software"),
+    ]
+    for k, label in label_map:
         d = kpis.get(k) or {}
+        prev_v = d.get("prev", 0)
+        now_v = d.get("now", 0)
         ch = d.get("change", 0)
-        color = (_DOCX_RED if ch > 0 and k != "hosts" else
-                 _DOCX_GREEN if ch < 0 and k != "hosts" else _DOCX_INK_SOFT)
+        # For hosts, a rise is neutral / good (more coverage); for everything
+        # else, fewer findings is good (green) and more is bad (red).
         if k == "hosts":
-            color = _DOCX_INK_SOFT
+            if ch > 0:
+                trend_str = "↑"; color = _DOCX_BLUE
+            elif ch < 0:
+                trend_str = "↓"; color = _DOCX_AMBER
+            else:
+                trend_str = "—"; color = _DOCX_INK_SOFT
+        else:
+            if ch > 0:
+                trend_str = "↑ worse"; color = _DOCX_RED
+            elif ch < 0:
+                trend_str = "↓ better"; color = _DOCX_GREEN
+            else:
+                trend_str = "— flat"; color = _DOCX_INK_SOFT
         sign = "+" if ch > 0 else ""
         rows.append([
             {"text": label, "bold": True, "size_pt": 10},
-            {"text": str(d.get("prev", 0)), "align": "center", "size_pt": 10},
-            {"text": str(d.get("now", 0)), "align": "center", "size_pt": 10,
-             "bold": True},
+            {"text": str(prev_v), "align": "center", "size_pt": 10,
+             "color": _DOCX_INK_SOFT},
+            {"text": str(now_v), "align": "center", "size_pt": 10,
+             "bold": True, "color": _DOCX_INK},
             {"text": f"{sign}{ch}", "align": "center", "size_pt": 10,
              "bold": True, "color": color},
+            {"text": trend_str, "align": "center", "size_pt": 9,
+             "bold": True, "color": "FFFFFF", "shade": color},
         ])
-    parts.append(_docx_table(rows, widths=[3000, 2200, 2200, 1700]))
+    parts.append(_docx_table(rows, widths=[2400, 1600, 1700, 1300, 2000]))
+
+    # Optional movement context — new/fixed/regressed callout strip
+    if new_n + fixed_n + regress_n:
+        parts.append(_docx_para([
+            _docx_run(f"Movement: ", bold=True, size_pt=10, color=_DOCX_INK),
+            _docx_run(f"{new_n} new", size_pt=10, color=_DOCX_RED, bold=True),
+            _docx_run(" / ", size_pt=10, color=_DOCX_INK_FAINT),
+            _docx_run(f"{fixed_n} fixed", size_pt=10, color=_DOCX_GREEN, bold=True),
+            _docx_run(" / ", size_pt=10, color=_DOCX_INK_FAINT),
+            _docx_run(f"{regress_n} regressed", size_pt=10,
+                       color=_DOCX_ORANGE, bold=True),
+        ], space_before=160, space_after=120))
+
     return "".join(parts)
 
 
@@ -2273,6 +2495,12 @@ def render_docx(report: dict, *, preset: dict | None = None) -> bytes:
 
     sections = report.get("sections") or []
     media = _DocxMedia()
+    brand = report.get("brand") or {}
+    brand_org_name = (brand.get("org_name") or "").strip()
+    brand_primary = ((brand.get("primary_color") or "").strip().lstrip("#")
+                     or _DOCX_BRAND_TEAL).upper()
+    brand_org_upper = brand_org_name.upper() if brand_org_name else "SAFECADENCE · NETRISK"
+    brand_footer_name = brand_org_name or "SafeCadence"
 
     # Assemble body in order:
     #   cover → revision history → methodology → TOC → exec (drop cap + pull
@@ -2342,16 +2570,17 @@ def render_docx(report: dict, *, preset: dict | None = None) -> bytes:
     )
 
     # Header XML — small caps brand on the left
+    header_brand_text = _docx_escape(brand_org_upper)
     header_xml = (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
         '<w:p><w:pPr>'
-        '<w:pBdr><w:bottom w:val="single" w:sz="6" w:color="1F6F6A"/></w:pBdr>'
+        f'<w:pBdr><w:bottom w:val="single" w:sz="6" w:color="{brand_primary}"/></w:pBdr>'
         '<w:tabs><w:tab w:val="right" w:pos="9360"/></w:tabs>'
         '</w:pPr>'
-        '<w:r><w:rPr><w:b/><w:sz w:val="16"/><w:color w:val="1F6F6A"/>'
+        f'<w:r><w:rPr><w:b/><w:sz w:val="16"/><w:color w:val="{brand_primary}"/>'
         '<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/></w:rPr>'
-        '<w:t>SAFECADENCE · NETRISK</w:t></w:r>'
+        f'<w:t>{header_brand_text}</w:t></w:r>'
         '<w:r><w:tab/></w:r>'
         '<w:r><w:rPr><w:sz w:val="16"/><w:color w:val="64748B"/>'
         '<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/></w:rPr>'
@@ -2364,7 +2593,7 @@ def render_docx(report: dict, *, preset: dict | None = None) -> bytes:
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
         '<w:p><w:pPr>'
-        '<w:pBdr><w:top w:val="single" w:sz="6" w:color="1F6F6A"/></w:pBdr>'
+        f'<w:pBdr><w:top w:val="single" w:sz="6" w:color="{brand_primary}"/></w:pBdr>'
         '<w:tabs><w:tab w:val="center" w:pos="4680"/><w:tab w:val="right" w:pos="9360"/></w:tabs>'
         '</w:pPr>'
         '<w:r><w:rPr><w:sz w:val="16"/><w:color w:val="64748B"/>'
@@ -2384,9 +2613,9 @@ def render_docx(report: dict, *, preset: dict | None = None) -> bytes:
         '<w:r><w:instrText> NUMPAGES </w:instrText></w:r>'
         '<w:r><w:fldChar w:fldCharType="end"/></w:r>'
         '<w:r><w:tab/></w:r>'
-        '<w:r><w:rPr><w:b/><w:sz w:val="14"/><w:color w:val="1F6F6A"/>'
+        f'<w:r><w:rPr><w:b/><w:sz w:val="14"/><w:color w:val="{brand_primary}"/>'
         '<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/></w:rPr>'
-        '<w:t>SafeCadence · Confidential</w:t></w:r>'
+        f'<w:t>{_docx_escape(brand_footer_name)} · Confidential</w:t></w:r>'
         '</w:p></w:ftr>'
     )
 
@@ -2577,17 +2806,22 @@ def _pptx_chart_png(kind: str, *args, **kwargs) -> bytes | None:
 
 
 def _pptx_image_shape(rid: str | None, *, x: int, y: int, cx: int, cy: int,
-                       shape_id: int = 999) -> str:
+                       shape_id: int = 999, alt_text: str = "") -> str:
     """Render a ``<p:pic>`` shape that references an image relationship.
 
-    Returns an empty string if ``rid`` is falsy.
+    Returns an empty string if ``rid`` is falsy. ``alt_text`` is emitted in
+    ``<p:cNvPr descr=...>`` so screen readers and assistive tools can read
+    the chart description.
     """
     if not rid:
         return ""
+    safe_alt = _pptx_esc(alt_text) if alt_text else ""
+    descr_attr = f' descr="{safe_alt}"' if safe_alt else ""
+    name_attr = safe_alt or f"Picture{shape_id}"
     return (
         '<p:pic>'
         f'<p:nvPicPr>'
-        f'<p:cNvPr id="{shape_id}" name="Picture{shape_id}"/>'
+        f'<p:cNvPr id="{shape_id}" name="{name_attr}"{descr_attr}/>'
         '<p:cNvPicPr/><p:nvPr/></p:nvPicPr>'
         '<p:blipFill>'
         f'<a:blip r:embed="{rid}"/>'
@@ -2787,18 +3021,36 @@ def _pptx_cover_slide(report: dict,
     score = _derive_overall_risk(kpi)
     confidence = _confidence_for(kpi)
     doc_id = _dt.datetime.now(_dt.timezone.utc).strftime("SC-%Y%m%d-%H%M")
+    prepared_for = (report.get("prepared_for") or "").strip()
+    brand = report.get("brand") or {}
+    brand_org_name = (brand.get("org_name") or "").strip()
+    brand_primary = ((brand.get("primary_color") or "").strip().lstrip("#")
+                     or _PPTX_INK).upper()
+    brand_accent = ((brand.get("accent_color") or "").strip().lstrip("#")
+                    or _PPTX_TEAL_LT).upper()
+    brand_logo_b64 = brand.get("logo_png_b64") or ""
 
     shapes = []
-    # Background: full-bleed hero image (PIL) or dark fallback
+    # Background: client logo / full-bleed hero image (PIL) or dark fallback
     hero_rid = None
     if media is not None:
-        hero_png = _pptx_chart_png("cover_hero", width=1200, height=720)
+        custom_hero_png = None
+        if brand_logo_b64:
+            try:
+                import base64 as _b64
+                custom_hero_png = _b64.b64decode(brand_logo_b64)
+            except Exception:
+                custom_hero_png = None
+        hero_png = custom_hero_png or _pptx_chart_png(
+            "cover_hero", width=1200, height=720)
         if hero_png:
             hero_rid = media.add(slide_no, hero_png)
     if hero_rid:
         shapes.append(_pptx_image_shape(hero_rid, x=0, y=0,
                                           cx=_PPTX_W, cy=_PPTX_H,
-                                          shape_id=2))
+                                          shape_id=2,
+                                          alt_text="Cover hero — abstract network "
+                                                   "mesh graphic on dark navy"))
     else:
         shapes.append(_pptx_rect(x=0, y=0, w=_PPTX_W, h=_PPTX_H,
                                    fill=_PPTX_INK, shape_id=2))
@@ -2809,15 +3061,25 @@ def _pptx_cover_slide(report: dict,
     shapes.append(_pptx_rect(x=_PPTX_W - 3800000, y=0, w=80000, h=_PPTX_H,
                                fill=_PPTX_TEAL_LT, shape_id=4))
 
-    # Brand strip (top left)
-    shapes.append(_pptx_text_box(
-        x=_PPTX_MARGIN_X, y=_PPTX_MARGIN_Y, w=4000000, h=350000,
-        shape_id=5,
-        paragraphs=[_pptx_paragraph([
+    # Brand strip (top left) — use client brand if present
+    if brand_org_name:
+        brand_paras = [_pptx_paragraph([
+            _pptx_text_run(brand_org_name.upper(), size_pt=14,
+                            bold=True, color="FFFFFF"),
+            _pptx_text_run("  ·  ", size_pt=14, color=brand_accent, bold=True),
+            _pptx_text_run("SECURITY ASSESSMENT", size_pt=14,
+                            bold=True, color=brand_accent),
+        ], align="l")]
+    else:
+        brand_paras = [_pptx_paragraph([
             _pptx_text_run("SAFECADENCE", size_pt=14, bold=True, color="FFFFFF"),
             _pptx_text_run("  ·  ", size_pt=14, color=_PPTX_TEAL_LT, bold=True),
             _pptx_text_run("NETRISK", size_pt=14, bold=True, color=_PPTX_TEAL_LT),
-        ], align="l")],
+        ], align="l")]
+    shapes.append(_pptx_text_box(
+        x=_PPTX_MARGIN_X, y=_PPTX_MARGIN_Y, w=4000000, h=350000,
+        shape_id=5,
+        paragraphs=brand_paras,
     ))
     # Doc id (top right inside teal block)
     shapes.append(_pptx_text_box(
@@ -2828,21 +3090,35 @@ def _pptx_cover_slide(report: dict,
         ], align="l")],
     ))
 
+    # Prepared for (optional) — sits above the eyebrow
+    if prepared_for:
+        shapes.append(_pptx_text_box(
+            x=_PPTX_MARGIN_X, y=1950000, w=7800000, h=400000,
+            shape_id=70,
+            paragraphs=[_pptx_paragraph([
+                _pptx_text_run("PREPARED FOR: ", size_pt=11, bold=True,
+                                color="94A3B8"),
+                _pptx_text_run(prepared_for, size_pt=11, bold=True,
+                                color="FFFFFF"),
+            ], align="l")],
+        ))
+
     # Eyebrow
     shapes.append(_pptx_text_box(
         x=_PPTX_MARGIN_X, y=2400000, w=7800000, h=400000,
         shape_id=7,
         paragraphs=[_pptx_paragraph([
             _pptx_text_run("NETWORK SECURITY & COMPLIANCE ASSESSMENT",
-                            size_pt=12, bold=True, color=_PPTX_TEAL_LT),
+                            size_pt=12, bold=True, color=brand_accent),
         ], align="l")],
     ))
-    # Title (big)
+    # Title (big), optionally suffixed with the client org name
+    title_text = title + (f" — {brand_org_name}" if brand_org_name else "")
     shapes.append(_pptx_text_box(
         x=_PPTX_MARGIN_X, y=2850000, w=7800000, h=1400000,
         shape_id=8,
         paragraphs=[_pptx_paragraph([
-            _pptx_text_run(title, size_pt=46, bold=True, color="FFFFFF"),
+            _pptx_text_run(title_text, size_pt=46, bold=True, color="FFFFFF"),
         ], align="l")],
     ))
     # Subtitle
@@ -3018,13 +3294,16 @@ def _pptx_kpi_dashboard_slide(report: dict, slide_no: str,
             "medium":   int(kpi.get("medium") or 0),
             "low":      int(kpi.get("low") or 0),
             "info":     0,
-        }, size=400)
+        }, size=600)
         if donut_png:
             rid = media.add(slide_no_int, donut_png)
             chart_x = _PPTX_W - _PPTX_MARGIN_X - chart_area_w
             shapes.append(_pptx_image_shape(rid, x=chart_x, y=y,
                                               cx=chart_area_w, cy=chart_area_w,
-                                              shape_id=999))
+                                              shape_id=999,
+                                              alt_text="Severity distribution donut "
+                                                       "(critical / high / medium / "
+                                                       "low / info)"))
             shapes.append(_pptx_text_box(
                 x=chart_x, y=y + chart_area_w + 80000,
                 w=chart_area_w, h=300000,
@@ -3122,12 +3401,14 @@ def _pptx_compliance_scorecard_slide(report: dict, slide_no: str,
     rows_w = _PPTX_W - rows_x - _PPTX_MARGIN_X
     radar_drawn = False
     if media is not None:
-        radar_png = _pptx_chart_png("compliance_radar", frameworks, size=500)
+        radar_png = _pptx_chart_png("compliance_radar", frameworks, size=750)
         if radar_png:
             rid = media.add(slide_no_int, radar_png)
             shapes.append(_pptx_image_shape(rid, x=chart_x, y=2100000,
                                               cx=chart_w, cy=chart_w,
-                                              shape_id=999))
+                                              shape_id=999,
+                                              alt_text="Compliance radar across "
+                                                       "NIST, CIS, PCI, HIPAA, SOC 2"))
             shapes.append(_pptx_text_box(
                 x=chart_x, y=2100000 + chart_w + 80000,
                 w=chart_w, h=300000,
@@ -3788,6 +4069,11 @@ def _pptx_speaker_notes_for(slide_kind: str, report: dict) -> str:
         return ("Top P0 actions need this-week ownership. Confirm an owner "
                 "and target date per row. P1 work is this sprint; P2/P3 are "
                 "carry-forward.")
+    if slide_kind == "qoq":
+        return ("Quarter-over-quarter movement. Green pills are improvements, "
+                "red pills are regressions. If no prior snapshot exists, this "
+                "slide shows the baseline message — that's the cue to schedule "
+                "the next snapshot.")
     if slide_kind == "divider_risk":
         return ("Part I sets the risk landscape — hosts, CVEs, KEV-listed, "
                 "EOL hardware. Keep narrative tight.")
@@ -3828,11 +4114,12 @@ def _pptx_section_summary_slide(s: dict, report: dict, idx: int,
                                    section_no=idx)
 
     if s.get("empty"):
+        msg = _empty_state_text(key or "", title or "")
         shapes.append(_pptx_text_box(
-            x=_PPTX_MARGIN_X, y=2400000, w=_PPTX_W - 2 * _PPTX_MARGIN_X, h=400000,
+            x=_PPTX_MARGIN_X, y=2400000, w=_PPTX_W - 2 * _PPTX_MARGIN_X, h=800000,
             shape_id=500,
             paragraphs=[_pptx_paragraph([
-                _pptx_text_run("✓  No issues found in this area.", size_pt=20,
+                _pptx_text_run(msg, size_pt=20,
                                 bold=True, color=_PPTX_GREEN),
             ], align="l")],
         ))
@@ -3883,6 +4170,150 @@ def _pptx_section_summary_slide(s: dict, report: dict, idx: int,
                          slide_no=slide_no)
 
 
+def _pptx_qoq_slide(report: dict, slide_no: str) -> str:
+    """Quarter-over-quarter slide — real diffs from delta.compute_delta().
+
+    When no prior snapshot exists, renders the baseline message clearly
+    instead of an empty table.
+    """
+    shapes = _pptx_section_header("Quarter-over-quarter",
+                                   eyebrow="What's changed",
+                                   section_no=0)
+    delta = None
+    if _delta_mod is not None:
+        try:
+            delta = _delta_mod.compute_delta()
+        except Exception:
+            delta = None
+    if not delta or not delta.get("available"):
+        shapes.append(_pptx_text_box(
+            x=_PPTX_MARGIN_X, y=2300000,
+            w=_PPTX_W - 2 * _PPTX_MARGIN_X, h=1400000,
+            shape_id=520,
+            paragraphs=[_pptx_paragraph([
+                _pptx_text_run("Baseline assessment", size_pt=22, bold=True,
+                                color=_PPTX_TEAL),
+            ], align="l", space_after=120000),
+                          _pptx_paragraph([
+                _pptx_text_run("No prior snapshot to compare against. ",
+                                size_pt=16, color=_PPTX_INK_2),
+                _pptx_text_run("Generate this report again in 30 days to "
+                                "see deltas.",
+                                size_pt=16, color=_PPTX_INK_SOFT, italic=True),
+            ], align="l")],
+        ))
+        return _pptx_slide(shapes, footer_text="SafeCadence · Confidential",
+                             slide_no=slide_no)
+
+    # Summary text
+    summary = delta.get("summary_text", "")
+    if summary:
+        shapes.append(_pptx_text_box(
+            x=_PPTX_MARGIN_X, y=1950000,
+            w=_PPTX_W - 2 * _PPTX_MARGIN_X, h=500000,
+            shape_id=519,
+            paragraphs=[_pptx_paragraph([
+                _pptx_text_run(summary, size_pt=14, color=_PPTX_INK_2,
+                                italic=True),
+            ], align="l")],
+        ))
+
+    # Build header row of the comparison table
+    kpis = delta.get("kpis") or {}
+    label_map = [
+        ("hosts",        "Hosts in scope"),
+        ("critical",     "Critical CVEs"),
+        ("high",         "High CVEs"),
+        ("kev",          "KEV-listed"),
+        ("eol",          "EOL devices"),
+        ("eos_software", "EOS software"),
+    ]
+    # Layout: 6 rows × 5 columns, starting at y=2550000
+    col_x = [_PPTX_MARGIN_X,
+             _PPTX_MARGIN_X + 3200000,
+             _PPTX_MARGIN_X + 4900000,
+             _PPTX_MARGIN_X + 6600000,
+             _PPTX_MARGIN_X + 8300000]
+    col_w = [3000000, 1500000, 1500000, 1500000, 2500000]
+    headers = ["Metric", "Prior", "Current", "Δ", "Trend"]
+    sid = 530
+    y = 2550000
+    # Header row
+    for i, h in enumerate(headers):
+        shapes.append(_pptx_text_box(
+            x=col_x[i], y=y, w=col_w[i], h=300000,
+            shape_id=sid,
+            paragraphs=[_pptx_paragraph([
+                _pptx_text_run(h.upper(), size_pt=10, bold=True,
+                                color=_PPTX_INK_FAINT),
+            ], align="ctr" if i > 0 else "l")],
+        ))
+        sid += 1
+    y += 350000
+    for k, label in label_map:
+        d = kpis.get(k) or {}
+        prev_v = d.get("prev", 0)
+        now_v = d.get("now", 0)
+        ch = d.get("change", 0)
+        if k == "hosts":
+            if ch > 0:
+                arrow = "↑"; color = _PPTX_BLUE
+            elif ch < 0:
+                arrow = "↓"; color = _PPTX_AMBER
+            else:
+                arrow = "—"; color = _PPTX_INK_SOFT
+        else:
+            if ch > 0:
+                arrow = "↑ worse"; color = _PPTX_RED
+            elif ch < 0:
+                arrow = "↓ better"; color = _PPTX_GREEN
+            else:
+                arrow = "— flat"; color = _PPTX_INK_SOFT
+        sign = "+" if ch > 0 else ""
+
+        # Metric label
+        shapes.append(_pptx_text_box(
+            x=col_x[0], y=y, w=col_w[0], h=400000, shape_id=sid,
+            paragraphs=[_pptx_paragraph([
+                _pptx_text_run(label, size_pt=14, bold=True, color=_PPTX_INK),
+            ], align="l")], anchor="ctr"))
+        sid += 1
+        # Prior
+        shapes.append(_pptx_text_box(
+            x=col_x[1], y=y, w=col_w[1], h=400000, shape_id=sid,
+            paragraphs=[_pptx_paragraph([
+                _pptx_text_run(str(prev_v), size_pt=14, color=_PPTX_INK_SOFT),
+            ], align="ctr")], anchor="ctr"))
+        sid += 1
+        # Current
+        shapes.append(_pptx_text_box(
+            x=col_x[2], y=y, w=col_w[2], h=400000, shape_id=sid,
+            paragraphs=[_pptx_paragraph([
+                _pptx_text_run(str(now_v), size_pt=16, bold=True, color=_PPTX_INK),
+            ], align="ctr")], anchor="ctr"))
+        sid += 1
+        # Δ
+        shapes.append(_pptx_text_box(
+            x=col_x[3], y=y, w=col_w[3], h=400000, shape_id=sid,
+            paragraphs=[_pptx_paragraph([
+                _pptx_text_run(f"{sign}{ch}", size_pt=16, bold=True, color=color),
+            ], align="ctr")], anchor="ctr"))
+        sid += 1
+        # Trend pill
+        shapes.append(_pptx_rect(
+            x=col_x[4] + 200000, y=y + 50000,
+            w=col_w[4] - 400000, h=320000,
+            fill=color, shape_id=sid,
+            paragraphs=[_pptx_paragraph([
+                _pptx_text_run(arrow, size_pt=12, bold=True, color="FFFFFF"),
+            ], align="ctr")]))
+        sid += 1
+        y += 480000
+
+    return _pptx_slide(shapes, footer_text="SafeCadence · Confidential",
+                         slide_no=slide_no)
+
+
 def _pptx_closing_slide() -> str:
     shapes = []
     # Background
@@ -3899,7 +4330,7 @@ def _pptx_closing_slide() -> str:
     shapes.append(_pptx_text_box(
         x=0, y=4100000, w=_PPTX_W, h=400000, shape_id=5,
         paragraphs=[_pptx_paragraph([
-            _pptx_text_run("SafeCadence NetRisk v10.3.0", size_pt=14,
+            _pptx_text_run("SafeCadence NetRisk v10.4.0", size_pt=14,
                             color="CBD5E1"),
         ], align="ctr")],
     ))
@@ -3958,15 +4389,18 @@ def render_pptx(report: dict, *, preset: dict | None = None) -> bytes:
     slides.append((_pptx_action_plan_slide(report, slide_no="10"),
                     "action_plan"))
 
-    # 11..N) Per-section summary slides (skip already-rendered ones)
+    # 11) Quarter-over-quarter diff
+    slides.append((_pptx_qoq_slide(report, slide_no="11"), "qoq"))
+
+    # 12..N) Per-section summary slides (skip already-rendered ones)
     handled = {"executive_summary", "kpi_summary", "compliance_posture",
                "compliance_executive_summary", "compliance_evidence_pack",
                "recommended_actions"}
-    idx = 11
+    idx = 12
     for s in sections:
         if s.get("key") in handled:
             continue
-        slides.append((_pptx_section_summary_slide(s, report, idx - 10,
+        slides.append((_pptx_section_summary_slide(s, report, idx - 11,
                                                      slide_no=str(idx)),
                         "section"))
         idx += 1
@@ -3977,6 +4411,21 @@ def render_pptx(report: dict, *, preset: dict | None = None) -> bytes:
     n = len(slides)
     slide_xmls = [t[0] for t in slides]
     slide_kinds = [t[1] for t in slides]
+
+    # Multi-tenant brand: replace SafeCadence footer text with client org
+    # name when a brand.org_name is supplied. The original string only
+    # appears in slide footer text runs, so this is safe.
+    brand = report.get("brand") or {}
+    brand_org_name = (brand.get("org_name") or "").strip()
+    if brand_org_name:
+        safe_org = _pptx_esc(brand_org_name)
+        slide_xmls = [s.replace("SafeCadence · Confidential",
+                                f"{safe_org} · Confidential")
+                       for s in slide_xmls]
+        # Closing slide brand line + version
+        slide_xmls = [s.replace("SafeCadence NetRisk v10.4.0",
+                                f"{safe_org} — Security Assessment")
+                       for s in slide_xmls]
 
     # ---- Notes slides ----
     # One notes slide per actual slide. slideN.xml → notesSlideN.xml.
@@ -4217,4 +4666,771 @@ def render_pptx(report: dict, *, preset: dict | None = None) -> bytes:
     return buf.getvalue()
 
 
-__all__ = ["render_html", "render_json", "render_pdf", "render_docx", "render_pptx"]
+# --------------------------------------------------------------------------
+# XLSX  (Excel — multi-tab workbook built with stdlib zipfile + OOXML)
+# --------------------------------------------------------------------------
+#
+# Design: produces a real Excel workbook (one sheet per applicable section)
+# with frozen header rows, header styling (bold + dark navy fill + white
+# text), reasonable column widths, and conditional fill colors on severity
+# / priority / status columns.
+#
+# We use **inline strings** (`t="inlineStr"`) instead of sharedStrings.xml
+# to keep the implementation simple and bulletproof. Inline strings are
+# fully valid OOXML and open without "Repair" prompts in Excel. The
+# tradeoff is slightly larger files when many strings repeat — fine for
+# the size of these reports (KB, not MB).
+
+# Excel color palette (ARGB — Excel needs the leading FF for alpha=opaque)
+_XLSX_HDR_FILL    = "FF0B1220"  # dark navy
+_XLSX_RED_FILL    = "FFFEE2E2"
+_XLSX_RED_TEXT    = "FF991B1B"
+_XLSX_ORANGE_FILL = "FFFFEDD5"
+_XLSX_ORANGE_TEXT = "FF9A3412"
+_XLSX_AMBER_FILL  = "FFFEF3C7"
+_XLSX_AMBER_TEXT  = "FF92400E"
+_XLSX_GREEN_FILL  = "FFDCFCE7"
+_XLSX_GREEN_TEXT  = "FF166534"
+_XLSX_BLUE_FILL   = "FFDBEAFE"
+_XLSX_BLUE_TEXT   = "FF1E3A8A"
+
+
+# Style indices used by `_XlsxBook._STYLES` below. These must match exactly.
+_XS_DEFAULT      = 0
+_XS_HEADER       = 1
+_XS_CRIT         = 2   # red fill + dark red text
+_XS_HIGH         = 3   # orange fill + dark orange text
+_XS_MED          = 4   # amber fill + amber text
+_XS_LOW          = 5   # green fill + green text
+_XS_INFO         = 6   # blue fill + blue text
+_XS_NUM_CENTER   = 7   # default font, center-aligned, integer-style
+_XS_TEXT_WRAP    = 8   # default font, wrap text on
+
+
+# Mapping from a text value (case-insensitive) to the conditional style.
+def _xs_for_severity(s: str) -> int | None:
+    k = (s or "").strip().lower()
+    if k in ("critical", "p0", "fail"):     return _XS_CRIT
+    if k in ("high",     "p1", "partial"):  return _XS_HIGH
+    if k in ("medium",   "p2"):              return _XS_MED
+    if k in ("low",      "p3", "pass"):      return _XS_LOW
+    if k in ("info", "n/a", "na"):           return _XS_INFO
+    return None
+
+
+def _xlsx_esc(s: Any) -> str:
+    return html.escape(str(s if s is not None else ""), quote=True)
+
+
+def _col_letter(idx: int) -> str:
+    """0-based index -> Excel column letter (A, B, ..., Z, AA, AB...)."""
+    out = ""
+    n = idx
+    while True:
+        out = chr(ord("A") + (n % 26)) + out
+        n = n // 26 - 1
+        if n < 0:
+            break
+    return out
+
+
+class _XlsxBook:
+    """Minimal Excel SpreadsheetML workbook builder.
+
+    Accumulates rows per sheet and emits a valid .xlsx zip on
+    :meth:`save_bytes`. Sheets use inline strings — no sharedStrings
+    table — so the implementation stays straightforward.
+    """
+
+    # Cell shared styles. The cellXfs order MUST match the indices above.
+    # We use cellXfs entries that reference fonts (fId), fills (fillId),
+    # numFmts via numFmtId (we don't need custom number formats), and
+    # alignment for header center + body left.
+    _STYLES = """\
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <numFmts count="0"/>
+  <fonts count="7">
+    <font><sz val="11"/><name val="Calibri"/><color rgb="FF0F172A"/></font>
+    <font><b/><sz val="11"/><name val="Calibri"/><color rgb="FFFFFFFF"/></font>
+    <font><b/><sz val="11"/><name val="Calibri"/><color rgb="FF991B1B"/></font>
+    <font><b/><sz val="11"/><name val="Calibri"/><color rgb="FF9A3412"/></font>
+    <font><b/><sz val="11"/><name val="Calibri"/><color rgb="FF92400E"/></font>
+    <font><b/><sz val="11"/><name val="Calibri"/><color rgb="FF166534"/></font>
+    <font><b/><sz val="11"/><name val="Calibri"/><color rgb="FF1E3A8A"/></font>
+  </fonts>
+  <fills count="7">
+    <fill><patternFill patternType="none"/></fill>
+    <fill><patternFill patternType="gray125"/></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFEE2E2"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFFEDD5"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFEF3C7"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFDCFCE7"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFDBEAFE"/><bgColor indexed="64"/></patternFill></fill>
+  </fills>
+  <borders count="2">
+    <border><left/><right/><top/><bottom/><diagonal/></border>
+    <border>
+      <left style="thin"><color rgb="FFE2E8F0"/></left>
+      <right style="thin"><color rgb="FFE2E8F0"/></right>
+      <top style="thin"><color rgb="FFE2E8F0"/></top>
+      <bottom style="thin"><color rgb="FFE2E8F0"/></bottom>
+      <diagonal/>
+    </border>
+  </borders>
+  <cellStyleXfs count="1">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
+  </cellStyleXfs>
+  <cellXfs count="9">
+    <!-- 0: default body -->
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>
+    <!-- 1: header (bold, white text, navy fill, centered) -->
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0"
+        applyFont="1" applyFill="1" applyAlignment="1">
+      <alignment horizontal="left" vertical="center"/>
+    </xf>
+    <!-- 2: critical / P0 / FAIL -->
+    <xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0"
+        applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">
+      <alignment horizontal="center" vertical="center"/>
+    </xf>
+    <!-- 3: high / P1 / PARTIAL -->
+    <xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0"
+        applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">
+      <alignment horizontal="center" vertical="center"/>
+    </xf>
+    <!-- 4: medium / P2 -->
+    <xf numFmtId="0" fontId="4" fillId="4" borderId="1" xfId="0"
+        applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">
+      <alignment horizontal="center" vertical="center"/>
+    </xf>
+    <!-- 5: low / P3 / PASS -->
+    <xf numFmtId="0" fontId="5" fillId="5" borderId="1" xfId="0"
+        applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">
+      <alignment horizontal="center" vertical="center"/>
+    </xf>
+    <!-- 6: info / N/A -->
+    <xf numFmtId="0" fontId="6" fillId="6" borderId="1" xfId="0"
+        applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">
+      <alignment horizontal="center" vertical="center"/>
+    </xf>
+    <!-- 7: number / center-aligned default body -->
+    <xf numFmtId="1" fontId="0" fillId="0" borderId="1" xfId="0"
+        applyAlignment="1" applyBorder="1">
+      <alignment horizontal="center" vertical="center"/>
+    </xf>
+    <!-- 8: wrap text body -->
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0"
+        applyAlignment="1" applyBorder="1">
+      <alignment wrapText="1" vertical="top"/>
+    </xf>
+  </cellXfs>
+  <cellStyles count="1">
+    <cellStyle name="Normal" xfId="0" builtinId="0"/>
+  </cellStyles>
+  <dxfs count="0"/>
+  <tableStyles count="0"/>
+</styleSheet>"""
+
+    # Override the header xf so it actually paints the navy fill — XLSX
+    # treats fill index 0/1 as reserved (none, gray125). We append a
+    # custom fill at index 7 below and update the header xf to reference it.
+    # Simpler: pre-inject the header fill at the right place. Since we hand-
+    # wrote _STYLES above, the header xf currently has fillId=0. Fix by
+    # patching with a real fillId via _make_styles.
+
+    def __init__(self) -> None:
+        # list of (sheet_name, header_row, body_rows, col_widths, cf_columns)
+        # body_rows: list[list[(value, style_idx | None)]]
+        # col_widths: list[int] (in character units; ~7px each)
+        # cf_columns: list[int] - 0-based col indices to apply severity CF
+        self.sheets: list[dict] = []
+
+    def add_sheet(self, name: str, header: list[str], rows: list[list],
+                  col_widths: list[int] | None = None,
+                  cf_columns: list[int] | None = None) -> None:
+        """Add a worksheet. ``rows`` is a list of value-row lists; each cell
+        is either a scalar value (str/int/float) or a ``(value, style_idx)``
+        tuple to apply an explicit style.
+
+        ``cf_columns`` is the list of 0-based column indices on which to
+        auto-apply severity / priority / status conditional styling.
+        """
+        # Excel sheet names: max 31 chars, no chars in []:*?/\
+        safe = "".join(c for c in (name or "Sheet") if c not in '[]:*?/\\')[:31] or "Sheet"
+        self.sheets.append({
+            "name": safe,
+            "header": list(header),
+            "rows": [list(r) for r in rows],
+            "col_widths": list(col_widths or []),
+            "cf_columns": list(cf_columns or []),
+        })
+
+    def _styles_xml(self) -> str:
+        # Patch the header xf to reference a real navy fill. The cleanest is
+        # to add fillId=7 (navy) and have header xf use it. Below is a fully-
+        # rebuilt stylesheet that the renderer relies on.
+        return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <numFmts count="0"/>
+  <fonts count="7">
+    <font><sz val="11"/><name val="Calibri"/><color rgb="FF0F172A"/></font>
+    <font><b/><sz val="11"/><name val="Calibri"/><color rgb="FFFFFFFF"/></font>
+    <font><b/><sz val="11"/><name val="Calibri"/><color rgb="FF991B1B"/></font>
+    <font><b/><sz val="11"/><name val="Calibri"/><color rgb="FF9A3412"/></font>
+    <font><b/><sz val="11"/><name val="Calibri"/><color rgb="FF92400E"/></font>
+    <font><b/><sz val="11"/><name val="Calibri"/><color rgb="FF166534"/></font>
+    <font><b/><sz val="11"/><name val="Calibri"/><color rgb="FF1E3A8A"/></font>
+  </fonts>
+  <fills count="8">
+    <fill><patternFill patternType="none"/></fill>
+    <fill><patternFill patternType="gray125"/></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFEE2E2"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFFEDD5"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFEF3C7"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFDCFCE7"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFDBEAFE"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FF0B1220"/><bgColor indexed="64"/></patternFill></fill>
+  </fills>
+  <borders count="2">
+    <border><left/><right/><top/><bottom/><diagonal/></border>
+    <border>
+      <left style="thin"><color rgb="FFE2E8F0"/></left>
+      <right style="thin"><color rgb="FFE2E8F0"/></right>
+      <top style="thin"><color rgb="FFE2E8F0"/></top>
+      <bottom style="thin"><color rgb="FFE2E8F0"/></bottom>
+      <diagonal/>
+    </border>
+  </borders>
+  <cellStyleXfs count="1">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
+  </cellStyleXfs>
+  <cellXfs count="9">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>
+    <xf numFmtId="0" fontId="1" fillId="7" borderId="0" xfId="0"
+        applyFont="1" applyFill="1" applyAlignment="1">
+      <alignment horizontal="left" vertical="center"/>
+    </xf>
+    <xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0"
+        applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">
+      <alignment horizontal="center" vertical="center"/>
+    </xf>
+    <xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0"
+        applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">
+      <alignment horizontal="center" vertical="center"/>
+    </xf>
+    <xf numFmtId="0" fontId="4" fillId="4" borderId="1" xfId="0"
+        applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">
+      <alignment horizontal="center" vertical="center"/>
+    </xf>
+    <xf numFmtId="0" fontId="5" fillId="5" borderId="1" xfId="0"
+        applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">
+      <alignment horizontal="center" vertical="center"/>
+    </xf>
+    <xf numFmtId="0" fontId="6" fillId="6" borderId="1" xfId="0"
+        applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">
+      <alignment horizontal="center" vertical="center"/>
+    </xf>
+    <xf numFmtId="1" fontId="0" fillId="0" borderId="1" xfId="0"
+        applyAlignment="1" applyBorder="1">
+      <alignment horizontal="center" vertical="center"/>
+    </xf>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0"
+        applyAlignment="1" applyBorder="1">
+      <alignment wrapText="1" vertical="top"/>
+    </xf>
+  </cellXfs>
+  <cellStyles count="1">
+    <cellStyle name="Normal" xfId="0" builtinId="0"/>
+  </cellStyles>
+  <dxfs count="0"/>
+  <tableStyles count="0"/>
+</styleSheet>"""
+
+    def _cell_xml(self, ref: str, value, style_idx: int | None) -> str:
+        """Render a single cell. Numeric values use number cells; strings
+        use inlineStr cells so we don't need sharedStrings."""
+        s_attr = f' s="{style_idx}"' if style_idx is not None else ""
+        # Bool / None handling
+        if value is None or value == "":
+            return f'<c r="{ref}"{s_attr}/>'
+        # Numeric (int/float) — use number cell
+        if isinstance(value, bool):
+            # Treat bool as string so we don't accidentally coerce
+            text = "TRUE" if value else "FALSE"
+        elif isinstance(value, (int, float)):
+            return f'<c r="{ref}"{s_attr}><v>{value}</v></c>'
+        else:
+            text = str(value)
+        # Inline string
+        return (
+            f'<c r="{ref}"{s_attr} t="inlineStr">'
+            f'<is><t xml:space="preserve">{_xlsx_esc(text)}</t></is>'
+            f'</c>'
+        )
+
+    def _sheet_xml(self, sheet: dict) -> str:
+        header = sheet["header"]
+        rows = sheet["rows"]
+        col_widths = sheet["col_widths"]
+        cf_columns = set(sheet["cf_columns"])
+        n_cols = max(len(header), max((len(r) for r in rows), default=0))
+
+        # cols section — explicit widths so the sheet doesn't look squashed.
+        if col_widths:
+            col_xml_parts = []
+            for i in range(n_cols):
+                w = col_widths[i] if i < len(col_widths) else 14
+                # bestFit=1 lets Excel still autofit further if the user wants
+                col_xml_parts.append(
+                    f'<col min="{i+1}" max="{i+1}" width="{w}" '
+                    'customWidth="1" bestFit="0"/>'
+                )
+            cols_xml = '<cols>' + "".join(col_xml_parts) + '</cols>'
+        else:
+            cols_xml = ''
+
+        # Header row (row 1)
+        hdr_cells = []
+        for c, txt in enumerate(header):
+            ref = f"{_col_letter(c)}1"
+            hdr_cells.append(self._cell_xml(ref, txt, _XS_HEADER))
+        # autoFilter range over all data rows + header
+        last_col_letter = _col_letter(max(0, n_cols - 1))
+        n_rows_total = 1 + len(rows)
+        auto_filter = (
+            f'<autoFilter ref="A1:{last_col_letter}{n_rows_total}"/>'
+        )
+        # Header style + height
+        hdr_row_xml = (
+            f'<row r="1" ht="22" customHeight="1">'
+            + "".join(hdr_cells) +
+            '</row>'
+        )
+
+        # Data rows
+        body_rows = []
+        for ridx, row in enumerate(rows, start=2):  # rows start at 2 (after header)
+            cells = []
+            for cidx in range(n_cols):
+                if cidx < len(row):
+                    item = row[cidx]
+                else:
+                    item = ""
+                value: Any
+                style_idx: int | None = None
+                if isinstance(item, tuple):
+                    value, style_idx = item
+                else:
+                    value = item
+                # Auto-apply severity CF when caller marked this column
+                if style_idx is None and cidx in cf_columns:
+                    style_idx = _xs_for_severity(str(value))
+                ref = f"{_col_letter(cidx)}{ridx}"
+                cells.append(self._cell_xml(ref, value, style_idx))
+            body_rows.append(f'<row r="{ridx}">' + "".join(cells) + '</row>')
+
+        # Frozen header row
+        sheet_views = (
+            '<sheetViews>'
+            '<sheetView workbookViewId="0">'
+            '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>'
+            '<selection pane="bottomLeft" activeCell="A2" sqref="A2"/>'
+            '</sheetView>'
+            '</sheetViews>'
+        )
+        return (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            f'{sheet_views}'
+            '<sheetFormatPr defaultRowHeight="15"/>'
+            f'{cols_xml}'
+            f'<sheetData>{hdr_row_xml}{"".join(body_rows)}</sheetData>'
+            f'{auto_filter}'
+            '</worksheet>'
+        )
+
+    def save_bytes(self) -> bytes:
+        import io
+        import zipfile
+        if not self.sheets:
+            # Always emit at least one sheet so the workbook is valid.
+            self.add_sheet("Empty", ["Note"],
+                            [["No data sections produced output."]],
+                            col_widths=[60])
+        # workbook.xml
+        sheets_xml_parts = []
+        for i, sh in enumerate(self.sheets, start=1):
+            name_esc = _xlsx_esc(sh["name"])
+            sheets_xml_parts.append(
+                f'<sheet name="{name_esc}" sheetId="{i}" r:id="rId{i}"/>'
+            )
+        workbook_xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            '<sheets>' + "".join(sheets_xml_parts) + '</sheets>'
+            '</workbook>'
+        )
+        # workbook rels: each sheet + styles
+        n = len(self.sheets)
+        wb_rels_parts = []
+        for i in range(1, n + 1):
+            wb_rels_parts.append(
+                f'<Relationship Id="rId{i}" '
+                'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
+                f'Target="worksheets/sheet{i}.xml"/>'
+            )
+        wb_rels_parts.append(
+            f'<Relationship Id="rId{n+1}" '
+            'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" '
+            'Target="styles.xml"/>'
+        )
+        workbook_rels = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            + "".join(wb_rels_parts) +
+            '</Relationships>'
+        )
+        # content types
+        overrides = [
+            '<Override PartName="/xl/workbook.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>',
+            '<Override PartName="/xl/styles.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>',
+        ]
+        for i in range(1, n + 1):
+            overrides.append(
+                f'<Override PartName="/xl/worksheets/sheet{i}.xml" '
+                'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            )
+        content_types = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            '<Default Extension="xml" ContentType="application/xml"/>'
+            + "".join(overrides) +
+            '</Types>'
+        )
+        root_rels = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" '
+            'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
+            'Target="xl/workbook.xml"/>'
+            '</Relationships>'
+        )
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr("[Content_Types].xml", content_types)
+            z.writestr("_rels/.rels", root_rels)
+            z.writestr("xl/workbook.xml", workbook_xml)
+            z.writestr("xl/_rels/workbook.xml.rels", workbook_rels)
+            z.writestr("xl/styles.xml", self._styles_xml())
+            for i, sh in enumerate(self.sheets, start=1):
+                z.writestr(f"xl/worksheets/sheet{i}.xml", self._sheet_xml(sh))
+        return buf.getvalue()
+
+
+def _xlsx_collect(report: dict) -> dict:
+    """Pull the relevant data fragments out of the composed report."""
+    out: dict[str, Any] = {
+        "kpi": {},
+        "actions": [],
+        "hosts": [],
+        "cves": [],
+        "matrix_rows": [],
+        "gap_groups": [],
+    }
+    for s in report.get("sections") or []:
+        key = s.get("key")
+        data = s.get("data") or {}
+        if key == "kpi_summary":
+            out["kpi"] = dict(data)
+        elif key == "recommended_actions":
+            out["actions"] = list(data.get("actions") or [])
+        elif key == "host_inventory":
+            out["hosts"] = list(data.get("hosts") or data.get("rows") or [])
+        elif key == "cve_exposure":
+            out["cves"] = list(data.get("cves") or [])
+        elif key == "compliance_control_matrix":
+            out["matrix_rows"] = list(data.get("rows") or [])
+        elif key == "compliance_gap_analysis":
+            out["gap_groups"] = list(data.get("groups") or [])
+    return out
+
+
+def render_xlsx(report: dict, *, preset: dict | None = None) -> bytes:
+    """Render the composed report as a multi-tab Excel workbook (.xlsx).
+
+    One sheet per applicable data section; sheets with no rows are skipped
+    so we don't produce empty tabs. Built with stdlib ``zipfile`` only.
+    """
+    info = _xlsx_collect(report)
+    book = _XlsxBook()
+
+    # ---- 1. KPI Summary ----
+    kpi = info["kpi"]
+    if kpi:
+        overall = _derive_overall_risk(kpi)
+        book.add_sheet(
+            "KPI Summary",
+            ["Metric", "Value"],
+            [
+                ["Hosts in scope",     int(kpi.get("hosts") or 0)],
+                ["Critical CVEs",      int(kpi.get("critical") or 0)],
+                ["High CVEs",          int(kpi.get("high") or 0)],
+                ["KEV-listed",         int(kpi.get("kev") or 0)],
+                ["EOL hardware",       int(kpi.get("eol") or 0)],
+                ["EOS software",       int(kpi.get("eos_software") or 0)],
+                ["Overall risk (0-100)", overall],
+            ],
+            col_widths=[28, 14],
+        )
+
+    # ---- 2. Risk Register (derived from recommended_actions) ----
+    actions = info["actions"]
+    if actions:
+        try:
+            from .sla_policy import (
+                compute_due_date as _sla_due,
+                sla_status as _sla_state,
+                load_sla_policy as _load_sla,
+            )
+            _policy = _load_sla()
+        except Exception:
+            _sla_due = None  # type: ignore
+            _sla_state = None  # type: ignore
+            _policy = None
+
+        today = _dt.date.today()
+        target_days = {"P0": 14, "P1": 30, "P2": 60, "P3": 90}
+        rows = []
+        for i, a in enumerate(actions, start=1):
+            pri = a.get("priority") or "P3"
+            kev = bool(a.get("kev"))
+            if _sla_due:
+                try:
+                    target_iso = _sla_due(pri, kev=kev, base=today, policy=_policy)
+                except Exception:
+                    target_iso = (today + _dt.timedelta(
+                        days=target_days.get(pri, 60))).isoformat()
+            else:
+                target_iso = (today + _dt.timedelta(
+                    days=target_days.get(pri, 60))).isoformat()
+            state = "ON_TRACK"
+            if _sla_state:
+                try:
+                    state = _sla_state(target_iso, today=today)
+                except Exception:
+                    state = "ON_TRACK"
+            compl = a.get("compliance") or []
+            if isinstance(compl, list):
+                compl = ", ".join(compl[:3])
+            rows.append([
+                f"RR-{i:03d}",
+                a.get("title", ""),
+                pri,                          # priority — gets severity CF
+                "Security Engineering",
+                target_iso,
+                state.replace("_", " "),
+                "Open",
+                str(compl),
+                "None — see action plan",
+            ])
+        book.add_sheet(
+            "Risk Register",
+            ["ID", "Finding", "Priority", "Owner",
+             "Due date", "SLA status", "Status",
+             "Compliance controls", "Current mitigation"],
+            rows,
+            col_widths=[10, 46, 12, 22, 14, 14, 10, 24, 24],
+            cf_columns=[2],  # priority col gets severity CF
+        )
+
+    # ---- 3. Host Inventory ----
+    hosts = info["hosts"]
+    if hosts:
+        rows = []
+        for h in hosts:
+            rows.append([
+                h.get("hostname") or h.get("host") or h.get("name") or "",
+                h.get("vendor") or "",
+                h.get("site") or "",
+                h.get("criticality") or "",
+                int(h.get("risk_score") or h.get("risk") or 0),
+                int(h.get("critical", h.get("crit_count", 0)) or 0),
+                int(h.get("high", h.get("high_count", 0)) or 0),
+                h.get("top_finding") or "",
+            ])
+        book.add_sheet(
+            "Host Inventory",
+            ["Hostname", "Vendor", "Site", "Criticality",
+             "Risk score", "Critical CVEs", "High CVEs", "Top finding"],
+            rows,
+            col_widths=[24, 16, 14, 14, 12, 14, 12, 40],
+            cf_columns=[3],  # criticality column gets severity CF
+        )
+
+    # ---- 4. CVE Findings ----
+    cves = info["cves"]
+    if cves:
+        sev_rank = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+        def _cve_sort_key(c: dict):
+            kev_flag = bool(c.get("kev"))
+            sev = (c.get("severity") or "").lower()
+            cvss = float(c.get("cvss") or 0)
+            return (
+                0 if kev_flag else 1,           # KEV first
+                -sev_rank.get(sev, 0),           # severity desc
+                -cvss,                            # cvss desc
+            )
+        rows = []
+        for c in sorted(cves, key=_cve_sort_key):
+            hosts_field = c.get("hosts") or []
+            if not hosts_field and c.get("host"):
+                hosts_field = [c.get("host")]
+            if isinstance(hosts_field, list):
+                hosts_field = ", ".join(str(x) for x in hosts_field[:5])
+            rows.append([
+                c.get("id") or c.get("cve_id") or "",
+                (c.get("severity") or "").lower(),
+                float(c.get("cvss") or 0),
+                "Y" if c.get("kev") else "N",
+                hosts_field,
+                c.get("summary") or c.get("title") or "",
+                int(c.get("count") or 1),
+            ])
+        book.add_sheet(
+            "CVE Findings",
+            ["CVE ID", "Severity", "CVSS", "KEV",
+             "Host(s)", "Summary", "Count"],
+            rows,
+            col_widths=[18, 12, 8, 6, 36, 60, 8],
+            cf_columns=[1],  # severity column gets severity CF
+        )
+
+    # ---- 5. Compliance Matrix ----
+    matrix = info["matrix_rows"]
+    if matrix:
+        rows = []
+        for r in matrix:
+            rows.append([
+                r.get("framework") or "",
+                r.get("id") or "",
+                r.get("title") or "",
+                r.get("family") or "",
+                (r.get("status") or "").upper(),
+                r.get("evidence") or "",
+            ])
+        book.add_sheet(
+            "Compliance Matrix",
+            ["Framework", "Control ID", "Title", "Family", "Status", "Evidence"],
+            rows,
+            col_widths=[18, 14, 36, 18, 12, 50],
+            cf_columns=[4],  # status column gets severity CF
+        )
+
+    # ---- 6. Action Plan ----
+    if actions:
+        rows = []
+        for a in actions:
+            compl = a.get("compliance") or []
+            if isinstance(compl, list):
+                compl = ", ".join(compl[:3])
+            hosts_aff = a.get("hosts") or []
+            hosts_n = len(hosts_aff) if isinstance(hosts_aff, list) else 0
+            rows.append([
+                a.get("priority") or "P3",
+                a.get("title") or "",
+                a.get("effort") or "medium",
+                a.get("risk_reduction") or "",
+                str(compl),
+                hosts_n,
+            ])
+        book.add_sheet(
+            "Action Plan",
+            ["Priority", "Action title", "Effort",
+             "Risk reduction", "Compliance controls", "Hosts affected"],
+            rows,
+            col_widths=[10, 50, 12, 16, 28, 16],
+            cf_columns=[0],  # priority CF
+        )
+
+    # ---- 7. Compliance Gaps (flatten groups) ----
+    groups = info["gap_groups"]
+    if groups:
+        rows = []
+        for grp in groups:
+            for a in grp.get("actions") or []:
+                rows.append([
+                    grp.get("framework") or "",
+                    a.get("id") or "",
+                    a.get("title") or "",
+                    a.get("priority") or "P3",
+                    f"+{a.get('lift', 0)}",
+                    a.get("effort") or "medium",
+                    a.get("remediation") or "",
+                ])
+        if rows:
+            book.add_sheet(
+                "Compliance Gaps",
+                ["Framework", "Control", "Title", "Priority",
+                 "Lift", "Effort", "Remediation"],
+                rows,
+                col_widths=[18, 14, 36, 12, 8, 12, 50],
+                cf_columns=[3],
+            )
+
+    return book.save_bytes()
+
+
+def render_inventory_xlsx(headers: list[str], rows: list[list]) -> bytes:
+    """Render a flat `(headers, rows)` table to an .xlsx workbook.
+
+    Public wrapper around the internal :class:`_XlsxBook` so the
+    inventory page's CSV/XLSX export buttons (see ``/api/platform/
+    inventory/xlsx``) get a real native Excel file with a styled
+    header row and column widths inferred from content. Stdlib-only.
+
+    Parameters
+    ----------
+    headers : list[str]
+        Column header strings, e.g. ``["Hostname", "Vendor", ...]``.
+    rows : list[list]
+        Row data; each row is a list aligned to ``headers``. Cell
+        values are coerced to strings/numbers as appropriate.
+
+    Returns
+    -------
+    bytes
+        Raw .xlsx bytes (a single sheet named "Inventory").
+    """
+    headers = [str(h) for h in (headers or [])]
+    safe_rows: list[list] = []
+    for r in (rows or []):
+        safe_rows.append([("" if v is None else v) for v in r])
+    # Auto-size columns from header + first 200 rows so the workbook
+    # opens looking decent without forcing the user to drag column edges.
+    widths: list[int] = []
+    for i, h in enumerate(headers):
+        w = len(str(h))
+        for r in safe_rows[:200]:
+            if i < len(r):
+                w = max(w, min(60, len(str(r[i]))))
+        widths.append(max(8, min(60, w + 2)))
+    book = _XlsxBook()
+    book.add_sheet(
+        "Inventory",
+        headers,
+        safe_rows,
+        col_widths=widths,
+    )
+    return book.save_bytes()
+
+
+__all__ = ["render_html", "render_json", "render_pdf",
+           "render_docx", "render_pptx", "render_xlsx",
+           "render_inventory_xlsx"]

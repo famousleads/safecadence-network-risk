@@ -42,6 +42,7 @@ from safecadence.reports.renderers import (
     render_json,
     render_pdf,
     render_pptx,
+    render_xlsx,
 )
 from safecadence.reports.presets import (
     apply_preset,
@@ -232,6 +233,30 @@ _WIZARD_BODY = """
       <label style="color:#8b95b1;font-size:12px;text-transform:uppercase;letter-spacing:.05em">Vendors</label>
       <div id="rep-vendor" class="rep-chips" style="margin-top:6px"></div>
     </div>
+    <div style="margin-top:14px"><label style="font-size:12px;color:#cbd2e6">Prepared for (optional)
+      <input id="rep-prepared-for" type="text" placeholder="Acme Corp"
+       oninput="repState.preparedFor=this.value; repSchedulePreview()"
+       style="width:100%;padding:8px;border:1px solid #26315b;background:#0b1020;color:#e7ecf5;border-radius:6px"/>
+    </label></div>
+    <div style="margin-top:10px">
+      <label style="font-size:12px;color:#cbd2e6">Org name on cover (optional)
+        <input id="rep-brand-org" type="text" placeholder="Your company"
+          oninput="repState.brand=repState.brand||{}; repState.brand.org_name=this.value; repSchedulePreview()"
+          style="width:100%;padding:8px;border:1px solid #26315b;background:#0b1020;color:#e7ecf5;border-radius:6px"/>
+      </label>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:10px">
+      <label style="font-size:12px;color:#cbd2e6;flex:1">Brand primary
+        <input id="rep-brand-primary" type="color" value="#1F6F6A"
+          onchange="repState.brand=repState.brand||{}; repState.brand.primary_color=this.value.replace('#',''); repSchedulePreview()"
+          style="width:100%;height:36px"/>
+      </label>
+      <label style="font-size:12px;color:#cbd2e6;flex:1">Brand accent
+        <input id="rep-brand-accent" type="color" value="#5FC6BC"
+          onchange="repState.brand=repState.brand||{}; repState.brand.accent_color=this.value.replace('#',''); repSchedulePreview()"
+          style="width:100%;height:36px"/>
+      </label>
+    </div>
     <div class="rep-actions">
       <button class="rep-btn" onclick="repGo(1)">&larr; Back</button>
       <button class="rep-btn primary" onclick="repGo(3)">Preview &rarr;</button>
@@ -324,6 +349,7 @@ _WIZARD_BODY = """
       <button class="rep-btn primary" onclick="repDownload('pdf')">Download PDF</button>
       <button class="rep-btn primary" onclick="repDownload('docx')">Download Word (.docx)</button>
       <button class="rep-btn primary" onclick="repDownload('pptx')">Download PowerPoint (.pptx)</button>
+      <button class="rep-btn primary" onclick="repDownload('xlsx')">Download Excel (.xlsx)</button>
       <button class="rep-btn primary" onclick="repDownload('json')">Download JSON</button>
       <button class="rep-btn" onclick="repShareLink()">Get share link</button>
       <button class="rep-btn" onclick="repSaveAsTemplate()">Save as template</button>
@@ -346,6 +372,8 @@ const repState = {
   templateId: null,
   presetId: null,
   readonly: false,
+  preparedFor: '',
+  brand: null,
 };
 let repTimer = null;
 
@@ -589,6 +617,8 @@ async function repPreview() {
     const payload = {
       sections: repState.sections, scope: repState.scope,
       preset_id: repState.presetId || null,
+      prepared_for: repState.preparedFor || null,
+      brand: repState.brand || null,
     };
     const r = await fetch('/api/reports/compose', {
       method: 'POST',
@@ -648,6 +678,8 @@ async function repShareLink() {
         scope: repState.scope,
         preset_id: repState.presetId || null,
         industry_template_id: repState.industryTemplateId || null,
+        prepared_for: repState.preparedFor || null,
+        brand: repState.brand || null,
       })
     });
     if (r.ok) {
@@ -701,6 +733,8 @@ async function repDownload(fmt) {
     industry_template_id: repState.industryTemplateId || null,
     format: fmt,
     filename: 'safecadence-report',
+    prepared_for: repState.preparedFor || null,
+    brand: repState.brand || null,
   };
 
   try {
@@ -987,6 +1021,24 @@ def _make_router():
                     scope = preset.get("scope") or {}
         return sections, scope, preset, include_delta
 
+    def _enrich_report(report: dict, payload: dict) -> dict:
+        """Attach top-level ``prepared_for`` and ``brand`` to a composed report.
+
+        Keeps both keys optional — when absent or empty, the report dict is
+        returned unchanged so renderers fall back to SafeCadence defaults.
+        """
+        prepared_for = (payload.get("prepared_for") or "").strip()
+        if prepared_for:
+            report["prepared_for"] = prepared_for
+        brand = payload.get("brand") or None
+        if isinstance(brand, dict):
+            # Strip empties so renderers cleanly detect "no brand"
+            cleaned = {k: v for k, v in brand.items()
+                        if v not in (None, "", [], {})}
+            if cleaned:
+                report["brand"] = cleaned
+        return report
+
     @router.get("/api/reports/presets")
     def api_presets() -> dict:
         out = []
@@ -1013,12 +1065,16 @@ def _make_router():
     @router.post("/api/reports/compose")
     def api_compose(payload: dict = Body(default={})) -> dict:
         sections, scope, _preset, incl = _resolve_payload(payload)
-        return compose_report(sections=sections, scope=scope, include_delta=incl)
+        report = compose_report(sections=sections, scope=scope, include_delta=incl)
+        return _enrich_report(report, payload)
 
     @router.post("/api/reports/render-html", response_class=HTMLResponse)
     def api_render_html(payload: dict = Body(default={})) -> str:
         sections, scope, preset, incl = _resolve_payload(payload)
-        report = compose_report(sections=sections, scope=scope, include_delta=incl)
+        report = _enrich_report(
+            compose_report(sections=sections, scope=scope, include_delta=incl),
+            payload,
+        )
         # Notify webhooks (best effort) when not in read-only mode.
         if not _is_readonly():
             try:
@@ -1034,20 +1090,29 @@ def _make_router():
     @router.post("/api/reports/render-json")
     def api_render_json(payload: dict = Body(default={})) -> Response:
         sections, scope, _preset, incl = _resolve_payload(payload)
-        report = compose_report(sections=sections, scope=scope, include_delta=incl)
+        report = _enrich_report(
+            compose_report(sections=sections, scope=scope, include_delta=incl),
+            payload,
+        )
         return Response(content=render_json(report), media_type="application/json")
 
     @router.post("/api/reports/render-pdf")
     def api_render_pdf(payload: dict = Body(default={})) -> Response:
         sections, scope, preset, incl = _resolve_payload(payload)
-        report = compose_report(sections=sections, scope=scope, include_delta=incl)
+        report = _enrich_report(
+            compose_report(sections=sections, scope=scope, include_delta=incl),
+            payload,
+        )
         return Response(content=render_pdf(report, preset=preset),
                         media_type="application/pdf")
 
     @router.post("/api/reports/render-docx")
     def api_render_docx(payload: dict = Body(default={})) -> Response:
         sections, scope, preset, incl = _resolve_payload(payload)
-        report = compose_report(sections=sections, scope=scope, include_delta=incl)
+        report = _enrich_report(
+            compose_report(sections=sections, scope=scope, include_delta=incl),
+            payload,
+        )
         return Response(
             content=render_docx(report, preset=preset),
             media_type=("application/vnd.openxmlformats-officedocument."
@@ -1059,7 +1124,10 @@ def _make_router():
     @router.post("/api/reports/render-pptx")
     def api_render_pptx(payload: dict = Body(default={})) -> Response:
         sections, scope, preset, incl = _resolve_payload(payload)
-        report = compose_report(sections=sections, scope=scope, include_delta=incl)
+        report = _enrich_report(
+            compose_report(sections=sections, scope=scope, include_delta=incl),
+            payload,
+        )
         return Response(
             content=render_pptx(report, preset=preset),
             media_type=("application/vnd.openxmlformats-officedocument."
@@ -1068,18 +1136,37 @@ def _make_router():
                      'attachment; filename="safecadence-report.pptx"'},
         )
 
+    @router.post("/api/reports/render-xlsx")
+    def api_render_xlsx(payload: dict = Body(default={})) -> Response:
+        sections, scope, preset, incl = _resolve_payload(payload)
+        report = _enrich_report(
+            compose_report(sections=sections, scope=scope, include_delta=incl),
+            payload,
+        )
+        return Response(
+            content=render_xlsx(report, preset=preset),
+            media_type=("application/vnd.openxmlformats-officedocument."
+                        "spreadsheetml.sheet"),
+            headers={"Content-Disposition":
+                     'attachment; filename="safecadence-report.xlsx"'},
+        )
+
     @router.post("/api/reports/render-download")
     def api_render_download(payload: dict = Body(default={})) -> Response:
         """One-shot composed download — works in read-only mode (no template save).
 
-        Body: {sections, scope, preset_id, industry_template_id, format, filename}
-        format: html | pdf | json | docx | pptx
+        Body: {sections, scope, preset_id, industry_template_id, format,
+               filename, prepared_for, brand}
+        format: html | pdf | json | docx | pptx | xlsx
         """
         fmt = (payload.get("format") or "html").lower()
-        if fmt not in ("html", "pdf", "json", "docx", "pptx"):
+        if fmt not in ("html", "pdf", "json", "docx", "pptx", "xlsx"):
             raise HTTPException(status_code=400, detail="bad_format")
         sections, scope, preset, incl = _resolve_payload(payload)
-        report = compose_report(sections=sections, scope=scope, include_delta=incl)
+        report = _enrich_report(
+            compose_report(sections=sections, scope=scope, include_delta=incl),
+            payload,
+        )
         base = str(payload.get("filename") or "safecadence-report").strip() or "safecadence-report"
         # Strip dangerous chars
         base = "".join(c for c in base if c.isalnum() or c in "-_") or "safecadence-report"
@@ -1101,6 +1188,10 @@ def _make_router():
             data = render_pptx(report, preset=preset)
             mime = ("application/vnd.openxmlformats-officedocument."
                     "presentationml.presentation")
+        elif fmt == "xlsx":
+            data = render_xlsx(report, preset=preset)
+            mime = ("application/vnd.openxmlformats-officedocument."
+                    "spreadsheetml.sheet")
         else:  # html
             data = render_html(report, standalone=True, preset=preset).encode("utf-8")
             mime = "text/html"
@@ -1125,6 +1216,8 @@ def _make_router():
             "preset_id": payload.get("preset_id"),
             "industry_template_id": payload.get("industry_template_id"),
             "title": payload.get("title") or "SafeCadence NetRisk Report",
+            "prepared_for": payload.get("prepared_for") or None,
+            "brand": payload.get("brand") or None,
         }
         token = base64.urlsafe_b64encode(
             _json2.dumps(body, default=str).encode("utf-8")
@@ -1143,9 +1236,12 @@ def _make_router():
         except Exception:
             raise HTTPException(status_code=404, detail="not_found")
         sections, scope, preset, incl = _resolve_payload(body)
-        report = compose_report(sections=sections, scope=scope,
-                                title=body.get("title") or "Report",
-                                include_delta=incl)
+        report = _enrich_report(
+            compose_report(sections=sections, scope=scope,
+                           title=body.get("title") or "Report",
+                           include_delta=incl),
+            body,
+        )
         return render_html(report, standalone=True, preset=preset)
 
     @router.get("/api/reports/templates")

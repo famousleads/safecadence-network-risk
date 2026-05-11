@@ -3236,5 +3236,275 @@ def cmd_automation_fires(limit):
                    f"{f.get('finding_id', '')} → {f.get('outcome', '')}")
 
 
+# --------------------------------------------------------------------------- #
+# `safecadence report` — compose / send / schedule reports from the CLI       #
+# --------------------------------------------------------------------------- #
+
+
+_REPORT_FORMATS = ["html", "pdf", "json", "docx", "pptx", "xlsx"]
+_REPORT_PRESETS = ["exec_brief", "technical_deepdive",
+                   "compliance_audit", "quarterly_review"]
+
+
+@cli.group("report")
+def report_cli():
+    """Compose, email, and schedule reports from the command line."""
+
+
+def _render_report_to_bytes(preset_id, fmt, sections, prepared_for,
+                            org_name, primary_color):
+    """Shared helper: compose + render, returns (bytes, applied_preset)."""
+    from safecadence.reports.builder import compose_report
+    from safecadence.reports.presets import apply_preset
+    from safecadence.reports import renderers as _r
+
+    applied = apply_preset(preset_id, {})
+    section_list = list(sections) if sections else applied["sections"]
+    report = compose_report(
+        sections=section_list,
+        scope=applied["scope"],
+        title=f"SafeCadence NetRisk — {applied['name']}",
+    )
+    brand = {}
+    if org_name:
+        brand["org_name"] = org_name
+    if primary_color:
+        brand["primary_color"] = primary_color
+    if prepared_for:
+        brand["prepared_for"] = prepared_for
+    if brand:
+        report["brand"] = {**(report.get("brand") or {}), **brand}
+
+    render_map = {
+        "html":  ("render_html",  True),
+        "pdf":   ("render_pdf",   True),
+        "json":  ("render_json",  False),
+        "docx":  ("render_docx",  True),
+        "pptx":  ("render_pptx",  True),
+        "xlsx":  ("render_xlsx",  True),
+    }
+    fn_name, accepts_preset = render_map[fmt]
+    fn = getattr(_r, fn_name)
+    rendered = fn(report, preset=applied) if accepts_preset else fn(report)
+    if isinstance(rendered, str):
+        rendered = rendered.encode("utf-8")
+    return rendered, applied
+
+
+@report_cli.command("compose")
+@click.option("--preset", type=click.Choice(_REPORT_PRESETS), required=True,
+              help="Preset (audience template) to use.")
+@click.option("--format", "fmt", type=click.Choice(_REPORT_FORMATS),
+              required=True, help="Output format.")
+@click.option("--out", "out_path", type=click.Path(dir_okay=False),
+              required=True, help="Path to write the rendered report to.")
+@click.option("--prepared-for", default="",
+              help="Organisation name printed on the cover page.")
+@click.option("--org-name", default="",
+              help="Organisation name shown in chrome (footer, header).")
+@click.option("--primary-color", default="",
+              help="Hex colour override for accents (e.g. #1f6f6a).")
+@click.option("--sections", default="",
+              help="Comma-separated section keys to override the preset's default set.")
+def report_compose(preset, fmt, out_path, prepared_for, org_name,
+                   primary_color, sections):
+    """Compose + render a report to disk."""
+    section_list = [s.strip() for s in sections.split(",") if s.strip()]
+    try:
+        data, _applied = _render_report_to_bytes(
+            preset, fmt, section_list,
+            prepared_for, org_name, primary_color,
+        )
+    except Exception as exc:
+        click.echo(f"  ! compose failed: {exc}", err=True)
+        sys.exit(1)
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(data)
+    click.echo(f"Wrote: {out} ({len(data)} bytes)")
+    sys.exit(0)
+
+
+@report_cli.command("list-presets")
+def report_list_presets():
+    """Print the available report presets (id and name)."""
+    from safecadence.reports.presets import list_presets
+    for p in list_presets():
+        click.echo(f"  {p['id']:<22} {p['name']}")
+
+
+@report_cli.command("list-sections")
+def report_list_sections():
+    """Print the available report sections (key + description)."""
+    from safecadence.reports.builder import list_section_keys
+    for s in list_section_keys():
+        click.echo(f"  {s['key']:<32} {s.get('description', '')}")
+
+
+@report_cli.command("send")
+@click.option("--preset", type=click.Choice(_REPORT_PRESETS), required=True)
+@click.option("--format", "fmt", type=click.Choice(_REPORT_FORMATS),
+              required=True)
+@click.option("--to", "to_csv", required=True,
+              help="Comma-separated recipient list.")
+@click.option("--cc", "cc_csv", default="",
+              help="Comma-separated CC list.")
+@click.option("--subject", default="",
+              help="Email subject. Default: 'SafeCadence <preset name>'.")
+@click.option("--prepared-for", default="")
+@click.option("--org-name", default="")
+@click.option("--primary-color", default="")
+@click.option("--sections", default="")
+def report_send(preset, fmt, to_csv, cc_csv, subject, prepared_for,
+                org_name, primary_color, sections):
+    """Compose, render, and email a report in one shot."""
+    from safecadence.reports import email_delivery as _email
+    from safecadence.reports.presets import get_preset
+
+    recipients = [t.strip() for t in to_csv.split(",") if t.strip()]
+    cc = [c.strip() for c in cc_csv.split(",") if c.strip()]
+    if not recipients:
+        click.echo("  ! --to is required (no valid recipients)", err=True)
+        sys.exit(1)
+
+    section_list = [s.strip() for s in sections.split(",") if s.strip()]
+    try:
+        data, applied = _render_report_to_bytes(
+            preset, fmt, section_list,
+            prepared_for, org_name, primary_color,
+        )
+    except Exception as exc:
+        click.echo(f"  ! compose failed: {exc}", err=True)
+        sys.exit(1)
+
+    nice_name = (get_preset(preset) or {}).get("name") or preset
+    subj = subject or f"SafeCadence {nice_name}"
+    filename = f"safecadence-{preset}.{fmt}"
+    err = _email.send_report(
+        recipients=recipients,
+        cc=cc,
+        subject=subj,
+        body_text=f"Attached: SafeCadence NetRisk {nice_name} ({fmt.upper()}).",
+        attachment_bytes=data,
+        attachment_filename=filename,
+        attachment_mimetype=_email.mimetype_for_format(fmt),
+    )
+    if err:
+        click.echo(f"  ! send failed: {err}", err=True)
+        sys.exit(1)
+    click.echo(f"Sent: {filename} to {', '.join(recipients)} ({len(data)} bytes)")
+    sys.exit(0)
+
+
+# --- safecadence report schedule ... -------------------------------------- #
+
+
+@report_cli.group("schedule")
+def report_schedule_cli():
+    """Manage scheduled report runs (cron-style)."""
+
+
+@report_schedule_cli.command("list")
+def report_schedule_list():
+    """Show every scheduled report."""
+    from safecadence.reports.scheduler import load_schedules
+    items = load_schedules()
+    if not items:
+        click.echo("  (no schedules yet — use 'safecadence report schedule add')")
+        return
+    click.echo(f"  {'id':<28} {'cron':<14} {'preset':<22} "
+               f"{'fmt':<5} {'last':<20} {'status'}")
+    click.echo(f"  {'-'*28} {'-'*14} {'-'*22} {'-'*5} {'-'*20} {'-'*8}")
+    for s in items:
+        click.echo(
+            f"  {(s.get('id') or '')[:28]:<28} "
+            f"{(s.get('cron') or '')[:14]:<14} "
+            f"{(s.get('preset') or '')[:22]:<22} "
+            f"{(s.get('format') or '')[:5]:<5} "
+            f"{(s.get('last_run') or '—'):<20} "
+            f"{s.get('last_status') or '—'}"
+        )
+
+
+@report_schedule_cli.command("add")
+@click.option("--preset", type=click.Choice(_REPORT_PRESETS), required=True)
+@click.option("--format", "fmt", type=click.Choice(_REPORT_FORMATS),
+              required=True)
+@click.option("--to", "to_csv", required=True,
+              help="Comma-separated recipient list.")
+@click.option("--cc", "cc_csv", default="")
+@click.option("--cron", "cron_expr", required=True,
+              help='Cron expression, e.g. "0 8 * * MON".')
+@click.option("--name", default="",
+              help="Display name (defaults to '<preset>' if blank).")
+@click.option("--subject", default="",
+              help='Subject template — supports "{{date}}".')
+@click.option("--prepared-for", default="")
+@click.option("--disabled", is_flag=True,
+              help="Add the schedule but don't run it until enabled.")
+def report_schedule_add(preset, fmt, to_csv, cc_csv, cron_expr, name,
+                        subject, prepared_for, disabled):
+    """Add a new scheduled report."""
+    from safecadence.reports.scheduler import add_schedule
+    recipients = [t.strip() for t in to_csv.split(",") if t.strip()]
+    cc = [c.strip() for c in cc_csv.split(",") if c.strip()]
+    try:
+        rec = add_schedule({
+            "name": name or f"{preset} report",
+            "cron": cron_expr,
+            "preset": preset,
+            "format": fmt,
+            "to": recipients,
+            "cc": cc,
+            "subject": subject or f"SafeCadence {preset} — {{{{date}}}}",
+            "prepared_for": prepared_for,
+            "enabled": not disabled,
+        })
+    except Exception as exc:
+        click.echo(f"  ! add failed: {exc}", err=True)
+        sys.exit(1)
+    click.echo(f"  ✓ added schedule {rec['id']} ({rec['cron']})")
+
+
+@report_schedule_cli.command("remove")
+@click.argument("schedule_id")
+def report_schedule_remove(schedule_id):
+    """Remove a schedule by id."""
+    from safecadence.reports.scheduler import remove_schedule
+    if remove_schedule(schedule_id):
+        click.echo(f"  ✓ removed {schedule_id}")
+    else:
+        click.echo(f"  ✗ no such schedule: {schedule_id}", err=True)
+        sys.exit(1)
+
+
+@report_schedule_cli.command("run-due")
+def report_schedule_run_due():
+    """Run any schedules whose cron matches the current minute, once."""
+    from safecadence.reports.scheduler import run_due
+    results = run_due()
+    if not results:
+        click.echo("  (nothing due this minute)")
+        return
+    for r in results:
+        status = "ok" if r.get("ok") else f"error: {r.get('error')}"
+        click.echo(f"  {r.get('id')}: {status} "
+                   f"({r.get('format')}, {r.get('size_bytes') or 0} bytes)")
+
+
+@report_schedule_cli.command("daemon")
+@click.option("--interval", default=60, show_default=True, type=int,
+              help="Seconds between run_due() ticks.")
+def report_schedule_daemon(interval):
+    """Run scheduled reports forever (foreground)."""
+    from safecadence.reports.scheduler import daemon_loop
+    click.echo(f"  starting scheduler daemon (interval={interval}s)…")
+    try:
+        daemon_loop(interval_seconds=interval)
+    except KeyboardInterrupt:
+        click.echo("  daemon interrupted, exiting")
+        sys.exit(0)
+
+
 if __name__ == "__main__":   # pragma: no cover
     cli()

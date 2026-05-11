@@ -1400,6 +1400,112 @@ _COMPLIANCE_LIBRARY: dict[str, dict] = {
              "Authorize, design, develop, test, approve, and implement changes."),
         ],
     },
+    "NIS2": {
+        "name": "NIS 2 Directive (EU 2022/2555)",
+        "category": "EU regulatory",
+        "families": ["Risk management", "Incident response", "Supply chain",
+                     "Cybersecurity hygiene", "Governance"],
+        "controls": [
+            ("NIS2-21.2(a)", "Risk-analysis & infosec policies", "Risk management",
+             "Policies on risk analysis and information system security."),
+            ("NIS2-21.2(b)", "Incident handling", "Incident response",
+             "Detect, respond to, and recover from cybersecurity incidents."),
+            ("NIS2-21.2(c)", "Business continuity & crisis management", "Incident response",
+             "Backup management, disaster recovery, and crisis management plans."),
+            ("NIS2-21.2(d)", "Supply chain security", "Supply chain",
+             "Security in supplier and service-provider relationships, including vulnerability handling among suppliers."),
+            ("NIS2-21.2(e)", "Security in acquisition, development & maintenance", "Cybersecurity hygiene",
+             "Security in acquisition, development and maintenance of network and information systems, including vulnerability handling and disclosure."),
+            ("NIS2-21.2(f)", "Effectiveness assessment", "Governance",
+             "Policies and procedures to assess the effectiveness of cybersecurity risk-management measures."),
+            ("NIS2-21.2(g)", "Cyber hygiene & training", "Cybersecurity hygiene",
+             "Basic cyber-hygiene practices and cybersecurity training for staff and management."),
+            ("NIS2-21.2(h)", "Cryptography & encryption", "Cybersecurity hygiene",
+             "Policies and procedures regarding the use of cryptography and, where appropriate, encryption."),
+            ("NIS2-21.2(i)", "Human resources security & access control", "Cybersecurity hygiene",
+             "HR security, access-control policies, and asset management."),
+            ("NIS2-21.2(j)", "MFA & secure communications", "Cybersecurity hygiene",
+             "Use of multi-factor authentication, secured voice/video/text communications, and secured emergency communications."),
+            ("NIS2-21.3", "Vulnerability handling & disclosure", "Cybersecurity hygiene",
+             "Coordinated vulnerability disclosure process and timely patch management."),
+            ("NIS2-23",   "Incident reporting to CSIRT", "Incident response",
+             "Early warning (24h), incident notification (72h), and final report (1 month) to the national CSIRT."),
+        ],
+    },
+    "FedRAMP": {
+        "name": "FedRAMP Security Controls (Rev. 5)",
+        "category": "US federal cloud",
+        "families": ["Low", "Moderate", "High"],
+        "controls": [
+            ("AC-2",  "Account Management", "Moderate",
+             "Manage system accounts: types, conditions, role-based access, periodic review."),
+            ("AC-3",  "Access Enforcement", "Low",
+             "Enforce approved authorizations for logical access to information and resources."),
+            ("AC-6",  "Least Privilege", "Moderate",
+             "Allow only authorized accesses necessary to accomplish assigned organizational tasks."),
+            ("AU-2",  "Event Logging", "Low",
+             "Identify event types the cloud system is capable of logging; coordinate with response."),
+            ("AU-6",  "Audit Record Review, Analysis & Reporting", "Moderate",
+             "Review and analyze audit records for indications of inappropriate or unusual activity."),
+            ("CA-7",  "Continuous Monitoring", "Moderate",
+             "Implement a continuous monitoring strategy including ongoing control assessments."),
+            ("CM-2",  "Baseline Configuration", "Low",
+             "Develop, document, and maintain a current baseline configuration of the system."),
+            ("CM-6",  "Configuration Settings", "Moderate",
+             "Establish, document, and enforce configuration settings using federal/CIS baselines."),
+            ("CP-9",  "System Backup", "Moderate",
+             "Conduct backups of user-level, system-level, and security-related documentation."),
+            ("IA-2",  "Identification and Authentication (Org Users)", "Low",
+             "Uniquely identify and authenticate organizational users; phishing-resistant MFA for privileged access."),
+            ("IA-5",  "Authenticator Management", "Low",
+             "Manage authenticators (passwords, tokens, PKI) including secure issuance and rotation."),
+            ("RA-5",  "Vulnerability Monitoring & Scanning", "Low",
+             "Scan for vulnerabilities; remediate within FedRAMP SLAs (30/90/180 days by severity)."),
+            ("SC-7",  "Boundary Protection", "Low",
+             "Monitor and control communications at external and key internal system boundaries."),
+            ("SC-8",  "Transmission Confidentiality & Integrity", "Moderate",
+             "Protect the confidentiality and integrity of transmitted information using FIPS-validated crypto."),
+            ("SI-2",  "Flaw Remediation", "Low",
+             "Identify, report, and correct system flaws; install patches within FedRAMP-defined timelines."),
+            ("SI-4",  "System Monitoring", "Moderate",
+             "Monitor the system to detect attacks, indicators of attack, and unauthorized connections."),
+        ],
+    },
+    "CMMC": {
+        "name": "CMMC 2.0 (Cybersecurity Maturity Model Certification)",
+        "category": "US defense supply chain",
+        "families": ["Level 1 (Foundational)", "Level 2 (Advanced)", "Level 3 (Expert)"],
+        "controls": [
+            ("AC.L1-3.1.1",  "Authorized Access Control", "Level 1 (Foundational)",
+             "Limit information system access to authorized users, processes, and devices."),
+            ("AC.L1-3.1.2",  "Transaction & Function Control", "Level 1 (Foundational)",
+             "Limit access to the types of transactions and functions that authorized users are permitted to execute."),
+            ("AC.L2-3.1.5",  "Least Privilege", "Level 2 (Advanced)",
+             "Employ the principle of least privilege, including for specific security functions and privileged accounts."),
+            ("AC.L2-3.1.12", "Control Remote Access", "Level 2 (Advanced)",
+             "Monitor and control remote access sessions."),
+            ("AU.L2-3.3.1",  "System Auditing", "Level 2 (Advanced)",
+             "Create and retain system audit logs and records to enable monitoring, analysis, investigation, and reporting."),
+            ("AU.L2-3.3.5",  "Audit Correlation", "Level 2 (Advanced)",
+             "Correlate audit record review, analysis, and reporting processes for investigation and response."),
+            ("CM.L2-3.4.1",  "System Baselining", "Level 2 (Advanced)",
+             "Establish and maintain baseline configurations and inventories of organizational systems."),
+            ("CM.L2-3.4.6",  "Least Functionality", "Level 2 (Advanced)",
+             "Employ the principle of least functionality by configuring systems to provide only essential capabilities."),
+            ("IA.L1-3.5.1",  "Identification", "Level 1 (Foundational)",
+             "Identify information system users, processes acting on behalf of users, and devices."),
+            ("IA.L2-3.5.3",  "Multifactor Authentication", "Level 2 (Advanced)",
+             "Use MFA for local and network access to privileged accounts and for network access to non-privileged accounts."),
+            ("RA.L2-3.11.2", "Vulnerability Scan", "Level 2 (Advanced)",
+             "Scan for vulnerabilities in organizational systems and applications periodically and when new vulnerabilities are identified."),
+            ("SC.L1-3.13.1", "Boundary Protection", "Level 1 (Foundational)",
+             "Monitor, control, and protect organizational communications at the external and key internal boundaries."),
+            ("SC.L2-3.13.11","Cryptographic Protection", "Level 2 (Advanced)",
+             "Employ FIPS-validated cryptography when used to protect the confidentiality of CUI."),
+            ("SI.L1-3.14.1", "Flaw Remediation", "Level 1 (Foundational)",
+             "Identify, report, and correct information and information system flaws in a timely manner."),
+        ],
+    },
 }
 
 
@@ -1423,7 +1529,39 @@ def _control_family(control_id: str, framework: str) -> str:
         if control_id.upper().startswith("CC"):
             return control_id.upper().split(".", 1)[0]
         return "Trust"
-    return "?"
+    if framework == "NIS2":
+        # IDs like NIS2-21.2(a) or NIS2-23
+        body = cid.split("-", 1)[1] if "-" in cid else cid
+        # Take the article prefix (digits before '.' or end)
+        article = ""
+        for ch in body:
+            if ch.isdigit():
+                article += ch
+            else:
+                break
+        if article:
+            return f"Article {article}"
+        return "Directive"
+    if framework == "FedRAMP":
+        # FedRAMP uses NIST-style IDs (AC-2, SC-7, ...)
+        return cid.split("-", 1)[0] if "-" in cid else "?"
+    if framework == "CMMC":
+        # IDs like AC.L2-3.1.5 — domain is the part before the first '.'
+        if "." in cid:
+            return cid.split(".", 1)[0]
+        return "Domain"
+    # Custom frameworks: try common shapes (XYZ-FAM-01 → FAM, FAM.01 → FAM)
+    upper = cid
+    if "-" in upper:
+        parts = upper.split("-")
+        # If the first segment looks like a framework tag and a second segment
+        # is alphabetic, prefer the second segment as family hint.
+        if len(parts) >= 3 and parts[1].isalpha():
+            return parts[1]
+        return parts[0]
+    if "." in upper:
+        return upper.split(".", 1)[0]
+    return upper or "?"
 
 
 def _gap_from_kpi(kpi: dict) -> dict:
@@ -1465,22 +1603,42 @@ def _control_status(control: tuple, gap_map: dict) -> tuple[str, str]:
     return "pass", "No active findings in scope."
 
 
+def _merged_compliance_library() -> dict[str, dict]:
+    """Return the built-in compliance library merged with any user-defined
+    frameworks loaded from ``~/.safecadence/custom_frameworks.yaml``.
+
+    Loaded fresh on every call so newly-added YAML entries are picked up
+    without needing a process restart.
+    """
+    try:
+        from .custom_frameworks import load_custom_frameworks
+        custom = load_custom_frameworks()
+    except Exception:
+        custom = {}
+    return {**_COMPLIANCE_LIBRARY, **custom}
+
+
 def _resolve_compliance_frameworks(scope: dict) -> list[str]:
     """Pick the frameworks to report on based on scope.compliance_frameworks
     or fall back to the default list."""
+    library = _merged_compliance_library()
     requested = scope.get("compliance_frameworks") if scope else None
     if isinstance(requested, str):
         requested = [requested]
     if requested:
         names = []
         for r in requested:
-            for k in _COMPLIANCE_LIBRARY:
+            # First try exact match, then substring fallback.
+            if r in library:
+                names.append(r)
+                continue
+            for k in library:
                 if r and r.lower() in k.lower():
                     names.append(k)
                     break
         if names:
             return names
-    return list(_COMPLIANCE_LIBRARY.keys())
+    return list(library.keys())
 
 
 def compliance_executive_summary(store: Any, scope: dict) -> dict:
@@ -1572,14 +1730,36 @@ def compliance_control_matrix(store: Any, scope: dict) -> dict:
     frameworks = _resolve_compliance_frameworks(scope)
     kpi_section = kpi_summary(store, scope)
     gap_map = _gap_from_kpi(kpi_section.get("data") or {})
+    library = _merged_compliance_library()
+
+    # SLA policy used to derive due-dates per control row.
+    try:
+        from .sla_policy import compute_due_date, sla_status, load_sla_policy
+        sla_policy = load_sla_policy()
+    except Exception:
+        sla_policy = None
+        compute_due_date = None  # type: ignore
+        sla_status = None  # type: ignore
 
     all_rows: list[dict] = []
     body_rows_html: list[str] = []
     for fw_name in frameworks:
-        meta = _COMPLIANCE_LIBRARY.get(fw_name, {})
+        meta = library.get(fw_name, {})
         controls = meta.get("controls") or []
         for cid, title, family, purpose in controls:
             status, evidence = _control_status((cid, title, family, purpose), gap_map)
+            # Map control status to a priority for SLA purposes.
+            sla_pri = {"fail": "P0", "partial": "P1", "pass": "P3",
+                       "na": "P3"}.get(status, "P3")
+            due = ""
+            sla_state = "N/A"
+            if compute_due_date and status in ("fail", "partial"):
+                try:
+                    due = compute_due_date(sla_pri, policy=sla_policy)
+                    sla_state = sla_status(due) if sla_status else "ON_TRACK"
+                except Exception:
+                    due = ""
+                    sla_state = "N/A"
             row = {
                 "framework": fw_name,
                 "id": cid,
@@ -1589,6 +1769,9 @@ def compliance_control_matrix(store: Any, scope: dict) -> dict:
                 "purpose": purpose,
                 "status": status,
                 "evidence": evidence,
+                "priority": sla_pri if status in ("fail", "partial") else "",
+                "due_date": due,
+                "sla_status": sla_state,
             }
             all_rows.append(row)
             pill = {
@@ -1597,13 +1780,29 @@ def compliance_control_matrix(store: Any, scope: dict) -> dict:
                 "fail":    ('sc-pill-red',     "FAIL"),
                 "na":      ('sc-pill',         "N/A"),
             }[status]
+            sla_pill_class = {
+                "BREACHED": "sc-pill-red",
+                "DUE_SOON": "sc-pill-medium",
+                "ON_TRACK": "sc-pill-green",
+            }.get(sla_state, "sc-pill")
+            sla_cell = (
+                f'<span class="sc-pill {sla_pill_class}">{_esc(sla_state)}</span>'
+                if status in ("fail", "partial") else
+                '<span class="sc-pill" style="color:#94a3b8">&mdash;</span>'
+            )
+            due_cell = (
+                f'<code style="font-size:11px">{_esc(due)}</code>'
+                if due else '<span style="color:#94a3b8">&mdash;</span>'
+            )
             body_rows_html.append(
                 f'<tr><td><strong>{_esc(fw_name)}</strong></td>'
                 f'<td><code>{_esc(cid)}</code></td>'
                 f'<td>{_esc(title)}<div style="font-size:11px;color:#64748b">{_esc(purpose)}</div></td>'
                 f'<td>{_esc(_control_family(cid, fw_name))}</td>'
                 f'<td><span class="sc-pill {pill[0]}">{pill[1]}</span></td>'
-                f'<td style="font-size:12px">{_esc(evidence)}</td></tr>'
+                f'<td style="font-size:12px">{_esc(evidence)}</td>'
+                f'<td style="text-align:center">{due_cell}</td>'
+                f'<td style="text-align:center">{sla_cell}</td></tr>'
             )
 
     if not all_rows:
@@ -1629,6 +1828,7 @@ def compliance_control_matrix(store: Any, scope: dict) -> dict:
         '<thead><tr>'
         '<th>Framework</th><th>Control</th><th>Title / Purpose</th>'
         '<th>Family</th><th>Status</th><th>Evidence</th>'
+        '<th>Due date</th><th>SLA status</th>'
         '</tr></thead>'
         f'<tbody>{"".join(body_rows_html)}</tbody>'
         '</table>'
@@ -1664,6 +1864,7 @@ def compliance_evidence_pack(store: Any, scope: dict) -> dict:
             findings.append({
                 "ts": ts,
                 "host": host,
+                "finding_id": f.get("rule_id") or f.get("id") or f.get("title") or "",
                 "title": f.get("title") or f.get("id") or "",
                 "severity": (f.get("severity") or "").lower(),
                 "kev": bool(f.get("kev")),
@@ -1682,10 +1883,12 @@ def compliance_evidence_pack(store: Any, scope: dict) -> dict:
                 if not isinstance(c, dict):
                     continue
                 sev = (c.get("severity") or c.get("cvss_severity") or "").lower()
+                cve_id = c.get("id") or c.get("cve") or "CVE"
                 findings.append({
                     "ts": ts,
                     "host": host,
-                    "title": c.get("id") or c.get("cve") or "CVE",
+                    "finding_id": cve_id,
+                    "title": cve_id,
                     "severity": sev,
                     "kev": bool(c.get("kev") or c.get("kev_listed")),
                     "controls": {
@@ -1709,6 +1912,16 @@ def compliance_evidence_pack(store: Any, scope: dict) -> dict:
     ))
     findings = findings[:50]
 
+    # Pull in optional risk-acceptance + audit-trail data.
+    try:
+        from .risk_acceptance import is_accepted
+    except Exception:
+        is_accepted = None  # type: ignore
+    try:
+        from .audit_trail import summary_for as _trail_summary
+    except Exception:
+        _trail_summary = None  # type: ignore
+
     rows_html = []
     for i, f in enumerate(findings, start=1):
         sev = f.get("severity") or "info"
@@ -1718,6 +1931,47 @@ def compliance_evidence_pack(store: Any, scope: dict) -> dict:
         }.get(sev, "#64748b")
         kev_pill = (' <span class="sc-pill sc-pill-red">KEV</span>'
                     if f.get("kev") else "")
+
+        # Risk-accepted decoration
+        accepted_pill = ""
+        finding_id = f.get("finding_id") or f.get("title") or ""
+        host = f.get("host") or ""
+        if is_accepted and finding_id:
+            try:
+                acc = is_accepted(finding_id, host)
+                if acc:
+                    accepted_by = acc.get("accepted_by") or "—"
+                    expires = (acc.get("expires_at") or "")[:10]
+                    accepted_pill = (
+                        ' <span class="sc-pill" style="background:#fef9c3;color:#854d0e" '
+                        f'title="Accepted by {_esc(accepted_by)} '
+                        f'(expires {_esc(expires)})">RISK ACCEPTED</span>'
+                    )
+                    f["risk_accepted"] = acc
+            except Exception:
+                pass
+
+        # Audit-trail timing
+        timing_chip = ""
+        if _trail_summary and finding_id:
+            try:
+                s = _trail_summary(finding_id, host)
+                ttt = s.get("ttt")
+                ttr = s.get("ttr")
+                bits = []
+                if ttt is not None:
+                    bits.append(f"TTT {ttt}d")
+                if ttr is not None:
+                    bits.append(f"TTR {ttr}d")
+                if bits:
+                    timing_chip = (
+                        ' <span class="sc-pill" style="background:#e0e7ff;color:#3730a3;'
+                        f'font-size:10px">{_esc(" · ".join(bits))}</span>'
+                    )
+                    f["audit_summary"] = {"ttt": ttt, "ttr": ttr}
+            except Exception:
+                pass
+
         controls = f.get("controls") or {}
         if isinstance(controls, dict):
             control_chips = " ".join(
@@ -1730,7 +1984,7 @@ def compliance_evidence_pack(store: Any, scope: dict) -> dict:
         rows_html.append(
             f'<tr><td>{i}</td>'
             f'<td><code>{_esc(f.get("host",""))}</code></td>'
-            f'<td>{_esc(f.get("title",""))}{kev_pill}</td>'
+            f'<td>{_esc(f.get("title",""))}{kev_pill}{accepted_pill}{timing_chip}</td>'
             f'<td><span class="sc-pill" style="background:#fee2e2;color:{sev_color}">'
             f'{_esc(sev.upper())}</span></td>'
             f'<td style="font-size:11px">{control_chips}</td>'
@@ -1783,6 +2037,15 @@ def compliance_gap_analysis(store: Any, scope: dict) -> dict:
             "empty": False,
         }
 
+    # SLA policy: drives due_date + breach status per gap.
+    try:
+        from .sla_policy import compute_due_date, sla_status, load_sla_policy
+        sla_policy = load_sla_policy()
+    except Exception:
+        compute_due_date = None  # type: ignore
+        sla_status = None        # type: ignore
+        sla_policy = None
+
     blocks: list[str] = []
     sections_data: list[dict] = []
     for fw_name, items in groups.items():
@@ -1795,10 +2058,33 @@ def compliance_gap_analysis(store: Any, scope: dict) -> dict:
             lift = 6 if severity == "P0" else 3
             effort = "medium" if severity == "P0" else "low"
             remediation = _suggest_remediation(r["category"], r["id"], fw_name)
+            due = ""
+            sla_state = "ON_TRACK"
+            if compute_due_date:
+                try:
+                    due = compute_due_date(severity, policy=sla_policy)
+                    sla_state = sla_status(due) if sla_status else "ON_TRACK"
+                except Exception:
+                    due = ""
+                    sla_state = "ON_TRACK"
             actions_data.append({
                 "id": r["id"], "title": r["title"], "priority": severity,
                 "lift": lift, "effort": effort, "remediation": remediation,
+                "due_date": due, "sla_status": sla_state,
+                "breached": sla_state == "BREACHED",
             })
+            sla_pill_class = {
+                "BREACHED": "sc-pill-red",
+                "DUE_SOON": "sc-pill-medium",
+                "ON_TRACK": "sc-pill-green",
+            }.get(sla_state, "sc-pill")
+            sla_cell = (
+                f'<span class="sc-pill {sla_pill_class}">{_esc(sla_state)}</span>'
+            )
+            due_cell = (
+                f'<code style="font-size:11px">{_esc(due)}</code>'
+                if due else '<span style="color:#94a3b8">&mdash;</span>'
+            )
             action_rows.append(
                 f'<tr><td>{i}</td>'
                 f'<td><code>{_esc(r["id"])}</code></td>'
@@ -1806,7 +2092,9 @@ def compliance_gap_analysis(store: Any, scope: dict) -> dict:
                 f'<div style="font-size:11px;color:#64748b">{_esc(remediation)}</div></td>'
                 f'<td><span class="sc-pill sc-pill-red">{_esc(severity)}</span></td>'
                 f'<td>&plus;{lift} pts</td>'
-                f'<td>{_esc(effort)}</td></tr>'
+                f'<td>{_esc(effort)}</td>'
+                f'<td style="text-align:center">{due_cell}</td>'
+                f'<td style="text-align:center">{sla_cell}</td></tr>'
             )
         sections_data.append({"framework": fw_name, "actions": actions_data})
         blocks.append(
@@ -1815,6 +2103,7 @@ def compliance_gap_analysis(store: Any, scope: dict) -> dict:
             '<table class="sc-tbl"><thead><tr>'
             '<th>#</th><th>Control</th><th>Title / Remediation</th>'
             '<th>Priority</th><th>Score lift</th><th>Effort</th>'
+            '<th>Due date</th><th>SLA status</th>'
             '</tr></thead>'
             f'<tbody>{"".join(action_rows)}</tbody></table>'
         )
@@ -1823,6 +2112,74 @@ def compliance_gap_analysis(store: Any, scope: dict) -> dict:
         "title": "Compliance gap analysis",
         "data": {"groups": sections_data},
         "html_fragment": "".join(blocks),
+        "empty": False,
+    }
+
+
+def risk_acceptance_log(store: Any, scope: dict) -> dict:
+    """Auditor-oriented log of all currently-active risk acceptances.
+
+    Off by default; opt-in via ``sections=["risk_acceptance_log"]`` or via
+    the ``compliance_audit`` preset.
+    """
+    try:
+        from .risk_acceptance import active_acceptances
+        entries = active_acceptances()
+    except Exception:
+        entries = []
+
+    if not entries:
+        return {
+            "title": "Risk acceptance log",
+            "data": {"acceptances": []},
+            "html_fragment": (
+                '<div class="sc-empty">No active risk acceptances on file. '
+                'Add entries via the <code>safecadence risk-accept</code> CLI '
+                'or <code>~/.safecadence/risk_acceptance.json</code>.</div>'
+            ),
+            "empty": False,
+        }
+
+    rows_html = []
+    for i, e in enumerate(entries, start=1):
+        ccs = e.get("compensating_controls") or []
+        cc_html = ", ".join(_esc(c) for c in ccs[:6]) if ccs else "&mdash;"
+        rows_html.append(
+            f'<tr><td>{i}</td>'
+            f'<td><code>{_esc(e.get("id",""))}</code></td>'
+            f'<td><code>{_esc(e.get("finding_id",""))}</code></td>'
+            f'<td><code>{_esc(e.get("host","") or "*")}</code></td>'
+            f'<td>{_esc(e.get("accepted_by","") or "—")}</td>'
+            f'<td style="font-size:11px">{_esc((e.get("accepted_at","") or "")[:10])}</td>'
+            f'<td style="font-size:11px">{_esc((e.get("expires_at","") or "")[:10])}</td>'
+            f'<td style="font-size:11px">{_esc(e.get("rationale",""))}</td>'
+            f'<td style="font-size:11px">{cc_html}</td></tr>'
+        )
+
+    body = (
+        '<p style="font-size:12px;color:#475569">'
+        f'<strong>{len(entries)}</strong> active risk acceptance'
+        f'{"s" if len(entries) != 1 else ""} on file. Findings listed here are '
+        'treated as <em>not currently in scope for remediation</em>; the '
+        'compensating controls column documents the alternative mitigations. '
+        'Acceptances automatically expire on the date shown.'
+        '</p>'
+        '<table class="sc-tbl"><thead><tr>'
+        '<th>#</th><th>Ref</th><th>Finding</th><th>Asset</th>'
+        '<th>Accepted by</th><th>Accepted</th><th>Expires</th>'
+        '<th>Rationale</th><th>Compensating controls</th>'
+        '</tr></thead>'
+        f'<tbody>{"".join(rows_html)}</tbody></table>'
+        '<p style="font-size:11px;color:#64748b;margin-top:10px">'
+        'See <code>~/.safecadence/risk_acceptance.json</code> for the source-of-truth log. '
+        'Auditor recommendation: review every acceptance at each cycle '
+        'and re-justify before approving renewal.</p>'
+    )
+
+    return {
+        "title": "Risk acceptance log",
+        "data": {"acceptances": entries, "count": len(entries)},
+        "html_fragment": body,
         "empty": False,
     }
 
@@ -1911,6 +2268,10 @@ SECTION_REGISTRY: list[dict] = [
      "description": "Per-framework gap list with score lift, effort, and remediation.",
      "category": "Compliance", "default_enabled": True,
      "fn": compliance_gap_analysis},
+    {"key": "risk_acceptance_log", "name": "Risk acceptance log",
+     "description": "Auditor-on-demand log of active risk acceptances with rationale + compensating controls.",
+     "category": "Compliance", "default_enabled": False,
+     "fn": risk_acceptance_log},
     {"key": "eol_hardware", "name": "EOL hardware",
      "description": "Devices on end-of-support / end-of-software platforms.",
      "category": "Risk", "default_enabled": False,
@@ -1947,6 +2308,7 @@ __all__ = [
     "kpi_summary", "host_inventory", "cve_exposure", "compliance_posture",
     "compliance_executive_summary", "compliance_control_matrix",
     "compliance_evidence_pack", "compliance_gap_analysis",
+    "risk_acceptance_log",
     "eol_hardware", "attack_paths", "identity_drift", "recommended_actions",
     "recent_changes", "executive_summary",
     "_load_platform_assets", "_scope_values_from_assets",

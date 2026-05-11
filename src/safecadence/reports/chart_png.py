@@ -73,8 +73,10 @@ def _to_png(img) -> bytes:
 
 
 def _antialias_scale() -> int:
-    """Render at 2x then downsample for crisp anti-aliasing."""
-    return 2
+    """Render at 3x then downsample for crisp anti-aliasing. Higher scale
+    yields better print quality at the cost of ~50% more pixels in the
+    final PNG. Worth it for embedded charts that will be printed."""
+    return 3
 
 
 # --------------------------------------------------------------------------

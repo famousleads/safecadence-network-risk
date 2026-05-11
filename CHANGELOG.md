@@ -1,5 +1,42 @@
 # Changelog
 
+## [10.4.0] — 2026-05-10
+
+### Three themes: scheduled & scriptable / compliance depth / inventory polish
+
+**Theme A — Scheduled & scriptable reports**
+- New CLI `report` command group: `compose`, `send`, `list-presets`, `list-sections`, `schedule {list,add,remove,run-due,daemon}`
+- SMTP email delivery — `safecadence report send --preset X --to a@b.com` (uses `SC_SMTP_*` env vars, STARTTLS)
+- Persistent scheduler — `~/.safecadence/schedules.yaml` with cron syntax (`* / , - MON TUE …`), `safecadence report schedule daemon` runs the loop
+- REST API — `POST /api/v1/reports/generate` returns a job_id; background thread renders; `GET /api/v1/reports/{id}` for status; `GET /api/v1/reports/{id}/download` for the file. Optional `deliver_via=email`. Fires `report.ready` webhook event on success.
+
+**Theme B — Compliance depth**
+- Three new canonical framework libraries: **NIS2** (EU 2022/2555, Article 21 measures), **FedRAMP Rev. 5** (Low/Moderate/High), **CMMC 2.0** (Levels 1/2/3 with 800-171 mapping). ~42 new controls total.
+- Custom framework support via `~/.safecadence/custom_frameworks.yaml` — define your own control library; auto-merged into the compliance sections at composition time.
+- SLA-aware risk register — P0=14d, P1=30d, P2=60d, P3=90d (configurable via `~/.safecadence/sla_policy.yaml`). KEV findings uplift to immediate-priority SLA. New "Due date" and "SLA status" columns in DOCX / XLSX / HTML control matrix and gap analysis tables. ON_TRACK / DUE_SOON / BREACHED status pills.
+- Risk acceptance log — persists to `~/.safecadence/risk_acceptance.json`. Findings the org has signed off on accepting are decorated with a "RISK ACCEPTED" pill in the evidence pack. New `risk_acceptance_log` section (default OFF, opt-in for auditor reports).
+- Per-finding audit trail — `~/.safecadence/audit_trail.jsonl` tracks discovered → triaged → remediated transitions. `summary_for(finding_id)` returns TTT (time-to-triage) and TTR (time-to-remediate) for surfacing in the evidence pack.
+
+**Theme C — Inventory polish**
+- Full-width live search box on `/inventory` (300ms debounce) — matches across hostname, asset_id, vendor, site, owner, interface IPs, and tags. Stacks with the category filter.
+- **Saved filter views** — capture filter + search + columns + widths + density under a name; persists in `localStorage["SC_INV_VIEWS"]`. Seeds three defaults on first run: Crown jewels / Critical risk score / Network gear only.
+- **Inline edit** — double-click owner, site, or criticality cells to swap in an input/select. Optimistic update with rollback on failure. POSTs to `/api/platform/asset/{id}/field` (server-side whitelist of 9 fields, blocked in read-only mode).
+- **CSV / XLSX export** from the inventory page — CSV is client-side, XLSX POSTs to `/api/platform/inventory/xlsx` which streams a real .xlsx via the reports XLSX engine.
+- **Column profile quick-picks** — Compact / Security focus / Compliance focus / Lifecycle / EOL buttons instantly switch visible columns.
+
+**Tests**: 153 passing (was 116; +19 Theme A + 18 Theme B).
+
+**New modules**:
+- `safecadence.reports.email_delivery`
+- `safecadence.reports.scheduler`
+- `safecadence.reports.api_v1`
+- `safecadence.reports.custom_frameworks`
+- `safecadence.reports.sla_policy`
+- `safecadence.reports.risk_acceptance`
+- `safecadence.reports.audit_trail`
+
+---
+
 ## [10.3.0] — 2026-05-10
 
 ### Polished Office-grade deliverables + inventory ergonomics

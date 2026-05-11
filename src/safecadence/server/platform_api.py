@@ -2282,6 +2282,53 @@ def register(app, get_current_user, require_writer):
         save_asset(a)
         return {"saved": True, "asset_id": asset_id}
 
+    # v10.4 — single-field inline edit (double-click cell on inventory)
+    @app.post("/api/platform/asset/{asset_id}/field")
+    def asset_update_field(asset_id: str, body: dict = Body(...),
+                           user=Depends(require_writer)):
+        """Patch a single whitelisted identity field. Backs the inventory
+        double-click inline editor. Same allowlist + persistence as the
+        full PUT endpoint above; just narrower so the UI doesn't have to
+        send the whole identity blob."""
+        field = (body or {}).get("field")
+        value = (body or {}).get("value")
+        editable = {"owner", "site", "criticality", "team", "environment",
+                    "vendor", "model", "mgmt_ip", "mgmt_url"}
+        if field not in editable:
+            raise HTTPException(400, detail=f"field not editable: {field!r}")
+        a = get_asset(asset_id)
+        if not a:
+            raise HTTPException(404, detail=f"asset not found: {asset_id}")
+        ident = a.setdefault("identity", {})
+        if isinstance(value, str):
+            value = value.strip()
+        ident[field] = value
+        from datetime import datetime, timezone
+        ident["last_modified"] = datetime.now(timezone.utc).isoformat()
+        save_asset(a)
+        return {"saved": True, "asset_id": asset_id, "field": field, "value": value}
+
+    # v10.4 — inventory XLSX export (server-side rendering via stdlib zip)
+    @app.post("/api/platform/inventory/xlsx")
+    def inventory_xlsx_endpoint(body: dict = Body(...),
+                                _user=Depends(get_current_user)):
+        """Render a {headers, rows} payload to an .xlsx workbook and
+        return raw bytes with the right Content-Type so the browser
+        downloads it. Read-only — no asset mutation."""
+        from fastapi.responses import Response
+        try:
+            from safecadence.reports.renderers import render_inventory_xlsx
+        except Exception as e:                              # pragma: no cover
+            raise HTTPException(500, detail=f"xlsx renderer unavailable: {e}")
+        headers = list((body or {}).get("headers") or [])
+        rows = list((body or {}).get("rows") or [])
+        data = render_inventory_xlsx(headers, rows)
+        return Response(
+            content=data,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": 'attachment; filename="inventory.xlsx"'},
+        )
+
     # v9.12 — delete an asset (with optional purge of policy targeting)
     @app.delete("/api/platform/asset/{asset_id}")
     def asset_delete_endpoint(asset_id: str,

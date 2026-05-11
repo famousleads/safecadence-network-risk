@@ -75,8 +75,59 @@ def _band_for_score(score: int) -> str:
     return "minimal"
 
 
+def _ciso_part1(kev, crit, high, eol):
+    if kev:
+        return (f"{kev} CISA KEV-listed CVE{'s' if kev != 1 else ''} on assets in scope "
+                "represent the highest residual risk — these are exploited in the wild now, "
+                "not theoretically.")
+    if crit >= 5:
+        return (f"{crit} critical findings concentrate the bulk of residual risk; "
+                "remediation is the most material lever available this quarter.")
+    if eol >= 3:
+        return (f"{eol} devices past vendor end-of-support cannot be patched and "
+                "constitute durable, unmitigatable risk.")
+    if high >= 10:
+        return (f"{high} high-severity findings collectively raise the breach-likelihood "
+                "envelope above acceptable thresholds.")
+    return "Residual risk is within acceptable bounds — emphasis shifts to detection maturity."
+
+
+def _engineer_part1(kev, crit, high):
+    if kev:
+        return (f"KEV catalog: {kev} CVE{'s' if kev != 1 else ''} match active exploitation entries — "
+                "treat as P0 patch class, ship this week.")
+    if crit:
+        return (f"{crit} critical CVEs are ready for patch — cluster by vendor and "
+                "deploy in a single change window.")
+    if high:
+        return (f"{high} high-severity items are next in the queue; group by host class.")
+    return "No P0/P1 patch items. Focus shifts to baseline drift detection."
+
+
+def _auditor_part1(kev, crit, eol):
+    bits = []
+    if kev:
+        bits.append(f"{kev} KEV-listed CVE{'s' if kev != 1 else ''} trigger SI-2, RA-5, "
+                    "and PCI 6.3.3 control failures")
+    if crit:
+        bits.append(f"{crit} critical findings inform CC7.1 and CIS 7.x evidence")
+    if eol:
+        bits.append(f"{eol} EOL device{'s' if eol != 1 else ''} fail SI-2(2) supportability")
+    if bits:
+        return "Control implications: " + "; ".join(bits) + "."
+    return "No findings of audit consequence in the current scan window."
+
+
 def generate_executive_summary(report_data: dict, *, tone: str = "professional") -> str:
-    """Produce a multi-sentence executive summary from a kpi dict."""
+    """Produce a three-part executive summary from a KPI dict.
+
+    The structure is consistent across tones:
+      1. Lead with the most actionable threat.
+      2. Quantify the gap.
+      3. One concrete this-week recommendation.
+    The wording (and ordering of facts) changes per tone so each audience
+    feels addressed in their own language.
+    """
     kpi = report_data.get("kpi") or report_data
     hosts  = int(kpi.get("hosts") or 0)
     crit   = int(kpi.get("critical") or 0)
@@ -90,109 +141,99 @@ def generate_executive_summary(report_data: dict, *, tone: str = "professional")
     score = min(100, crit * 8 + high * 3 + kev * 6 + eol * 4 + eos * 2)
     band = _band_for_score(score)
 
-    top_host = (report_data.get("top_host") or {}).get("hostname") or ""
-    top_score = (report_data.get("top_host") or {}).get("score")
-    fw_weak = (report_data.get("weakest_framework") or "")
-
-    opener = _TONE_OPENERS.get(tone, _TONE_OPENERS["professional"])
-
     if hosts == 0:
         return ("No assets in scope. Add scans or widen the scope filter to surface "
                 "fleet posture, CVE exposure, and compliance signals.")
 
-    parts: list[str] = []
-    if tone == "executive":
-        parts.append(
-            f"{opener}: across {hosts} assets your environment carries an "
-            f"overall risk posture of {band} ({score}/100)."
-        )
-        parts.append(
-            f"The most material exposures are {crit} critical and {high} high "
-            f"findings, with {kev} KEV-listed vulnerabilities — KEV items represent "
-            "exploits known to be used in active attacks."
-        )
-        if eol or eos:
-            parts.append(
-                f"You have {eol} end-of-support hardware unit{'s' if eol != 1 else ''} "
-                f"and {eos} software stack{'s' if eos != 1 else ''} past vendor "
-                "end-of-life; these systems do not receive security patches."
-            )
-        parts.append(
-            "Recommended focus this week: patch KEV CVEs first, then rotate any "
-            "admin accounts without MFA, then schedule replacements for end-of-support "
-            "gear before next quarter."
-        )
-    elif tone == "technical":
-        parts.append(
-            f"{opener}: {hosts} hosts in scope; {cves} distinct CVEs of which {kev} "
-            "appear in the CISA KEV catalog (treat as P0 patch class)."
-        )
-        parts.append(
-            f"Severity distribution: critical={crit}, high={high}. Lifecycle: "
-            f"{eol} HW past EOS, {eos} SW past EOS."
-        )
-        if top_host and top_score:
-            parts.append(
-                f"Highest single-host risk is {top_host} (risk {top_score}). Investigate "
-                "remediation snippets in the action plan section."
-            )
-        if fw_weak:
-            parts.append(
-                f"Weakest control framework is {fw_weak} — failing controls are itemized "
-                "in the compliance posture section with remediation notes."
-            )
-    elif tone == "audit":
-        parts.append(
-            f"{opener}. {hosts} in-scope assets evaluated against NIST 800-53, "
-            "CIS v8, PCI DSS, HIPAA, and SOC 2 control families."
-        )
-        parts.append(
-            f"Findings: {crit} critical, {high} high. KEV exposure: {kev}. "
-            f"End-of-support hardware: {eol}. End-of-software systems: {eos}."
-        )
-        parts.append(
-            "Evidence is captured per-host in the host inventory section and per-control "
-            "in the compliance posture section. No automated remediation has been "
-            "performed during this report cycle."
-        )
+    # ---- Part 1: lead with the most actionable threat (per tone) ----
+    if tone == "ciso":
+        p1 = _ciso_part1(kev, crit, high, eol)
+    elif tone in ("engineer", "technical"):
+        p1 = _engineer_part1(kev, crit, high)
+    elif tone in ("auditor", "audit"):
+        p1 = _auditor_part1(kev, crit, eol)
     elif tone == "forward-looking":
-        parts.append(
-            f"{opener}: posture trend over the last quarter shows {hosts} assets "
-            f"under management. Active risk index is {score}/100 ({band})."
-        )
-        parts.append(
-            f"Active issues: {crit} critical / {high} high CVE classes with {kev} "
-            "KEV-listed exposures. Patch-cycle KPIs and end-of-life replacements "
-            "are tracked in the recommended actions section."
-        )
-        parts.append(
-            "Forward look: prioritize KEV remediation in the next sprint, and "
-            "schedule the EOL replacements before the close of the next quarter."
-        )
-    else:  # professional
-        parts.append(
-            f"{opener} reviewed {hosts} assets and surfaced {crit} critical and "
-            f"{high} high findings, totaling {cves} CVE classes with {kev} on the "
-            f"CISA KEV catalog."
-        )
-        if top_host:
-            parts.append(
-                f"The single largest exposure is on {top_host} (risk score {top_score or 'high'}); "
-                "patching its KEV-listed vulnerabilities will materially reduce overall risk."
-            )
-        if eol or eos:
-            parts.append(
-                f"Lifecycle drift adds {eol} end-of-support hardware unit"
-                f"{'s' if eol != 1 else ''} and {eos} end-of-software stack"
-                f"{'s' if eos != 1 else ''} to the picture; these no longer receive "
-                "vendor patches and represent durable risk until replaced."
-            )
-        parts.append(
-            "Top action this week: remediate KEV-listed CVEs, then close MFA gaps on "
-            "privileged accounts, then plan EOL replacements for next cycle."
-        )
+        if kev:
+            p1 = (f"Quarter opens with {kev} KEV-listed CVE{'s' if kev != 1 else ''} carried over — "
+                  "these set the immediate operating ceiling on risk.")
+        else:
+            p1 = (f"Quarter opens with no KEV-listed exposure on assets in scope — "
+                  "a meaningful improvement over the prior quarter for organizations "
+                  "tracking that metric.")
+    else:  # executive / professional / default
+        if kev:
+            p1 = (f"{kev} CISA KEV-listed CVE{'s' if kev != 1 else ''} sit on critical "
+                  "assets — these are exploited in the wild this week, not later.")
+        elif crit >= 5:
+            p1 = (f"{crit} critical CVEs are open across the fleet — they concentrate "
+                  "the bulk of breach risk and are the single highest leverage move.")
+        elif eol >= 3:
+            p1 = (f"{eol} devices are past vendor end-of-support — they cannot be "
+                  "patched and should be replaced before next quarter.")
+        elif crit:
+            p1 = (f"{crit} critical CVE{'s' if crit != 1 else ''} need attention this sprint.")
+        else:
+            p1 = ("No critical or KEV-listed vulnerabilities — the environment's "
+                  "current security posture is solid.")
 
-    deterministic = " ".join(parts)
+    # ---- Part 2: quantify the gap (per tone) ----
+    if tone == "ciso":
+        p2 = (f"Across {hosts} in-scope systems, the environment carries an overall "
+              f"risk index of {score}/100 ({band}), composed of {crit} critical and "
+              f"{high} high findings.")
+    elif tone in ("engineer", "technical"):
+        p2 = (f"Scope: {hosts} hosts, {cves} distinct CVE classes. Severity split: "
+              f"critical={crit}, high={high}. Lifecycle drift: {eol} HW EOL, "
+              f"{eos} SW EOS.")
+    elif tone in ("auditor", "audit"):
+        p2 = (f"Sample size: {hosts} in-scope assets. Open findings: {crit} critical, "
+              f"{high} high. Lifecycle exceptions: {eol} HW past EOS, {eos} SW past EOS. "
+              "Evidence per-host and per-control is appended.")
+    elif tone == "forward-looking":
+        p2 = (f"Across {hosts} assets the active risk index is {score}/100 ({band}); "
+              f"{crit} critical and {high} high findings drive the number, with "
+              f"{eol} EOL hardware items on a replacement clock.")
+    else:  # executive / professional
+        p2 = (f"Across {hosts} in-scope systems your environment carries an overall "
+              f"risk index of {score}/100 ({band}), driven by {crit} critical and "
+              f"{high} high findings.")
+
+    # ---- Part 3: one concrete this-week recommendation (per tone) ----
+    rec_bits = []
+    if kev:
+        rec_bits.append("patch the KEV-listed items")
+    elif crit:
+        rec_bits.append("close the critical CVE queue")
+    if high and not kev:
+        rec_bits.append("schedule high-severity patches")
+    if eol >= 1:
+        rec_bits.append(f"replace {eol} end-of-support device{'s' if eol != 1 else ''} before next quarter")
+    if eos >= 1:
+        rec_bits.append(f"upgrade {eos} EOS software stack{'s' if eos != 1 else ''}")
+    if not rec_bits:
+        rec_bits.append("maintain scan cadence and tighten identity hygiene")
+    # Common shared move
+    if kev or crit:
+        rec_bits.append("rotate any admin accounts still on shared credentials")
+
+    rec = ", ".join(rec_bits[:3])
+
+    if tone == "ciso":
+        p3 = (f"This week, prioritize: {rec}. The action plan in the report scopes each "
+              "to a target date based on its priority class.")
+    elif tone in ("engineer", "technical"):
+        p3 = (f"Sprint backlog: {rec}. P0/P1 remediation snippets are inline against "
+              "each finding in the action plan.")
+    elif tone in ("auditor", "audit"):
+        p3 = (f"Recommended remediation: {rec}. Each item maps back to one or more "
+              "controls; tracking is in the risk register.")
+    elif tone == "forward-looking":
+        p3 = (f"Recommended this quarter: {rec}, with a posture re-snapshot in 30 days "
+              "to confirm trend.")
+    else:
+        p3 = f"Recommended this week: {rec}."
+
+    deterministic = " ".join((p1, p2, p3))
     ai = _try_ai(
         "Rewrite the following executive summary in a polished consultant tone, "
         "preserving every number exactly:\n\n" + deterministic
