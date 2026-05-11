@@ -1,47 +1,92 @@
-# SafeCadence Network Risk — local UI via Docker Compose
+# SafeCadence NetRisk — local development stack.
 #
-# Run:  docker-compose up
-# Open: http://localhost:8765
+# Run:  docker compose up
+# Open: http://localhost:8003
 #
-# Persistent state (~/.safecadence equivalent) is mounted from ./safecadence-data
-# so your scans survive container restarts.
+# This compose file brings up the app plus the optional supporting services
+# (Redis cache, Postgres, MinIO for S3-compatible object storage) so the
+# full multi-tenant stack can be exercised on a laptop.
+#
+# Override env vars in docker-compose.override.yml — see the example file.
 
 version: "3.9"
 
 services:
-  safecadence-ui:
-    image: fkarim1/netrisk:latest
-    container_name: safecadence-ui
+  safecadence:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: famousleads/safecadence-netrisk:11.2.0
+    container_name: safecadence
     restart: unless-stopped
     ports:
-      - "8765:8765"
+      - "8003:8003"
+    environment:
+      SC_DATA_DIR: /data
+      SC_HOST: "0.0.0.0"
+      SC_PORT: "8003"
+      # Connect-string examples (uncomment in override file once services
+      # below are running).
+      # SC_DATABASE_URL: postgres://safecadence:devpass@postgres:5432/safecadence
+      # SC_REDIS_URL: redis://redis:6379/0
+      # SC_S3_ENDPOINT: http://minio:9000
+      # SC_S3_BUCKET: safecadence
+      # SC_S3_ACCESS_KEY: minioadmin
+      # SC_S3_SECRET_KEY: minioadmin
     volumes:
-      # Persistent data dir for SQLite stores (discover history, asset tags, vault)
-      - ./safecadence-data:/data
-      # Mount any local config files you want to scan
+      - sc-data:/data
       - ./configs:/work
-    command: ["ui", "--host", "0.0.0.0", "--no-browser"]
+    depends_on:
+      - redis
+      - postgres
+      - minio
     networks:
       - safecadence
 
-  # Optional companion service: continuous monitoring with Slack alerts
-  # Uncomment + set webhook URLs to enable.
-  #
-  # safecadence-watch:
-  #   image: fkarim1/netrisk:latest
-  #   container_name: safecadence-watch
-  #   restart: unless-stopped
-  #   network_mode: host  # required for ARP cache + LAN discovery
-  #   volumes:
-  #     - ./safecadence-data:/data
-  #   environment:
-  #     - SLACK_WEBHOOK=https://hooks.slack.com/services/T.../B.../X...
-  #   command:
-  #     - "watch"
-  #     - "192.168.1.0/24"
-  #     - "--interval=3600"
-  #     - "--alert-on=changes"
-  #     - "--slack-webhook=$SLACK_WEBHOOK"
+  redis:
+    image: redis:7-alpine
+    container_name: safecadence-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - safecadence
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: safecadence-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: safecadence
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: safecadence
+    ports:
+      - "5432:5432"
+    volumes:
+      - sc-pg:/var/lib/postgresql/data
+    networks:
+      - safecadence
+
+  minio:
+    image: minio/minio:latest
+    container_name: safecadence-minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - sc-minio:/data
+    networks:
+      - safecadence
+
+volumes:
+  sc-data:
+  sc-pg:
+  sc-minio:
 
 networks:
   safecadence:

@@ -171,4 +171,55 @@ def send_report(
     return None
 
 
-__all__ = ["send_report", "mimetype_for_format"]
+def send_email_raw(to: str, subject: str, body: str) -> str | None:
+    """Send a plain-text email — used by auth magic links and notification
+    transports that don't need a file attachment.
+
+    Same SMTP env contract as :func:`send_report` — returns ``None`` on
+    success, an informative string on failure. Never raises.
+    """
+    if not to:
+        return "No recipient supplied."
+    missing = _missing_envs()
+    if missing:
+        return (
+            "SMTP not configured — set "
+            + ", ".join(missing)
+            + " and try again."
+        )
+    host = _env("SC_SMTP_HOST")
+    port = int(_env("SC_SMTP_PORT") or "587")
+    user = _env("SC_SMTP_USER")
+    password = _env("SC_SMTP_PASS")
+    sender = _env("SC_SMTP_FROM")
+
+    msg = EmailMessage()
+    msg["From"] = sender
+    msg["To"] = to
+    msg["Subject"] = subject or "SafeCadence"
+    msg["Date"] = formatdate(localtime=True)
+    msg["Message-ID"] = make_msgid(domain="safecadence.local")
+    msg.set_content(body or "")
+
+    try:
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP(host, port, timeout=30) as smtp:
+            smtp.ehlo()
+            try:
+                smtp.starttls(context=ctx)
+                smtp.ehlo()
+            except smtplib.SMTPException:
+                pass
+            if user and password:
+                smtp.login(user, password)
+            smtp.send_message(msg, from_addr=sender, to_addrs=[to])
+    except smtplib.SMTPException as exc:
+        return f"SMTP error: {exc}"
+    except OSError as exc:
+        return f"Network error contacting SMTP server: {exc}"
+    except Exception as exc:  # pragma: no cover - defensive
+        return f"Unexpected email error: {exc}"
+    return None
+
+
+__all__ = ["send_report", "send_email_raw", "mimetype_for_format"]

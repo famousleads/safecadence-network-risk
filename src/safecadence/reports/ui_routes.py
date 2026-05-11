@@ -24,7 +24,7 @@ import os
 from typing import Any
 
 try:
-    from fastapi import APIRouter, Body, HTTPException, Path as PathParam, Query
+    from fastapi import APIRouter, Body, HTTPException, Path as PathParam, Query, Request
     from fastapi.responses import HTMLResponse, JSONResponse, Response
     _FASTAPI_OK = True
 except Exception:  # pragma: no cover
@@ -68,6 +68,19 @@ def _readonly_response() -> JSONResponse:
             "message": "Demo is read-only. Install the platform to save reports.",
         },
     )
+
+
+def _audit(action: str, target: str | None = None,
+           metadata: dict | None = None,
+           user_email: str = "anonymous",
+           org_id: str | None = None) -> None:
+    """Best-effort audit log append. Never raises; never blocks the
+    response. Plumbed into every write endpoint in this router."""
+    try:
+        from safecadence.audit.log import log_event
+        log_event(org_id, user_email, action, target=target, metadata=metadata)
+    except Exception:                              # pragma: no cover
+        pass
 
 
 def _open_store() -> Any | None:
@@ -165,8 +178,9 @@ _WIZARD_BODY = """
 </style>
 
 <div class="rep-wrap">
-  <div id="rep-readonly-banner" class="rep-readonly" style="display:none">
-    Read-only demo &mdash; saves and share-links are disabled. Install NetRisk locally to use the full builder.
+  <div id="rep-readonly-banner" class="rep-readonly" style="display:none"
+       role="status" aria-live="polite">
+    %T:reports.readonly_banner%
   </div>
 
   <div class="rep-steps">
@@ -180,32 +194,34 @@ _WIZARD_BODY = """
   </div>
 
   <div id="rep-step0" class="rep-card">
-    <h3>Choose a starting point</h3>
+    <h3>%T:reports.choose_start%</h3>
     <p style="color:#8b95b1;font-size:13px;margin:0 0 14px">
       Pick a stakeholder template to pre-fill sections, scope, and tone &mdash; or pick an industry template.
     </p>
-    <div class="rep-tabs" style="display:flex;gap:8px;margin-bottom:12px">
-      <button class="rep-btn rep-tab active" data-tab="stakeholder" onclick="repTab(this,'stakeholder')">Stakeholder</button>
-      <button class="rep-btn rep-tab" data-tab="industry" onclick="repTab(this,'industry')">By industry</button>
+    <div class="rep-tabs" style="display:flex;gap:8px;margin-bottom:12px" role="tablist">
+      <button class="rep-btn rep-tab active" data-tab="stakeholder" role="tab"
+              aria-selected="true" onclick="repTab(this,'stakeholder')">%T:reports.tab.stakeholder%</button>
+      <button class="rep-btn rep-tab" data-tab="industry" role="tab"
+              aria-selected="false" onclick="repTab(this,'industry')">%T:reports.tab.industry%</button>
     </div>
-    <div id="rep-presets-grid" class="rep-presets" data-tab="stakeholder"></div>
-    <div id="rep-industry-grid" class="rep-presets" data-tab="industry" style="display:none"></div>
+    <div id="rep-presets-grid" class="rep-presets" data-tab="stakeholder" role="tabpanel"></div>
+    <div id="rep-industry-grid" class="rep-presets" data-tab="industry" style="display:none" role="tabpanel"></div>
     <div class="rep-actions">
-      <button class="rep-btn" onclick="repApplyPreset('')">Custom (start blank)</button>
-      <button class="rep-btn primary" onclick="repGo(1)">Skip &rarr; Sections</button>
+      <button class="rep-btn" onclick="repApplyPreset('')">%T:reports.custom_blank%</button>
+      <button class="rep-btn primary" onclick="repGo(1)">%T:reports.skip_sections%</button>
     </div>
   </div>
 
   <div id="rep-step1" class="rep-card" style="display:none">
-    <h3>Pick the sections to include</h3>
+    <h3>%T:reports.pick_sections%</h3>
     <div id="rep-section-grid" class="rep-grid"></div>
     <div class="rep-actions">
-      <button class="rep-btn primary" onclick="repGo(2)">Next &rarr; Scope</button>
+      <button class="rep-btn primary" onclick="repGo(2)">%T:reports.next_scope%</button>
     </div>
   </div>
 
   <div id="rep-step2" class="rep-card" style="display:none">
-    <h3>Filter the data</h3>
+    <h3>%T:reports.filter_data%</h3>
     <div class="rep-row">
       <div>
         <label>Site</label>
@@ -259,19 +275,19 @@ _WIZARD_BODY = """
     </div>
     <div class="rep-actions">
       <button class="rep-btn" onclick="repGo(1)">&larr; Back</button>
-      <button class="rep-btn primary" onclick="repGo(3)">Preview &rarr;</button>
+      <button class="rep-btn primary" onclick="repGo(3)">%T:reports.preview_btn%</button>
     </div>
   </div>
 
   <div id="rep-step3" class="rep-card" style="display:none">
     <div class="rep-toolbar">
-      <button class="rep-btn" onclick="repGo(2)">&larr; Back to edit</button>
-      <button class="rep-btn" onclick="repSaveAsTemplate()">Save as template</button>
-      <button class="rep-btn primary" onclick="repGo(4)">Export &rarr;</button>
-      <span id="rep-stamp" class="rep-stamp"></span>
+      <button class="rep-btn" onclick="repGo(2)">%T:reports.back_edit%</button>
+      <button class="rep-btn" onclick="repSaveAsTemplate()">%T:reports.save_template%</button>
+      <button class="rep-btn primary" onclick="repGo(4)">%T:reports.export_btn%</button>
+      <span id="rep-stamp" class="rep-stamp" aria-live="polite"></span>
     </div>
-    <div id="rep-preview" class="rep-preview">
-      <div style="padding:24px;color:#5b6685">Building preview...</div>
+    <div id="rep-preview" class="rep-preview" role="region" aria-label="Report preview" aria-live="polite">
+      <div style="padding:24px;color:#5b6685">%T:reports.building_preview%</div>
     </div>
   </div>
 
@@ -921,7 +937,56 @@ repLoadMeta();
 
 
 def _wizard_body() -> tuple[str, str]:
-    return _WIZARD_BODY, _WIZARD_JS
+    """Return the wizard body + JS, with i18n placeholders substituted.
+
+    Placeholders look like ``%T:key%`` and are replaced with the active
+    language's value for ``key`` (falling back to English). If i18n
+    machinery isn't importable the original placeholders are stripped
+    back to their English defaults so the wizard never breaks.
+    """
+    body = _WIZARD_BODY
+    js = _WIZARD_JS
+    try:
+        from safecadence.i18n import t as _t
+    except Exception:                          # pragma: no cover
+        _t = None
+
+    # Default English values keyed by i18n key. Used both as fallback when
+    # i18n isn't available and as the canonical source for the substitution.
+    _defaults = {
+        "reports.choose_start": "Choose a starting point",
+        "reports.tab.stakeholder": "Stakeholder",
+        "reports.tab.industry": "By industry",
+        "reports.custom_blank": "Custom (start blank)",
+        "reports.skip_sections": "Skip &rarr; Sections",
+        "reports.pick_sections": "Pick the sections to include",
+        "reports.next_scope": "Next &rarr; Scope",
+        "reports.filter_data": "Filter the data",
+        "reports.preview_btn": "Preview &rarr;",
+        "reports.back_edit": "&larr; Back to edit",
+        "reports.save_template": "Save as template",
+        "reports.export_btn": "Export &rarr;",
+        "reports.building_preview": "Building preview...",
+        "reports.readonly_banner":
+            "Read-only demo &mdash; saves and share-links are disabled. "
+            "Install NetRisk locally to use the full builder.",
+    }
+
+    def _lookup(key: str) -> str:
+        if _t is None:
+            return _defaults.get(key, key)
+        try:
+            val = _t(key)
+        except Exception:
+            return _defaults.get(key, key)
+        if val == key:                              # missing in catalog
+            return _defaults.get(key, key)
+        return val
+
+    for key, default in _defaults.items():
+        body = body.replace(f"%T:{key}%", _lookup(key))
+        js = js.replace(f"%T:{key}%", _lookup(key))
+    return body, js
 
 
 # --------------------------------------------------------------------------
@@ -935,7 +1000,15 @@ def _make_router():
     router = APIRouter()
 
     @router.get("/reports", response_class=HTMLResponse)
-    def reports_page() -> str:
+    def reports_page(request: Request, lang: str = "") -> str:
+        # v11.1 — resolve i18n language from query > cookie > Accept-Language.
+        try:
+            from safecadence.i18n import resolve_lang, set_lang
+            cookie_lang = request.cookies.get("sc_lang", "")
+            accept = request.headers.get("accept-language", "")
+            set_lang(resolve_lang(lang or None, cookie_lang or None, accept))
+        except Exception:                          # pragma: no cover
+            pass
         return _wizard_html()
 
     @router.get("/api/reports/sections")
@@ -1195,6 +1268,16 @@ def _make_router():
         else:  # html
             data = render_html(report, standalone=True, preset=preset).encode("utf-8")
             mime = "text/html"
+        # v10.5 — observability + audit hooks.
+        try:
+            from safecadence.observability.metrics import record_report_generated
+            record_report_generated(fmt, getattr(preset, "id", "") or
+                                    (payload.get("preset_id") or ""))
+        except Exception:
+            pass
+        _audit("report.render", target=fname,
+               metadata={"format": fmt, "preset": payload.get("preset_id"),
+                         "bytes": len(data)})
         return Response(
             content=data,
             media_type=mime,
@@ -1258,6 +1341,8 @@ def _make_router():
             return _readonly_response()
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+        _audit("report.template.save", target=str(saved.get("id") or ""),
+               metadata={"name": saved.get("name")})
         return saved
 
     @router.get("/api/reports/templates/{tpl_id}")
@@ -1277,6 +1362,7 @@ def _make_router():
             return _readonly_response()
         if not ok:
             raise HTTPException(status_code=404, detail="not_found")
+        _audit("report.template.delete", target=tpl_id)
         return {"ok": True}
 
     @router.get("/api/reports/templates/{tpl_id}/preview", response_class=HTMLResponse)
@@ -1342,6 +1428,8 @@ def _make_router():
             return _readonly_response()
         except KeyError:
             raise HTTPException(status_code=404, detail="not_found")
+        _audit("report.share_token.issue", target=tpl.get("id"),
+               metadata={"token_prefix": (tpl.get("share_token") or "")[:8]})
         return {"share_token": tpl.get("share_token"), "id": tpl.get("id")}
 
     @router.get("/r/{token}", response_class=HTMLResponse)
@@ -1498,6 +1586,29 @@ def _make_router():
     @router.get("/api/reports/ticketing/tickets")
     def api_list_tickets(integration_id: str | None = Query(default=None)) -> dict:
         return {"tickets": _tk.list_created_tickets(integration_id=integration_id)}
+
+    # ---- v10.6: AI-aware CVE explainer + quick-wins endpoint --------
+    @router.post("/api/reports/ai/explain-cve")
+    def api_ai_explain_cve(payload: dict = Body(default=None)) -> dict:
+        from safecadence.reports.ai_helpers import explain_cve as _explain_cve
+        payload = payload or {}
+        cve_id = (payload.get("cve_id") or payload.get("cve") or "").strip()
+        if not cve_id:
+            raise HTTPException(400, "cve_id is required")
+        severity = (payload.get("severity") or "").strip()
+        kev = bool(payload.get("kev"))
+        host = payload.get("host") or None
+        return _explain_cve(cve_id, severity, kev=kev, host=host)
+
+    @router.post("/api/reports/ai/quick-wins")
+    def api_ai_quick_wins(payload: dict = Body(default=None)) -> dict:
+        from safecadence.reports.ai_helpers import detect_quick_wins as _qw
+        payload = payload or {}
+        actions = payload.get("actions") or []
+        top_n = int(payload.get("top_n") or 3)
+        if not isinstance(actions, list):
+            raise HTTPException(400, "actions must be a list")
+        return {"top": _qw(actions, top_n=top_n)}
 
     return router
 

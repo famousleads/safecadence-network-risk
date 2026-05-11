@@ -1,0 +1,19 @@
+apiVersion: v2
+name: safecadence-netrisk
+description: SafeCadence NetRisk — local-first multi-vendor infrastructure platform.
+type: application
+version: 0.1.0
+appVersion: "11.2.0"
+home: https://safecadence.com
+sources:
+  - https://github.com/famousleads/safecadence-network-risk
+maintainers:
+  - name: SafeCadence
+    email: hello@safecadence.com
+keywords:
+  - security
+  - compliance
+  - network
+  - inventory
+  - cve
+icon: https://safecadence.com/static/icon-512.png

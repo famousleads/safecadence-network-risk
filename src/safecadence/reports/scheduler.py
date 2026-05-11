@@ -416,18 +416,58 @@ def _compose_render_send(schedule: dict, *, now: _dt.datetime) -> dict:
     }
 
 
+def _builtin_retention_pass(now_min: _dt.datetime) -> list[dict]:
+    """v11.3 — built-in daily 03:00 UTC retention pass for every org.
+
+    Walks every org under ``~/.safecadence/orgs/`` and runs
+    :func:`safecadence.ops.retention.apply_retention` against each.
+    Never raises; per-org failures are recorded in the result list.
+    Only fires once per UTC day, at the configured hour:minute.
+    """
+    if now_min.hour != 3 or now_min.minute != 0:
+        return []
+    try:
+        from safecadence.ops.retention import apply_retention
+        from safecadence.storage.org_store import list_orgs
+    except Exception:
+        return []
+    results: list[dict] = []
+    try:
+        orgs = list_orgs()
+    except Exception:
+        orgs = []
+    for org in orgs:
+        try:
+            rep = apply_retention(org.id)
+            results.append({
+                "kind": "retention",
+                "org_id": org.id,
+                "ok": True,
+                "total_purged": int(rep.get("total_purged") or 0),
+            })
+        except Exception as exc:                  # pragma: no cover
+            results.append({
+                "kind": "retention",
+                "org_id": org.id,
+                "ok": False,
+                "error": str(exc),
+            })
+    return results
+
+
 def run_due(now: _dt.datetime | None = None) -> list[dict]:
     """Find all enabled schedules whose cron expression matches ``now``
     (minute granularity) and execute them, persisting last_run/last_status.
 
-    Returns a list of result dicts (one per schedule that fired).
+    Returns a list of result dicts (one per schedule that fired). Also
+    runs the v11.3 built-in daily retention pass at 03:00 UTC.
     """
     if now is None:
         now = _dt.datetime.now(_dt.timezone.utc)
     # Drop sub-minute precision so a schedule cannot fire twice in one minute.
     now_min = now.replace(second=0, microsecond=0)
     items = load_schedules()
-    results: list[dict] = []
+    results: list[dict] = list(_builtin_retention_pass(now_min))
     changed = False
     for sched in items:
         if not sched.get("enabled", True):

@@ -355,4 +355,81 @@ def create_app(*, db_url: Optional[str] = None, jwt_secret: Optional[str] = None
     from safecadence.ui.help_page import register as _register_help
     _register_help(app)
 
+    # ---- v10.1: Reports wizard (/reports + /api/reports/*) ----- #
+    # Same mount as the standalone UI app. Wiring it here means the
+    # link audit and other tests that bring up server.create_app see
+    # /reports resolve instead of 404.
+    try:
+        from safecadence.reports.ui_routes import router as _reports_router
+        if _reports_router is not None:
+            app.include_router(_reports_router)
+    except Exception:                              # pragma: no cover
+        pass
+
+    # ---- v11.1: PWA manifest + service worker + responsive.css --- #
+    # /manifest.webmanifest, /sw.js, /static/responsive.css. Mounted
+    # here so the link-audit suite (which uses server.create_app) sees
+    # the manifest link target resolve instead of 404.
+    try:
+        from safecadence.ui.pwa import register as _pwa_register
+        _pwa_register(app)
+    except Exception:                              # pragma: no cover
+        pass
+
+    # ---- v10.5: auth + observability + multi-tenant scaffolding - #
+    try:
+        from safecadence.auth.routes import router as _auth_router
+        if _auth_router is not None:
+            app.include_router(_auth_router)
+    except Exception:                              # pragma: no cover
+        pass
+    try:
+        from safecadence.observability.metrics import (
+            router as _obs_router, MetricsMiddleware,
+        )
+        if _obs_router is not None:
+            app.include_router(_obs_router)
+            app.add_middleware(MetricsMiddleware)
+    except Exception:                              # pragma: no cover
+        pass
+
+    # ---- v10.6: Slack + Jira + dashboard widgets routers ----------- #
+    try:
+        from safecadence.integrations.slack import build_router as _slack_router
+        _r = _slack_router()
+        if _r is not None:
+            app.include_router(_r)
+    except Exception:                              # pragma: no cover
+        pass
+    try:
+        from safecadence.integrations.jira import build_router as _jira_router
+        _r = _jira_router()
+        if _r is not None:
+            app.include_router(_r)
+    except Exception:                              # pragma: no cover
+        pass
+    try:
+        from safecadence.dashboard.widgets import build_router as _widgets_router
+        _r = _widgets_router()
+        if _r is not None:
+            app.include_router(_r)
+    except Exception:                              # pragma: no cover
+        pass
+
+    # ---- v10.8: workflow + governance routers --------------------- #
+    try:
+        from safecadence.workflow.api_v1 import build_router as _wf_router
+        _r = _wf_router()
+        if _r is not None:
+            app.include_router(_r)
+    except Exception:                              # pragma: no cover
+        pass
+    try:
+        from safecadence.auth.saml import build_router as _saml_router
+        _r = _saml_router()
+        if _r is not None:
+            app.include_router(_r)
+    except Exception:                              # pragma: no cover
+        pass
+
     return app

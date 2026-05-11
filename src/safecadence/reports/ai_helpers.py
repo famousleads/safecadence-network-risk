@@ -3,20 +3,31 @@ AI helpers for the report module.
 
 The strategy is:
 
-  1. Try the existing ``safecadence.ai`` provider when an API key is
-     present. If it returns a non-empty string, use it.
-  2. Otherwise, fall back to deterministic templated prose that uses the
+  1. If ``OPENAI_API_KEY`` is set, call OpenAI Chat Completions
+     (stdlib-only HTTPS POST — no SDK dependency).
+  2. Else if ``ANTHROPIC_API_KEY`` is set, call Anthropic Messages API.
+  3. Otherwise, fall back to deterministic templated prose that uses the
      actual data values, so an offline build still produces realistic
      consultant-grade copy (not a placeholder).
 
-All helpers are pure functions returning ``str`` (or ``list[dict]``)
-and never raise — failure modes degrade to a minimal but useful string.
+All helpers are pure functions and never raise — failure modes degrade
+to a minimal but useful string.
+
+v10.6 changes (May 2026):
+  * Real LLM calls now live here directly (urllib + json), with a
+    30-second timeout and a single retry on 5xx — no third-party SDK.
+  * ``explain_cve`` and ``detect_quick_wins`` are LLM-aware on top of
+    the existing deterministic fallbacks.
 """
 
 from __future__ import annotations
 
+import json as _json
 import os
+import time as _time
 from typing import Any, Iterable
+from urllib import error as _urlerr
+from urllib import request as _urlreq
 
 
 # --------------------------------------------------------------------------
@@ -24,26 +35,161 @@ from typing import Any, Iterable
 # --------------------------------------------------------------------------
 
 
+# Module-level model names — overridable by env for tests / future tuning.
+OPENAI_MODEL = os.environ.get("SAFECADENCE_OPENAI_MODEL", "gpt-4o-mini")
+ANTHROPIC_MODEL = os.environ.get(
+    "SAFECADENCE_ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"
+)
+LLM_TIMEOUT_SEC = 30
+
+
+def _active_provider() -> str | None:
+    """Return ``'openai'`` or ``'anthropic'`` (whichever env key is set first)
+    or ``None`` for stub mode.
+    """
+    if os.environ.get("OPENAI_API_KEY"):
+        return "openai"
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return "anthropic"
+    return None
+
+
 def _has_api_key() -> bool:
-    return bool(
-        os.environ.get("OPENAI_API_KEY")
-        or os.environ.get("ANTHROPIC_API_KEY")
-        or os.environ.get("OLLAMA_HOST")
+    return _active_provider() is not None or bool(
+        os.environ.get("OLLAMA_HOST")
         or os.environ.get("SAFECADENCE_LOCAL_LLM")
     )
 
 
-def _try_ai(prompt: str) -> str | None:
-    """Attempt to run the prompt through ``safecadence.ai``. Returns ``None``
-    on any failure (no key, network, import error, empty response).
+def _http_post_json(url: str, payload: dict, headers: dict,
+                    timeout: float = LLM_TIMEOUT_SEC,
+                    retry_on_5xx: bool = True) -> dict | None:
+    """Stdlib JSON POST. Returns the parsed body on 2xx, ``None`` on failure.
+
+    Retries once on transient 5xx so a single flake doesn't tank the
+    report build. Never raises.
     """
+    body = _json.dumps(payload).encode("utf-8")
+    hdrs = {"Content-Type": "application/json", **headers}
+    attempts = 2 if retry_on_5xx else 1
+    last_err: Exception | None = None
+    for i in range(attempts):
+        req = _urlreq.Request(url, data=body, headers=hdrs, method="POST")
+        try:
+            with _urlreq.urlopen(req, timeout=timeout) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+                try:
+                    return _json.loads(raw)
+                except Exception:
+                    return None
+        except _urlerr.HTTPError as e:
+            last_err = e
+            if 500 <= e.code < 600 and i + 1 < attempts:
+                _time.sleep(0.5)
+                continue
+            return None
+        except Exception as e:                         # pragma: no cover
+            last_err = e
+            return None
+    if last_err:
+        return None
+    return None
+
+
+def _call_openai(prompt: str, *, system: str | None = None,
+                 max_tokens: int = 400) -> str | None:
+    """Single Chat-Completions call. Returns assistant text or ``None``."""
+    key = os.environ.get("OPENAI_API_KEY")
+    if not key:
+        return None
+    msgs: list[dict] = []
+    if system:
+        msgs.append({"role": "system", "content": system})
+    msgs.append({"role": "user", "content": prompt})
+    payload = {
+        "model": OPENAI_MODEL,
+        "messages": msgs,
+        "max_tokens": max_tokens,
+        "temperature": 0.3,
+    }
+    resp = _http_post_json(
+        "https://api.openai.com/v1/chat/completions",
+        payload,
+        {"Authorization": f"Bearer {key}"},
+    )
+    if not isinstance(resp, dict):
+        return None
+    try:
+        text = resp["choices"][0]["message"]["content"]
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+    except Exception:
+        return None
+    return None
+
+
+def _call_anthropic(prompt: str, *, system: str | None = None,
+                    max_tokens: int = 400) -> str | None:
+    """Single Messages-API call. Returns assistant text or ``None``."""
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        return None
+    payload: dict[str, Any] = {
+        "model": ANTHROPIC_MODEL,
+        "max_tokens": max_tokens,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    if system:
+        payload["system"] = system
+    resp = _http_post_json(
+        "https://api.anthropic.com/v1/messages",
+        payload,
+        {
+            "x-api-key": key,
+            "anthropic-version": "2023-06-01",
+        },
+    )
+    if not isinstance(resp, dict):
+        return None
+    try:
+        blocks = resp.get("content") or []
+        # Standard shape: [{"type":"text","text":"..."}]
+        for b in blocks:
+            if isinstance(b, dict) and b.get("type") == "text":
+                t = b.get("text")
+                if isinstance(t, str) and t.strip():
+                    return t.strip()
+    except Exception:
+        return None
+    return None
+
+
+def _try_ai(prompt: str, *, system: str | None = None,
+            max_tokens: int = 400) -> str | None:
+    """Attempt a real LLM call (OpenAI first, Anthropic second).
+    Returns ``None`` when no key is configured, on network failure, or
+    on an empty response.
+
+    Falls back to the legacy ``safecadence.ai.explain_findings`` shim
+    when neither real provider key is set but a local-LLM env var is
+    (Ollama, SAFECADENCE_LOCAL_LLM) — keeps prior behavior alive.
+    """
+    provider = _active_provider()
+    if provider == "openai":
+        out = _call_openai(prompt, system=system, max_tokens=max_tokens)
+        if out:
+            return out
+        # If OpenAI is configured but failed, fall through to legacy/local LLM
+        # rather than silently returning None — keeps the demo "best-effort".
+    elif provider == "anthropic":
+        out = _call_anthropic(prompt, system=system, max_tokens=max_tokens)
+        if out:
+            return out
+
+    # Legacy / local LLM path — preserves earlier behavior.
     if not _has_api_key():
         return None
     try:
-        # Best-effort: re-use the per-scan ``explain_findings`` helper by
-        # passing a synthetic scan-shaped dict. The wrapper expects a dict
-        # with at least a 'findings' or 'cves' field — we cooperate by
-        # passing the prompt as 'summary' and signalling intent.
         from safecadence.ai import explain_findings  # type: ignore
         out = explain_findings({"summary": prompt, "findings": [], "cves": []})
         if isinstance(out, str) and out.strip():
@@ -51,6 +197,16 @@ def _try_ai(prompt: str) -> str | None:
     except Exception:
         pass
     return None
+
+
+def llm_status() -> dict:
+    """Return ``{provider, model}`` for the active LLM, or ``{provider: None}``."""
+    p = _active_provider()
+    if p == "openai":
+        return {"provider": "openai", "model": OPENAI_MODEL}
+    if p == "anthropic":
+        return {"provider": "anthropic", "model": ANTHROPIC_MODEL}
+    return {"provider": None, "model": None}
 
 
 # --------------------------------------------------------------------------
@@ -234,9 +390,23 @@ def generate_executive_summary(report_data: dict, *, tone: str = "professional")
         p3 = f"Recommended this week: {rec}."
 
     deterministic = " ".join((p1, p2, p3))
+    # v10.6: pass the structured KPI data + tone hint so the LLM can shape
+    # the narrative without inventing numbers. The fallback (deterministic)
+    # is sent as a "preserve every number" anchor.
+    kpi_blob = _json.dumps({
+        "hosts": hosts, "critical": crit, "high": high, "cves": cves,
+        "kev": kev, "eol": eol, "eos_software": eos, "risk_index": score,
+    })
     ai = _try_ai(
-        "Rewrite the following executive summary in a polished consultant tone, "
-        "preserving every number exactly:\n\n" + deterministic
+        "Write a 2-3 sentence executive summary for a security report. "
+        f"Tone: {tone}. "
+        "Use exactly the numbers in this KPI JSON — do not invent new figures: "
+        f"{kpi_blob}.\n\n"
+        "For reference, here is the deterministic version (you may rephrase "
+        "but keep every number identical):\n"
+        f"{deterministic}",
+        system="You are a senior security consultant. Concise, executive-grade prose.",
+        max_tokens=300,
     )
     return ai or deterministic
 
@@ -255,21 +425,51 @@ _SEVERITY_PHRASES = {
 
 
 def explain_cve_plain_language(cve_id: str, severity: str, host: str | None = None) -> str:
-    """Three-sentence plain-English explainer for a CVE."""
+    """Three-sentence plain-English explainer for a CVE (legacy signature)."""
+    out = explain_cve(cve_id, severity, host=host)
+    return out["explanation"]
+
+
+def explain_cve(cve_id: str, severity: str, *, kev: bool = False,
+                host: str | None = None) -> dict:
+    """Return ``{explanation: str, source: 'llm'|'stub'}`` for a CVE.
+
+    With an LLM key set, asks the model for a 2-3 sentence non-technical
+    explanation. Without, returns a deterministic templated message that
+    plugs the severity into a stock phrase.
+    """
     sev = (severity or "").lower()
     phrase = _SEVERITY_PHRASES.get(sev, "this issue requires investigation and a fix")
     where = f" on {host}" if host else ""
+    kev_note = (
+        " It is on the CISA Known Exploited Vulnerabilities list — exploitation has been "
+        "observed in the wild, not theorized."
+        if kev else ""
+    )
     deterministic = (
-        f"{cve_id}{where}: {phrase}. "
+        f"{cve_id}{where}: {phrase}.{kev_note} "
         f"Treat this as {sev or 'unrated'} priority. "
         "Apply the vendor patch or the configuration mitigation listed in the action plan; "
         "if patching is blocked, isolate the host on a management VLAN and add detection rules."
     )
-    ai = _try_ai(
-        f"Explain {cve_id} (severity {sev or 'unknown'}) in plain language for a "
-        "non-technical executive, in 2-3 sentences. Keep it concrete."
+    prompt_parts = [
+        f"Vulnerability: {cve_id}",
+        f"Severity: {sev or 'unknown'}",
+    ]
+    if kev:
+        prompt_parts.append("KEV-listed: yes (actively exploited)")
+    if host:
+        prompt_parts.append(f"Affected host: {host}")
+    prompt = (
+        "\n".join(prompt_parts)
+        + "\n\nDescribe in 2 sentences for a non-technical reader: what this CVE "
+          "means in plain English and what one action a security team should take. "
+          "Do not invent CVSS scores or vendor names. Keep it concise."
     )
-    return ai or deterministic
+    ai = _try_ai(prompt, system="You are a senior security analyst writing for executives.", max_tokens=200)
+    if ai:
+        return {"explanation": ai, "source": "llm"}
+    return {"explanation": deterministic, "source": "stub"}
 
 
 # --------------------------------------------------------------------------
@@ -299,7 +499,7 @@ def find_quick_wins(findings: list, max_results: int = 5) -> list[dict]:
 
     ranked = sorted(findings, key=score, reverse=True)
     out: list[dict] = []
-    for f in ranked[:max_results]:
+    for f in ranked[:max_results]:  # noqa: PERF401  (loop body is non-trivial)
         title = f.get("title") or f.get("rule_id") or f.get("id") or "Unnamed finding"
         host = f.get("host") or f.get("hostname") or ""
         rr = f.get("risk_reduction") or {"critical": 18, "high": 10, "medium": 4, "low": 1}.get(
@@ -317,6 +517,102 @@ def find_quick_wins(findings: list, max_results: int = 5) -> list[dict]:
             "why": why,
             "severity": f.get("severity") or "high",
         })
+    return out
+
+
+def detect_quick_wins(actions: list[dict], *, top_n: int = 3) -> list[dict]:
+    """Pick the top ``top_n`` actions by (risk_reduction / effort_minutes).
+
+    With an LLM key set, sends the action list and asks the model to
+    rank by leverage. Falls back to the deterministic heuristic on any
+    error / missing key.
+
+    Each input ``action`` should look like::
+
+        {"id": "...", "title": "...", "risk_reduction": <num>,
+         "effort_minutes": <num>, "severity": "..."}
+
+    Returns ``[{id, score, source, ...}]`` sorted high → low. ``source``
+    is ``'llm'`` or ``'heuristic'`` so the caller can label the badge.
+    """
+    if not actions:
+        return []
+
+    def _heuristic_score(a: dict) -> float:
+        rr = float(a.get("risk_reduction") or 0)
+        eff = float(a.get("effort_minutes") or 0)
+        if rr > 0 and eff > 0:
+            return rr / eff
+        sev_w = {"critical": 40, "high": 20, "medium": 8, "low": 2}.get(
+            (a.get("severity") or "").lower(), 1)
+        e_guess = float(a.get("effort_minutes") or 60) or 60
+        return sev_w / e_guess
+
+    # --- LLM path -----------------------------------------------------
+    if _has_api_key():
+        # Build a small, structured payload so the model can rank without
+        # hallucinating new actions. We pin to the ids supplied.
+        try:
+            compact = [
+                {
+                    "id": str(a.get("id") or a.get("title") or i),
+                    "title": str(a.get("title") or ""),
+                    "risk_reduction": a.get("risk_reduction"),
+                    "effort_minutes": a.get("effort_minutes"),
+                    "severity": a.get("severity"),
+                }
+                for i, a in enumerate(actions)
+            ]
+            prompt = (
+                "Rank the following remediation actions by leverage "
+                "(risk reduction per minute of effort). Return ONLY a JSON "
+                f"array of the top {top_n} action ids, highest leverage first, "
+                "no prose, no markdown. Allowed ids: "
+                + ", ".join(a["id"] for a in compact)
+                + "\n\nActions:\n" + _json.dumps(compact)
+            )
+            raw = _try_ai(
+                prompt,
+                system="You output JSON only. No prose. No code fences.",
+                max_tokens=200,
+            )
+            if raw:
+                # Strip fences if the model added them despite instructions.
+                s = raw.strip()
+                if s.startswith("```"):
+                    s = s.strip("`")
+                    if s.lower().startswith("json"):
+                        s = s[4:]
+                    s = s.strip()
+                ids = _json.loads(s)
+                if isinstance(ids, list) and ids:
+                    by_id = {str(a.get("id") or a.get("title") or i): a
+                             for i, a in enumerate(actions)}
+                    ordered: list[dict] = []
+                    seen: set[str] = set()
+                    for raw_id in ids:
+                        key = str(raw_id)
+                        if key in by_id and key not in seen:
+                            a = dict(by_id[key])
+                            a["score"] = round(_heuristic_score(a), 3)
+                            a["source"] = "llm"
+                            ordered.append(a)
+                            seen.add(key)
+                        if len(ordered) >= top_n:
+                            break
+                    if ordered:
+                        return ordered
+        except Exception:
+            pass  # fall through to heuristic
+
+    # --- heuristic fallback ------------------------------------------
+    ranked = sorted(actions, key=_heuristic_score, reverse=True)
+    out: list[dict] = []
+    for a in ranked[:top_n]:
+        b = dict(a)
+        b["score"] = round(_heuristic_score(a), 3)
+        b["source"] = "heuristic"
+        out.append(b)
     return out
 
 
@@ -406,7 +702,10 @@ def stakeholder_narrative(report_data: dict, *, audience: str) -> str:
 __all__ = [
     "generate_executive_summary",
     "explain_cve_plain_language",
+    "explain_cve",
     "find_quick_wins",
+    "detect_quick_wins",
     "sequence_patches",
     "stakeholder_narrative",
+    "llm_status",
 ]

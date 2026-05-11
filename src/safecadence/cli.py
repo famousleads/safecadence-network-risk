@@ -308,6 +308,65 @@ def list_vendors():
             click.echo(f"{a.slug:20s}  {a.label}")
 
 
+@cli.command("migrate")
+@click.option("--from", "src_kind", type=click.Choice(["sqlite"]), default="sqlite",
+              show_default=True, help="Source backend (only sqlite supported for now).")
+@click.option("--to", "dst_kind", type=click.Choice(["postgres"]), default="postgres",
+              show_default=True, help="Destination backend.")
+@click.option("--sqlite-path", default=None,
+              help="Source SQLite path. Defaults to the platform default.")
+@click.option("--postgres-url", default=None,
+              help="Destination Postgres URL. Defaults to $SC_POSTGRES_URL.")
+@click.option("--batch", default=500, show_default=True,
+              help="Rows per INSERT batch.")
+def cmd_migrate(src_kind, dst_kind, sqlite_path, postgres_url, batch):
+    """Copy scan history from SQLite to Postgres in batches.
+
+    Example::
+
+        SC_POSTGRES_URL=postgresql://safe:pw@127.0.0.1:5432/safecadence \\
+        safecadence migrate --from sqlite --to postgres
+    """
+    import os as _os
+    from pathlib import Path as _P
+    from safecadence.storage.sqlite_store import SqliteStore
+    from safecadence.storage.postgres_store import PostgresStore
+
+    src = SqliteStore(_P(sqlite_path) if sqlite_path else None)
+    pg_url = postgres_url or _os.environ.get("SC_POSTGRES_URL")
+    if not pg_url:
+        raise click.ClickException(
+            "No Postgres URL — pass --postgres-url or set SC_POSTGRES_URL."
+        )
+    dst = PostgresStore(pg_url)
+
+    # Stream rows from SQLite in batches so we don't load the entire
+    # table into memory.
+    cur = src._conn.execute(
+        "SELECT tenant_id, started_at, source, vendor, hostname, ip, site, "
+        "health, risk, risk_band, eol_status, cves, findings, summary, payload "
+        "FROM scans ORDER BY id ASC"
+    )
+    total = 0
+    while True:
+        rows = cur.fetchmany(batch)
+        if not rows:
+            break
+        tuples = [tuple(r) for r in rows]
+        with dst._conn.cursor() as pgcur:  # type: ignore[attr-defined]
+            pgcur.executemany(
+                "INSERT INTO scans (tenant_id, started_at, source, vendor, hostname, ip, site,"
+                " health, risk, risk_band, eol_status, cves, findings, summary, payload) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                tuples,
+            )
+        total += len(rows)
+        click.echo(f"  migrated {total} rows")
+    click.echo(f"Done. {total} rows migrated to Postgres.")
+    src.close()
+    dst.close()
+
+
 @cli.command("list-rules")
 @click.option("--vendor", default=None, help="Filter to one vendor (e.g. cisco-ios).")
 def list_rules(vendor):
@@ -3504,6 +3563,267 @@ def report_schedule_daemon(interval):
     except KeyboardInterrupt:
         click.echo("  daemon interrupted, exiting")
         sys.exit(0)
+
+
+# --------------------------------------------------------------------------- #
+# v10.8 — external finding ingestion (AWS Security Hub, etc.)                  #
+# --------------------------------------------------------------------------- #
+
+
+@cli.group("ingest")
+def ingest_cli():
+    """Pull findings from external sources (e.g. AWS Security Hub)."""
+
+
+@ingest_cli.command("aws-security-hub")
+@click.option("--region", default=None, help="AWS region (else AWS_REGION env).")
+@click.option("--max", "max_findings", default=100, show_default=True, type=int,
+              help="Maximum number of findings to fetch.")
+@click.option("--profile", default=None,
+              help="(Reserved) AWS profile name. Env credentials are required.")
+@click.option("--output", "-o", type=click.Path(dir_okay=False), default=None,
+              help="Write normalized JSON to this file instead of stdout.")
+def ingest_aws_security_hub(region, max_findings, profile, output):
+    """Fetch findings from AWS Security Hub + normalize for SafeCadence."""
+    from safecadence.integrations import aws_security_hub as sh
+    if not sh.is_configured():
+        click.echo(
+            "  ! AWS credentials missing — set AWS_ACCESS_KEY_ID and "
+            "AWS_SECRET_ACCESS_KEY before running.",
+            err=True,
+        )
+        sys.exit(2)
+    rows = sh.ingest_findings(profile=profile, region=region, max=max_findings)
+    payload = json.dumps(rows, indent=2, default=str)
+    if output:
+        Path(output).write_text(payload, encoding="utf-8")
+        click.echo(f"  ✓ wrote {len(rows)} findings to {output}")
+    else:
+        click.echo(payload)
+
+
+# --------------------------------------------------------------------------- #
+# v11.2 — OpenAPI schema export (for SDK code generation in CI).               #
+# --------------------------------------------------------------------------- #
+
+
+@cli.group("openapi")
+def openapi_cli():
+    """Inspect or export the FastAPI OpenAPI schema."""
+
+
+@openapi_cli.command("export")
+@click.option("--out", "out_path", type=click.Path(dir_okay=False), default="openapi.json",
+              show_default=True, help="Path to write the OpenAPI JSON schema.")
+@click.option("--indent", default=2, show_default=True, type=int,
+              help="JSON pretty-print indent (use 0 for compact).")
+def openapi_export(out_path, indent):
+    """Export the FastAPI OpenAPI 3.1 schema as JSON.
+
+    Imports the FastAPI app from ``safecadence.ui.app`` (or the lightweight
+    fallback if the optional ``server`` extras are not installed) and dumps
+    ``app.openapi()`` to disk. Used by SDK code generation in CI.
+    """
+    try:
+        from safecadence.ui.app import create_app
+    except Exception as exc:  # pragma: no cover - import-time misconfiguration
+        click.echo(f"  ! failed to import FastAPI app: {exc}", err=True)
+        sys.exit(2)
+
+    app = create_app()
+    schema = None
+    try:
+        schema = app.openapi()
+    except Exception as exc:
+        # pydantic 2.13 has a known forward-ref bug that breaks
+        # FastAPI's openapi() call. Fall back to a manual walk of the
+        # route table so SDK generation in CI still works.
+        click.echo(
+            f"  ! app.openapi() raised ({type(exc).__name__}); "
+            "falling back to route-table schema generator.",
+            err=True,
+        )
+        try:
+            from fastapi.routing import APIRoute
+        except Exception:                            # pragma: no cover
+            APIRoute = None
+        paths: dict = {}
+        for route in getattr(app, "routes", []):
+            if APIRoute is None or not isinstance(route, APIRoute):
+                continue
+            entry = paths.setdefault(route.path, {})
+            for method in sorted(m.lower() for m in route.methods if m != "HEAD"):
+                entry[method] = {
+                    "summary": route.summary or route.name,
+                    "operationId": route.name,
+                    "responses": {"200": {"description": "OK"}},
+                }
+        schema = {
+            "openapi": "3.1.0",
+            "info": {
+                "title": "SafeCadence NetRisk API",
+                "version": __version__,
+            },
+            "paths": paths,
+        }
+
+    # Stamp the schema with the current package version so SDK generators
+    # produce versioned clients.
+    schema.setdefault("info", {})
+    schema["info"]["version"] = __version__
+    schema["info"].setdefault("title", "SafeCadence NetRisk API")
+    schema.setdefault("openapi", "3.1.0")
+
+    pretty = json.dumps(schema, indent=indent if indent > 0 else None,
+                        sort_keys=False, default=str)
+    Path(out_path).write_text(pretty, encoding="utf-8")
+    click.echo(f"  ✓ wrote OpenAPI schema (version {__version__}) to {out_path}")
+
+
+# --------------------------------------------------------------------------- #
+# v11.3 — Operations + governance commands.                                    #
+#                                                                              #
+# Group ``safecadence ops`` covers backup/restore, GDPR export, immutable      #
+# audit chain verification, and data retention policy management.              #
+# --------------------------------------------------------------------------- #
+
+
+@cli.group("ops")
+def ops_cli():
+    """Operations + governance — backup, restore, retention, audit chain."""
+
+
+@ops_cli.command("backup")
+@click.option("--out", "out_dir", type=click.Path(file_okay=False), required=True,
+              help="Directory to write the .tar.gz backup into.")
+@click.option("--org-id", "include_orgs", multiple=True,
+              help="Restrict to one or more org ids; repeat the flag. "
+                   "Omit to back up every org.")
+def cmd_ops_backup(out_dir, include_orgs):
+    """Create a .tar.gz backup of all (or selected) org data."""
+    from safecadence.ops.backup import create_backup
+    orgs = list(include_orgs) if include_orgs else None
+    path = create_backup(Path(out_dir), include_orgs=orgs)
+    size_mb = path.stat().st_size / (1024 * 1024)
+    click.echo(f"  ✓ wrote backup: {path} ({size_mb:.2f} MB)")
+
+
+@ops_cli.command("verify")
+@click.option("--from", "src", type=click.Path(exists=True, dir_okay=False), required=True,
+              help="Path to a .tar.gz backup.")
+def cmd_ops_verify(src):
+    """Re-hash every file in a backup against MANIFEST.json."""
+    from safecadence.ops.backup import verify_backup
+    result = verify_backup(src)
+    if result["ok"]:
+        click.echo(f"  ✓ backup OK — {result['file_count']} files verified")
+        sys.exit(0)
+    click.echo(f"  ✗ backup BROKEN — {len(result['errors'])} error(s):", err=True)
+    for err in result["errors"][:25]:
+        click.echo(f"    - {err}", err=True)
+    sys.exit(1)
+
+
+@ops_cli.command("restore")
+@click.option("--from", "src", type=click.Path(exists=True, dir_okay=False), required=True,
+              help="Path to a .tar.gz backup.")
+@click.option("--target-dir", type=click.Path(file_okay=False), default=None,
+              help="Destination dir (default: live SafeCadence home).")
+@click.option("--dry-run", is_flag=True,
+              help="Verify the backup but do not extract.")
+def cmd_ops_restore(src, target_dir, dry_run):
+    """Extract a backup into the SafeCadence home (or --target-dir)."""
+    from safecadence.ops.backup import restore_backup
+    result = restore_backup(src, target_dir=target_dir, dry_run=dry_run)
+    if result["ok"]:
+        verb = "verified" if dry_run else "restored"
+        click.echo(f"  ✓ {verb} {result['restored']} files → {result['target']}")
+        sys.exit(0)
+    click.echo("  ✗ restore failed:", err=True)
+    for err in result["errors"][:25]:
+        click.echo(f"    - {err}", err=True)
+    sys.exit(1)
+
+
+@ops_cli.command("export-org")
+@click.option("--org-id", required=True, help="Org id to export.")
+@click.option("--out", "out_path", type=click.Path(dir_okay=False), required=True,
+              help="Output JSON path.")
+@click.option("--include-blobs", is_flag=True,
+              help="Inline evidence file bytes (base64).")
+def cmd_ops_export_org(org_id, out_path, include_blobs):
+    """Produce a GDPR-style JSON export of one org."""
+    from safecadence.ops.export_org import export_org
+    p = export_org(org_id, Path(out_path), include_blobs=include_blobs)
+    size_kb = p.stat().st_size / 1024
+    click.echo(f"  ✓ exported org {org_id} → {p} ({size_kb:.1f} KB)")
+
+
+@ops_cli.command("verify-audit")
+@click.option("--org-id", required=True, help="Org id whose audit chain to verify.")
+def cmd_ops_verify_audit(org_id):
+    """Walk the hash-chained audit log and confirm integrity."""
+    from safecadence.audit.log import verify_chain
+    res = verify_chain(org_id)
+    if res["ok"]:
+        click.echo(f"  ✓ audit chain OK — {res['line_count']} event(s) verified")
+        sys.exit(0)
+    click.echo(
+        f"  ✗ audit chain BROKEN at line {res['broken_at_line']} "
+        f"(of {res['line_count']} read)",
+        err=True,
+    )
+    sys.exit(1)
+
+
+@ops_cli.group("retention")
+def retention_cli():
+    """Show / set / apply retention policies for an org."""
+
+
+@retention_cli.command("show")
+@click.option("--org-id", required=True)
+def cmd_retention_show(org_id):
+    """Print the org's current retention policies."""
+    from safecadence.ops.retention import get_retention
+    pol = get_retention(org_id)
+    click.echo(f"Retention policies for {org_id}:")
+    for kind in ("scans", "audit", "reports", "errors"):
+        p = pol[kind]
+        click.echo(f"  {kind:8s}  keep_days={p.keep_days:5d}  min_count={p.keep_min_count}")
+
+
+@retention_cli.command("set")
+@click.option("--org-id", required=True)
+@click.option("--kind", type=click.Choice(["scans", "audit", "reports", "errors"]),
+              required=True)
+@click.option("--keep-days", type=int, required=True)
+@click.option("--keep-min-count", type=int, default=50, show_default=True)
+def cmd_retention_set(org_id, kind, keep_days, keep_min_count):
+    """Update a single-kind retention policy for an org."""
+    from safecadence.ops.retention import set_retention, RetentionPolicy
+    pol = set_retention(
+        org_id,
+        RetentionPolicy(kind=kind, keep_days=keep_days, keep_min_count=keep_min_count),
+    )
+    new = pol[kind]
+    click.echo(f"  ✓ {org_id} {kind}: keep_days={new.keep_days} min={new.keep_min_count}")
+
+
+@retention_cli.command("apply")
+@click.option("--org-id", required=True)
+def cmd_retention_apply(org_id):
+    """Run a retention pass for an org, return what was purged."""
+    from safecadence.ops.retention import apply_retention
+    report = apply_retention(org_id)
+    click.echo(f"Retention pass for {org_id}:")
+    for kind in ("scans", "audit", "reports", "errors"):
+        v = report.get(kind, {})
+        click.echo(
+            f"  {kind:8s}  before={v.get('before', 0):5d}  "
+            f"after={v.get('after', 0):5d}  purged={v.get('purged', 0):5d}"
+        )
+    click.echo(f"  total purged: {report.get('total_purged', 0)}")
 
 
 if __name__ == "__main__":   # pragma: no cover

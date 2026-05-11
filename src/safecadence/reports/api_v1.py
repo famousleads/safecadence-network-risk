@@ -79,6 +79,27 @@ def get_job(job_id: str) -> dict | None:
     return _REPORT_JOBS.get(job_id)
 
 
+def _mirror_status(job_id: str) -> None:
+    """When ``SC_REDIS_URL`` is set, mirror status to the Redis-backed
+    queue so other nodes (and ``safecadence.queue.get_status``) can see
+    it. Always safe — silently no-ops if Redis is unconfigured or down.
+    Demo behaviour is unchanged.
+    """
+    try:
+        from safecadence import queue as _q
+        if not _q.is_redis_configured():
+            return
+        job = _REPORT_JOBS.get(job_id)
+        if not job:
+            return
+        # Don't ship raw bytes through Redis — strip large payloads.
+        publishable = {k: v for k, v in job.items()
+                       if k not in ("bytes",) and not isinstance(v, (bytes, bytearray))}
+        _q.set_status(job_id, job.get("status", "unknown"), result=publishable)
+    except Exception:  # pragma: no cover
+        pass
+
+
 def _format_to_mimetype(fmt: str) -> str:
     from safecadence.reports.email_delivery import mimetype_for_format
     return mimetype_for_format(fmt)
@@ -117,6 +138,7 @@ def _run_job(job_id: str, body: dict) -> None:
         with _JOB_LOCK:
             _REPORT_JOBS[job_id]["status"] = "running"
             _REPORT_JOBS[job_id]["started_at"] = _now_iso()
+        _mirror_status(job_id)
 
         applied = apply_preset(preset_id, body.get("scope") or {})
         sections = list(sections_override) if sections_override else applied["sections"]
@@ -186,12 +208,14 @@ def _run_job(job_id: str, body: dict) -> None:
             _REPORT_JOBS[job_id]["completed_at"] = _now_iso()
             if delivery_status is not None:
                 _REPORT_JOBS[job_id]["delivery"] = delivery_status
+        _mirror_status(job_id)
     except Exception as exc:
         with _JOB_LOCK:
             if job_id in _REPORT_JOBS:
                 _REPORT_JOBS[job_id]["status"] = "failed"
                 _REPORT_JOBS[job_id]["error"] = str(exc)
                 _REPORT_JOBS[job_id]["completed_at"] = _now_iso()
+        _mirror_status(job_id)
 
 
 def submit_job(body: dict, *, background: bool = True) -> dict:
@@ -214,6 +238,7 @@ def submit_job(body: dict, *, background: bool = True) -> dict:
             "format": fmt,
             "preset": body.get("preset") or "exec_brief",
         }
+    _mirror_status(job_id)
     if background:
         t = threading.Thread(target=_run_job, args=(job_id, body), daemon=True)
         t.start()

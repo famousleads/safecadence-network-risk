@@ -1,0 +1,38 @@
+{
+  "name": "@safecadence/sdk",
+  "version": "0.1.0",
+  "description": "Official TypeScript SDK for the SafeCadence NetRisk REST API.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "safecadence",
+    "netrisk",
+    "sdk",
+    "security",
+    "compliance"
+  ],
+  "author": "SafeCadence",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/famousleads/safecadence-network-risk"
+  },
+  "homepage": "https://safecadence.com",
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.5.0"
+  }
+}

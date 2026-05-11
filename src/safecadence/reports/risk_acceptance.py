@@ -88,6 +88,25 @@ def add_acceptance(entry: dict, path: str | None = None) -> dict:
     entries = _read_all(path)
     entries.append(record)
     _write_all(entries, path)
+    # v10.8: emit a change_mgmt event so the workflow log + integrations
+    # see the new acceptance. Best-effort.
+    try:
+        from safecadence.workflow.change_mgmt import record_change
+        record_change(
+            record.get("org_id"),
+            "risk_accepted",
+            before=None,
+            after={
+                "id": record.get("id"),
+                "finding_id": record.get("finding_id"),
+                "host": record.get("host"),
+                "expires_at": record.get("expires_at"),
+            },
+            actor=record.get("accepted_by"),
+            asset_id=record.get("host"),
+        )
+    except Exception:                              # pragma: no cover
+        pass
     return record
 
 
@@ -146,6 +165,43 @@ def active_acceptances(
     return [e for e in _read_all(path) if not _expired(e, today=today)]
 
 
+def expire(
+    *, path: str | None = None, today: _dt.date | None = None,
+) -> list[dict]:
+    """Sweep + emit change_mgmt events for every acceptance that has
+    passed its ``expires_at`` since the last sweep.
+
+    The acceptance entries themselves are not deleted (auditors want the
+    history). We track a per-id "expired_emitted" flag so re-running
+    :func:`expire` is idempotent.
+
+    Returns the list of acceptances whose expiry was emitted this call.
+    """
+    entries = _read_all(path)
+    emitted: list[dict] = []
+    changed = False
+    for e in entries:
+        if _expired(e, today=today) and not e.get("expired_emitted"):
+            e["expired_emitted"] = True
+            changed = True
+            emitted.append(e)
+            try:
+                from safecadence.workflow.change_mgmt import record_change
+                record_change(
+                    e.get("org_id"),
+                    "acceptance_expired",
+                    before={"id": e.get("id"), "expires_at": e.get("expires_at")},
+                    after=None,
+                    actor=None,
+                    asset_id=e.get("host"),
+                )
+            except Exception:                      # pragma: no cover
+                pass
+    if changed:
+        _write_all(entries, path)
+    return emitted
+
+
 __all__ = [
     "DEFAULT_PATH",
     "list_acceptances",
@@ -153,4 +209,5 @@ __all__ = [
     "remove_acceptance",
     "is_accepted",
     "active_acceptances",
+    "expire",
 ]

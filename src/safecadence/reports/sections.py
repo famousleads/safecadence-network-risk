@@ -122,12 +122,29 @@ def _load_platform_assets() -> list[dict]:
     """Read all platform asset JSON files from ~/.safecadence/platform_assets.
 
     Honors ``SC_DATA_DIR`` for testing / alternate data roots.
+    v10.5: also honors the per-org contextvar — when ``compose_report``
+    was called with ``org_id=...`` reads come from the org's
+    ``platform_assets`` directory instead of the global one.
     Returns the list of full asset dicts. Never raises.
     """
     from pathlib import Path
     import json
-    root = os.environ.get("SC_DATA_DIR") or str(Path.home() / ".safecadence")
-    base = Path(root) / "platform_assets"
+    base = None
+    # v10.5 — per-org override (set by compose_report).
+    try:
+        from safecadence.reports._scope_ctx import current_org
+        org_id = current_org()
+    except Exception:
+        org_id = None
+    if org_id:
+        try:
+            from safecadence.storage.org_store import org_data_dir
+            base = org_data_dir(org_id) / "platform_assets"
+        except Exception:
+            base = None
+    if base is None:
+        root = os.environ.get("SC_DATA_DIR") or str(Path.home() / ".safecadence")
+        base = Path(root) / "platform_assets"
     if not base.exists():
         return []
     out: list[dict] = []

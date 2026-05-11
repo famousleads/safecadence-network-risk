@@ -1,0 +1,179 @@
+/* ============================================================================
+ * SafeCadence v11.1 — responsive.css
+ *
+ * Centralized responsive overrides for the SafeCadence UI. The existing
+ * inline styles in _chrome.py / v9_pages.py / reports/ui_routes.py /
+ * portal/customer.py stay put; this file layers responsive overrides on
+ * top of them.
+ *
+ * Breakpoints:
+ *   tablet  : max-width: 768px
+ *   mobile  : max-width: 480px
+ *
+ * Also includes WCAG 2.2 AA helpers (skip-to-content link, :focus-visible
+ * outlines, sr-only utility, tap-friendly 44x44 targets on small screens).
+ * ============================================================================ */
+
+/* ---------- A11y utilities ---------- */
+.sr-only {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0);
+  white-space: nowrap; border: 0;
+}
+
+.skip-to-content {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  z-index: 9999;
+  background: var(--accent, #7c5cff);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 0 0 8px 0;
+  font-weight: 700;
+  text-decoration: none;
+}
+.skip-to-content:focus,
+.skip-to-content:focus-visible {
+  left: 0;
+}
+
+:focus-visible {
+  outline: 2px solid #5fc6bc;
+  outline-offset: 2px;
+}
+
+/* don't double up focus on the skip link */
+.skip-to-content:focus-visible { outline-color: #fff; }
+
+/* aria-live regions get a subtle styling so devs can spot them in inspector */
+[aria-live] { /* no visual effect by default */ }
+
+/* ---------- Tablet (≤768px) ---------- */
+@media (max-width: 768px) {
+  /* Sidebar collapses to a hamburger-triggered drawer on tablet/mobile.
+     The existing 720px breakpoint in _chrome.py already turns it into a
+     bottom nav; we keep that behavior but also expose a hamburger toggle
+     for the new top-bar mobile menu. */
+  .sc-hamburger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 44px; height: 44px;
+    cursor: pointer;
+    font-size: 18px;
+    color: var(--text);
+  }
+
+  /* Tap targets: every clickable surface gets at least 44x44 on touch. */
+  button, .sc-iconbtn, .rep-btn, a.nav-item, a.sub {
+    min-height: 44px;
+  }
+  .sc-iconbtn { min-width: 44px; }
+
+  /* Reports wizard: stack step pills vertically, full-width preview. */
+  .rep-steps {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .rep-step {
+    text-align: left;
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+  .rep-preview { min-height: 360px; }
+  .rep-toolbar {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .rep-toolbar .rep-btn { flex: 1; min-width: 120px; }
+
+  /* Wizard download buttons full-width on tablet/mobile. */
+  .rep-actions { flex-direction: column; }
+  .rep-actions .rep-btn { width: 100%; }
+
+  /* Dashboard cards collapse to 2 columns at this breakpoint. */
+  .sc-grid-cards,
+  .sc-cards,
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Inventory table: hide low-priority columns. Keep hostname, criticality,
+     risk, KEV; everything else is collapsed behind an expand-row toggle. */
+  table.sc-inv-table th:not(.col-host):not(.col-crit):not(.col-risk):not(.col-kev):not(.col-expand),
+  table.sc-inv-table td:not(.col-host):not(.col-crit):not(.col-risk):not(.col-kev):not(.col-expand) {
+    display: none;
+  }
+  table.sc-inv-table .col-expand {
+    display: table-cell;
+    width: 32px;
+    text-align: center;
+    cursor: pointer;
+    color: var(--accent);
+  }
+  table.sc-inv-table tr.expanded td {
+    display: table-cell !important;
+  }
+
+  /* Forms: full-width inputs, no horizontal scroll. */
+  input, select, textarea { width: 100%; max-width: 100%; box-sizing: border-box; }
+  form, .sc-form { overflow-x: visible; }
+
+  /* Slide-over panel becomes a full-screen modal on small viewports. */
+  .sc-slideover { width: 100%; max-width: 100vw; }
+
+  /* Notifications drawer drops the side margin so it fits the screen. */
+  .sc-drawer { width: 95vw; right: 2.5vw; }
+
+  /* Reports brand color pickers stack instead of sitting side-by-side. */
+  .rep-row { flex-direction: column; gap: 12px; }
+}
+
+/* ---------- Mobile (≤480px) ---------- */
+@media (max-width: 480px) {
+  /* Dashboard cards collapse to 1 column. */
+  .sc-grid-cards,
+  .sc-cards,
+  .kpi-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Top bar tightens up; breadcrumb truncates harder. */
+  .sc-topbar {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .sc-breadcrumb { font-size: 12px; }
+  .sc-page { padding: 10px; }
+
+  /* Reports wizard headings + cards tighter padding. */
+  .rep-wrap { padding: 10px; }
+  .rep-card { padding: 12px; }
+  .rep-grid { grid-template-columns: 1fr; }
+  .rep-presets { grid-template-columns: 1fr; }
+  .rep-preset-card { padding: 12px; }
+
+  /* Customer portal: stack any side-by-side panels. */
+  .portal-row, .portal-grid {
+    grid-template-columns: 1fr !important;
+    flex-direction: column;
+  }
+
+  /* Reduce headline sizes so they don't wrap awkwardly. */
+  h1 { font-size: 19px; }
+  h2 { font-size: 15px; }
+}
+
+/* ---------- Print (used by reports) ---------- */
+@media print {
+  .sc-sidebar, .sc-topbar, .sc-banner, .skip-to-content, .sc-hamburger {
+    display: none !important;
+  }
+  main.sc-main { padding: 0; }
+}

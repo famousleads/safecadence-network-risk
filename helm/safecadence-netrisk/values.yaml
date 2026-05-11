@@ -1,0 +1,95 @@
+replicaCount: 1
+
+image:
+  repository: famousleads/safecadence-netrisk
+  tag: "11.2.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  runAsUser: 1000
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8003
+
+ingress:
+  enabled: true
+  className: "nginx"
+  host: safecadence.example.com
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  tls:
+    enabled: true
+    secretName: safecadence-tls
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1024Mi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+env:
+  SC_DATA_DIR: /data
+  SC_HOST: "0.0.0.0"
+  SC_PORT: "8003"
+
+# Persistent storage for /data.
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClassName: ""
+  accessMode: ReadWriteOnce
+
+# Optional bundled services. Set to false to point at external instances
+# via the env block (SC_DATABASE_URL, SC_REDIS_URL).
+postgres:
+  enabled: true
+  image: postgres:16-alpine
+  user: safecadence
+  password: changeme
+  database: safecadence
+  persistence:
+    enabled: true
+    size: 8Gi
+
+redis:
+  enabled: true
+  image: redis:7-alpine
+
+# Secret stub — values are sourced from a separate Kubernetes Secret named
+# `${release}-secrets` (see templates/secret.yaml). These keys MUST be set in
+# production deployments.
+secrets:
+  SC_PORTAL_SECRET: ""
+  OPENAI_API_KEY: ""
+  STRIPE_SECRET_KEY: ""
+  STRIPE_WEBHOOK_SECRET: ""
+  SC_SMTP_HOST: ""
+  SC_SMTP_PORT: ""
+  SC_SMTP_USER: ""
+  SC_SMTP_PASS: ""

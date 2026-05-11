@@ -96,6 +96,14 @@ _API_PREFIXES = ("/api/",)
 _DOWNLOAD_HINTS = ("/download", ".csv", ".pdf", ".json", "?format=csv")
 
 
+# v11.1 — PWA endpoints are not HTML pages by design. The manifest is
+# application/manifest+json, the service worker is text/javascript.
+# They're referenced from chrome <head> via <link rel="manifest"> and
+# the SW boot script — never as nav clicks — so they don't need to
+# satisfy the "nav link must serve HTML" contract.
+_PWA_PATHS = ("/manifest.webmanifest", "/sw.js")
+
+
 # ----------------------------------------------------------- helpers
 
 
@@ -218,6 +226,9 @@ def test_chrome_sidebar_links_resolve(client):
         # Static asset paths we don't ship from FastAPI — skip.
         if url.startswith(("/static/", "/_next/")):
             continue
+        # v11.1 PWA endpoints — not HTML by design.
+        if url in _PWA_PATHS:
+            continue
         resp = client.get(url, follow_redirects=False)
         # 401 = needs login (acceptable; means the route exists).
         # 405 = method not allowed (route exists, GET not supported);
@@ -269,6 +280,8 @@ def test_asset_detail_links_resolve(client):
         if url.startswith(_API_PREFIXES):
             continue
         if url.startswith(("/static/", "/_next/")):
+            continue
+        if url in _PWA_PATHS:
             continue
         if url.startswith("/asset/"):
             # Self-link — already known to render.

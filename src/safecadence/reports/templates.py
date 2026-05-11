@@ -115,6 +115,19 @@ def save_template(template: dict) -> dict:
     tmp = path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(tpl, indent=2, sort_keys=True), encoding="utf-8")
     tmp.replace(path)
+    # v10.8: surface the save in the change log so hooks (jira/servicenow)
+    # can react. Best-effort; never blocks the save.
+    try:
+        from safecadence.workflow.change_mgmt import record_change
+        record_change(
+            tpl.get("org_id"),
+            "template_saved",
+            before=None,
+            after={"id": tpl_id, "name": tpl.get("name")},
+            actor=tpl.get("updated_by"),
+        )
+    except Exception:                              # pragma: no cover
+        pass
     return tpl
 
 
@@ -177,7 +190,50 @@ def ensure_share_token(tpl_id: str) -> dict:
     return tpl
 
 
+# --------------------------------------------------------------------------
+# Rendered-report persistence (v10.7) — optional S3 / DO Spaces target
+# --------------------------------------------------------------------------
+
+
+def _rendered_dir() -> Path:
+    d = _data_dir() / "reports" / "rendered"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def put_rendered_report(filename: str, body: bytes, content_type: str = "application/octet-stream") -> str:
+    """Persist a freshly rendered report bundle.
+
+    If ``SC_S3_BUCKET`` is set we PUT to object storage and return the
+    canonical URL. Otherwise we write to ``<data_dir>/reports/rendered/``
+    and return the local file:// URI. Demo / single-node installs keep
+    using local disk with zero new dependencies.
+
+    Always silently falls back to local disk on any S3 failure so a
+    misconfigured bucket can't take the wizard down.
+    """
+    safe_name = re.sub(r"[^a-zA-Z0-9._\-/]", "_", filename or "report.bin")
+    try:
+        from safecadence.storage import s3_store as _s3
+        if _s3.is_configured() and os.environ.get("SC_S3_BUCKET"):
+            client = _s3.S3Store()
+            key = f"reports/{_now_iso()[:10]}/{safe_name}"
+            return client.put_object(key, body, content_type)
+    except Exception:  # pragma: no cover
+        pass
+
+    # Local fallback
+    if _is_readonly():
+        # In read-only demos we don't persist — just return a synthetic URL.
+        return f"memory:///{safe_name}"
+    path = _rendered_dir() / safe_name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(body)
+    return path.as_uri()
+
+
 __all__ = [
     "save_template", "load_template", "list_templates", "delete_template",
     "new_template_id", "find_by_share_token", "ensure_share_token",
+    "put_rendered_report",
 ]

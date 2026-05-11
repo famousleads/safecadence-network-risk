@@ -1,5 +1,569 @@
 # Changelog
 
+## [11.3.0] — 2026-05-11
+
+### Operations + governance
+
+The last code release before the v12.0 compliance-certification push
+(SOC 2 / ISO 27001 / FedRAMP). Six deliverables, all stdlib, all
+opt-in.
+
+**1. Backup / verify / restore (`src/safecadence/ops/backup.py`)**
+
+- `create_backup(out_dir, include_orgs=None)` produces one
+  `.tar.gz` containing every org's data dir, the schedules + risk
+  acceptance files, the SQLite portal DB (when present), the legacy
+  audit log + the v11.3 chained audit log, and a `MANIFEST.json`
+  listing every member's SHA-256.
+- `verify_backup(path)` recomputes hashes from the tar without
+  extracting — catches truncation, single-bit flips, and missing
+  members.
+- `restore_backup(path, target_dir=None, dry_run=False)` extracts
+  into the live SafeCadence home (or a given target). `dry_run=True`
+  short-circuits before any disk write.
+- CLI: `safecadence ops backup --out`, `ops verify --from`,
+  `ops restore --from [--target-dir] [--dry-run]`.
+
+**2. Per-org GDPR-style data export (`ops/export_org.py`)**
+
+- `export_org(org_id, out_path, include_blobs=False)` writes one
+  schema-versioned JSON file with everything the platform stores for
+  one org: members, templates, audit trail (both flavors), risk
+  acceptances, pentest history, change log, scan history, evidence
+  index. `include_blobs=True` inlines evidence bytes as base64.
+- CLI: `safecadence ops export-org --org-id X --out org.json [--include-blobs]`.
+- HTTP: `GET /api/v1/orgs/{org_id}/export?include_blobs=false` (admin-only)
+  — returns JSON or a ZIP containing it when blobs are inlined.
+
+**3. Disaster recovery runbook (`docs/runbooks/disaster-recovery.md`)**
+
+- Five scenarios: primary droplet down, database corruption, lost SSH
+  access (the actual DO Recovery ISO procedure we've rehearsed twice),
+  Postgres replication lag > 5 min, Stripe webhook missed events.
+- Each scenario lists trigger conditions, prerequisites, the exact
+  commands to run, success criteria, and points to the post-mortem
+  template at the bottom of the file.
+
+**4. Hash-chained audit log (`audit/log.py`)**
+
+- New `log_event_chained(org_id, ...)` writes to a separate
+  `audit_chain.jsonl`. Each row carries `prev_hash` (SHA-256 of the
+  previous row's `hash`) and `hash` (SHA-256 of its own canonical JSON,
+  excluding the `hash` field). Tampering breaks the chain at the
+  affected line and every line after it.
+- `verify_chain(org_id) -> {ok, broken_at_line, line_count}` walks
+  the chain and reports the first break. Empty chain ⇒ ok.
+- The legacy `log_event` API (used by ~6 callers) is unchanged.
+- CLI: `safecadence ops verify-audit --org-id X`.
+
+**5. Data retention controls (`ops/retention.py`)**
+
+- `RetentionPolicy(kind, keep_days, keep_min_count)` per kind:
+  `scans` / `audit` / `reports` / `errors`. Defaults: 365 / 730 / 180 /
+  90 days, min 50 per kind.
+- `get_retention(org_id)` / `set_retention(org_id, policy)` /
+  `apply_retention(org_id)` — returns purge counts per kind.
+- Persisted at `~/.safecadence/orgs/<id>/retention.json`.
+- CLI: `safecadence ops retention show / set / apply`.
+- Scheduler hook: the existing `safecadence report schedule daemon`
+  fires a built-in retention pass at 03:00 UTC daily for every org.
+
+**6. Bug bounty / responsible disclosure (`SECURITY.md`)**
+
+- Tiered SLA table (Critical 24h ack / 7-day fix → Low 10-day ack).
+- Reward bands $50 – $5,000 USD by severity, with explicit
+  "we don't pay for" exclusions.
+- Hall of fame section reserved.
+- Existing trust-posture, cryptographic-posture, and PGP-key
+  scaffolding from v10.5 is kept intact.
+
+### Test additions
+
+- `tests/test_v11_3.py` — 14 tests covering backup round-trip,
+  manifest tamper detection, export schema shape, chain append +
+  tamper detection, retention purge with floor preservation, and
+  docs/SECURITY.md presence checks.
+- All 311 prior tests remain green; this version targets ≥ 325 total.
+
+## [11.2.0] — 2026-05-11
+
+### Developer experience — SDKs, IaC, container packaging
+
+A platform-developer-experience release. No new analytical capabilities
+— instead, NetRisk gains the surrounding ecosystem that lets teams
+embed, automate, and ship the platform.
+
+**1. Python SDK (`sdk/python/`)**
+- Publishable as `safecadence-sdk` (0.1.0). Single runtime dep: `requests`.
+- `Client(base_url, api_key)` with `list_inventory`, `get_asset`,
+  `list_reports`, `compose_report`, `generate_report` (async),
+  `get_findings`, `get_compliance_status`, `list_templates`,
+  `save_template`.
+- Typed exception hierarchy: `SafeCadenceError` / `AuthError` /
+  `RateLimitError` (carries `.retry_after`) / `NotFound`.
+- Mocked-`requests` test suite covers each method + every error code path.
+
+**2. JavaScript/TypeScript SDK (`sdk/js/`)**
+- Publishable as `@safecadence/sdk` (0.1.0). Zero runtime deps — uses
+  the native global `fetch` (Node ≥ 18, browsers, Deno, Bun).
+- TypeScript types in `src/types.ts` for `Asset`, `Finding`, `Report`,
+  `Template`, etc.
+- Same method shape as the Python SDK, plus a Vitest test suite with
+  mocked `fetch`.
+
+**3. Go SDK (`sdk/go/`)**
+- Module path `github.com/famousleads/safecadence-go`, Go 1.21,
+  stdlib-only (no third-party deps).
+- `Client` with the full method set; typed `AuthError`,
+  `NotFoundError`, `RateLimitError` (with `RetryAfter time.Duration`).
+- `httptest`-mocked test suite.
+
+**4. Terraform provider scaffold (`terraform/provider-safecadence/`)**
+- Plugin-SDK v2 entrypoint, two resources (`safecadence_org`,
+  `safecadence_report_template`) and one data source
+  (`safecadence_inventory`).
+- `go mod tidy` is required to fetch `terraform-plugin-sdk/v2` the
+  first time (intentionally left out of `go.mod` so the scaffold lands
+  without a dep fetch).
+
+**5. Docker Compose local-dev stack (`docker-compose.yml`)**
+- Expanded from the single-service file to a full four-service stack:
+  `safecadence` (port 8003), `redis` (6379), `postgres` (5432),
+  `minio` (9000 + 9001 console).
+- New `docker-compose.override.example.yml` documents every env var
+  you'd want to set in dev.
+- Root `Dockerfile` rebased on `python:3.12-slim` (was Alpine), exposes
+  8003, default CMD now runs `safecadence ui --host 0.0.0.0 --port 8003`.
+
+**6. Helm chart (`helm/safecadence-netrisk/`)**
+- `Chart.yaml` (version 0.1.0, appVersion 11.2.0).
+- `values.yaml` with replicaCount, image, ingress.host (+ TLS),
+  persistence, plus toggles for bundled Postgres + Redis sub-services.
+- Templates: `deployment.yaml` (with liveness + readiness probes
+  pointing at `/healthz/detail`), `service.yaml`, `ingress.yaml`,
+  `secret.yaml`, and a `_helpers.tpl` for shared labels.
+
+**7. OpenAPI 3.1 schema export**
+- New CLI: `safecadence openapi export --out openapi.json`.
+- Imports the FastAPI app, calls `app.openapi()`, stamps the package
+  version into `info.version`, writes pretty-printed JSON.
+- Used by SDK code generation in CI.
+
+**8. Tests**
+- `tests/test_v11_2.py` (16 cases) covers SDK package layout (Python +
+  JS + Go + Terraform), Docker Compose YAML validity + service set,
+  Helm chart presence, and that `safecadence openapi export` actually
+  produces a valid OpenAPI document with `info` + `paths`.
+- All 294 prior tests still pass — bringing the total to 310 green.
+
+### File map
+
+```
+sdk/python/                         # safecadence-sdk Python package
+sdk/js/                             # @safecadence/sdk TypeScript SDK
+sdk/go/                             # github.com/famousleads/safecadence-go
+terraform/provider-safecadence/     # Terraform provider scaffold
+helm/safecadence-netrisk/           # Helm chart
+docker-compose.yml                  # 4-service local-dev stack
+docker-compose.override.example.yml # Env-override starter
+Dockerfile                          # rebased on python:3.12-slim, port 8003
+src/safecadence/cli.py              # new `safecadence openapi export` cmd
+tests/test_v11_2.py                 # new integration tests
+```
+
+## [11.1.0] — 2026-05-11
+
+### Mobile-responsive + PWA + accessibility + i18n framework
+
+Mostly a UI-quality release. No new analytical capabilities — instead, the
+existing UI gets a responsive sweep so it works on tablets and phones, a
+PWA layer so it can be installed to the home screen, a WCAG 2.2 AA pass
+across every chrome-wrapped page, and a tiny stdlib-only i18n framework
+ready for real localization later.
+
+**1. Responsive UI (`src/safecadence/ui/responsive.css`)**
+- New CSS sheet served at `/static/responsive.css`, injected into every
+  chrome-wrapped page via the `<link rel="stylesheet">` in `_chrome.py`'s
+  `<head>`.
+- Tablet breakpoint (`max-width: 768px`): step pills stack, inventory
+  table hides low-priority columns (keeps hostname, criticality, risk,
+  KEV), forms go full-width, dashboard cards collapse to 2 columns,
+  reports wizard download buttons go full-width.
+- Mobile breakpoint (`max-width: 480px`): cards collapse to 1 column,
+  preset cards stack, headline sizes shrink, customer portal grids
+  collapse to a single column.
+- Tap targets: every clickable element gets `min-height: 44px` on
+  touch-sized viewports.
+- New hamburger button (`.sc-hamburger`) in the chrome topbar with
+  `aria-controls`/`aria-expanded` plumbing.
+
+**2. PWA support (`src/safecadence/ui/pwa/`)**
+- New subpackage with `manifest.json`, `service_worker.js`, and an
+  `__init__.py` that registers FastAPI routes.
+- `GET /manifest.webmanifest` — app manifest with theme `#1F6F6A`,
+  background `#0b1020`, two SVG-data-URL icons (192×192 + 512×512), and
+  three home-screen shortcuts (Dashboard, Reports, Inventory).
+- `GET /sw.js` — service worker: cache-first for static, network-first
+  for `/api/*` with stale-cache fallback. Cache name versioned with the
+  release so bumps auto-invalidate.
+- `_chrome.py` `<head>` now ships `<link rel="manifest">`, the
+  `<meta name="theme-color">`, and a tiny `if ('serviceWorker' in
+  navigator)` boot script.
+
+**3. WCAG 2.2 AA pass (`src/safecadence/ui/accessibility.md`)**
+- Skip-to-content link (`.skip-to-content`) is the first focusable
+  element on every page; visible only on focus.
+- `<main role="main" id="sc-main-content">` and `<aside aria-label="Primary
+  navigation">` landmarks in `_chrome.py`.
+- Icon-only topbar buttons got `aria-label` (palette, Ask AI, bell,
+  hamburger).
+- Global `aria-live="polite"` region (`#sc-live`) + new `scAnnounce(msg)`
+  helper for dynamic status messages.
+- Reports wizard tabs got `role="tablist"`/`role="tab"`/`aria-selected`,
+  preview wrapped in `role="region"` + `aria-live="polite"`.
+- `:focus-visible { outline: 2px solid #5fc6bc; outline-offset: 2px }`
+  applies globally.
+- Color contrast audited — every body-text foreground passes 4.5:1 on
+  both dark and light themes (cheatsheet in `accessibility.md`).
+- `accessibility.md` lists what's left for v11.2 (Cytoscape keyboard nav,
+  NVDA/VoiceOver smoke, reduced-motion, redundant icons on severity pills).
+
+**4. i18n framework (`src/safecadence/i18n/`)**
+- Stdlib-only — no `gettext`, no `babel`, no external deps.
+- `t(key, lang=None, **vars)` — looks up `key` in the active language's
+  JSON catalog, falls back to English when missing. Supports
+  `str.format()`-style substitution.
+- `set_lang(lang)` / `get_lang()` / `current_lang()` — thread-local
+  active language.
+- `resolve_lang(query_lang, cookie_lang, accept_language)` — query param
+  wins, then cookie, then `Accept-Language`, then `en`.
+- Catalogs shipped: `en.json` (~50 keys), plus `es.json` / `fr.json` /
+  `de.json` / `ja.json` (~25 stub keys each, prefixed `[TODO-XX]` so
+  translators can grep).
+- Wired into the reports wizard as proof of concept: `_wizard_body()`
+  substitutes `%T:key%` placeholders at render time. Step headings, tab
+  labels, action buttons, read-only banner, and the preview empty-state
+  flow through `t()`. `GET /reports?lang=fr` switches to the French stub.
+
+**5. Mobile app scaffold (no submission)**
+- `mobile/README.md` documents the React Native init recipe
+  (`npx react-native@latest init SafeCadence --version 0.74`), the
+  recommended packages, how to point at the demo/production API, and
+  the first four screens to build. Native scaffold stays uninitialized
+  until App Store + Play Console accounts are set up.
+
+**6. Tests (`tests/test_v11_1.py`)**
+- 15 new tests covering i18n fallback, language resolution priority,
+  catalog discovery, accessibility.md presence, mobile README presence,
+  `/static/responsive.css` content, manifest JSON validity, service
+  worker headers, wizard skip-link + landmark + live region, wizard
+  i18n substitution, query-param language switch, version + CHANGELOG
+  bumps.
+
+**7. Version + housekeeping**
+- `safecadence` 11.0.0 → 11.1.0 in `pyproject.toml` + `__init__.py`.
+- `TODO_MORNING.md` gets a `# 2026-05-11 — v11.1 follow-ups` block with
+  the punch list (real translations, RN init, real PNG icons, AT smoke).
+
+## [11.0.0] — 2026-05-11
+
+### ML + intelligence depth: anomaly detection, predictive risk, clustering, drift forecasting, NLQ, threat-hunting playbooks
+
+New top-level package `safecadence.ml`. Stdlib + `math` only — no `sklearn`, no `numpy`, no `scipy`. The point of this release is that the platform behaves intelligently on real data *today*, before any trained model ships. Real supervised classifiers (trained on customer-supplied labels + drift events) ride in subsequent v11.0.x point releases.
+
+**1. Anomaly detection (`safecadence.ml.anomaly`)**
+- `detect_anomalies(timeseries, window=20, threshold=3.0)` — sliding-window z-score against the *trailing* window. Skips constant windows (zero stdev). Returns `{index, value, z, mean, stdev, severity}` per flagged point.
+- `detect_seasonal_anomaly(series, period_days=7)` — compares each `(ts, value)` to the median of same-weekday peers from the last ~8 cycles. Flags points outside `2 × IQR`.
+- `detect_finding_anomaly(org_id, window=14, threshold=3.0)` — runs the sliding z-score over the daily finding-count series; reads from `finding_history.jsonl`, `scan_history/*.json`, or `platform_assets/*.json` in that order.
+
+**2. Predictive risk scoring (`safecadence.ml.predict_risk`)**
+- `predict_risk_30d(asset, history=None)` — EWMA over the trailing 60 observations + linear-trend slope, projected 30 days forward. Confidence is a function of history length + variance. Returns interpretable `drivers` (KEV count, EOL, public exposure, MFA missing, trend direction).
+- `assets_trending_critical(org_id, horizon_days=30)` — sweeps every asset and surfaces the ones forecast to cross `risk_score >= 70` inside the horizon. Reports `days_to_critical` per asset.
+
+**3. Finding pattern clustering (`safecadence.ml.cluster_findings`)**
+- `cluster_similar(findings, k=None)` — k-medoids over a small categorical feature vector (`rule_id`, severity, `controls`, category) with a Jaccard-on-controls + step-distance metric. `k` defaults to silhouette-picked over 2..6 — silhouette score implemented from scratch (~30 lines, no SciPy). `Cluster` dataclass exposes `representative_finding`, `members`, `count`, `common_remediation`.
+- Used by the v10.x report builder to surface "these N findings share the same root cause."
+
+**4. Drift forecasting (`safecadence.ml.drift_forecast`)**
+- `forecast_drift(asset_id, history=None, org_id=None)` — inter-arrival-time estimator over the v10.8 change log. Shortens the window when recent events are high/critical or when the asset is already overdue. Returns `{days_until_drift, confidence, key_indicators, events_seen, mean_gap_days, days_since_last}`.
+- `assets_at_drift_risk(org_id, days=14)` — every asset forecast to drift inside `days`, sorted ascending by ETA.
+
+**5. Natural-language query (`safecadence.ml.nlq`)**
+- `parse_query(text)` — rule-based parser covering the six required examples plus severity thresholds, hostname-contains, tag, vendor, criticality, asset-type, site. Returns `ParsedQuery(text, filter, matched_patterns, source, note)`.
+- LLM fallback: when `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` is set and no rule matches, we call `safecadence.ai.client` and parse the LLM's JSON response into the same filter shape. With no key + no rule match, `source="parse_failed"` and `note` explains why.
+- `execute_query(parsed, store=None, org_id=None)` runs the filter against an in-memory list or the org's `platform_assets/*.json`.
+
+**6. Threat-hunting playbooks (`safecadence.ml.playbooks`)**
+- `kev_response` — identify affected assets → check patch availability → score exposure (public/crown counts) → isolate + compensating controls → notify + log decision. Deterministic. Reads `platform_assets` to count affected hosts.
+- `lateral_movement` — scope the foothold → trace reachable paths to crown jewels → contain east-west → hunt for additional footholds → write postmortem stub.
+- `credential_compromise` — identify the account → revoke active sessions + force rotation → audit recent actions → contain blast radius → report.
+- `list_playbooks()` + `run_playbook(id, context)` make every playbook a callable workflow. Step severity escalates automatically when the context says the account is privileged or the asset is crown-jewel.
+
+**7. API (`safecadence.ml.api`)**
+FastAPI router auto-mounted from `safecadence.ui.app.create_app`:
+- `POST /api/v1/ml/anomalies` — body `{timeseries?, org_id?, window?, threshold?}`
+- `POST /api/v1/ml/predict-risk` — body `{asset?, asset_id+org_id?, org_id+horizon_days?, history?}`
+- `POST /api/v1/ml/cluster-findings` — body `{findings?, org_id?}`
+- `POST /api/v1/ml/drift-forecast` — body `{asset_id?, history?, org_id?, days?}`
+- `POST /api/v1/ml/nlq` — body `{query, org_id?}` → returns `parsed` + `matches`
+- `GET /api/v1/ml/playbooks` — list
+- `POST /api/v1/ml/playbook/{id}/run` — body is the context dict
+
+**8. Tests (`tests/test_v11_0.py`)**
+- Anomaly: planted spike found; constant series + short series flagged empty; seasonal anomaly catches off-weekday outlier; finding-anomaly reads `finding_history.jsonl`.
+- Predict: monotonic upward history predicts higher than current; flat history stays stable; `assets_trending_critical` separates climbers from quiet hosts.
+- Cluster: three planted groups → 2..4 clusters (silhouette is fuzzy); single + empty input safe.
+- Drift: noisy history → shorter window + higher confidence than quiet; empty → 365 days, conf 0.0.
+- NLQ: six parametrized known queries, `parse_failed` when no rule + no LLM key, `execute_query` filters.
+- Playbooks: list contains baseline three; `kev_response` returns ≥3 steps with at least one `critical`; unknown ID raises; credential playbook escalates session-revoke to `critical` on privileged path.
+- API: TestClient round-trip for every endpoint, including the 404 on unknown playbook.
+
+**9. Wiring**
+- `safecadence.ui.app.create_app` includes `safecadence.ml.api.router` in a try/except so the demo never breaks on partial mounts.
+- `safecadence` 10.9.0 → 11.0.0 in `pyproject.toml` + `__init__.py`.
+
+## [10.9.0] — 2026-05-10
+
+### Commercialization: Stripe billing, plan tiers + metering, self-service signup, customer portal, pricing page
+
+Everything is env-gated. With no `STRIPE_SECRET_KEY` configured, billing endpoints return `503 {"error":"billing_not_configured"}` and the rest of the platform keeps working — the public read-only demo is unchanged.
+
+**1. Stripe billing module (`safecadence.billing`)**
+- `stripe_client.py` — stdlib `urllib` REST client. No `stripe` package dep. Public surface: `create_checkout_session(plan, customer_email, success_url, cancel_url)`, `create_customer(email, name=None)`, `create_subscription(customer_id, price_id, trial_days=14)`, `cancel_subscription(subscription_id, at_period_end=True)`, `create_billing_portal_session(customer_id, return_url)`, `get_invoice(invoice_id)`, `list_invoices(customer_id, limit=20)`, `is_configured()`, `price_id_for_plan(plan_id)`. Missing key raises `BillingNotConfigured`; HTTP errors raise `StripeError(status, body, code)`.
+- `webhook.py` — `verify_webhook_signature(payload, sig_header, secret, tolerance=300)` does the standard Stripe HMAC-SHA256 protocol (timestamp + `v1=` digests + replay tolerance window). `handle_event(event, org_id=None)` dispatches on `event.type` for `checkout.session.completed`, `customer.subscription.created/updated/deleted`, `invoice.payment_failed`, `invoice.paid`. Persists state to `~/.safecadence/orgs/<org_id>/billing.json`; appends paid invoices to `payments.jsonl`.
+- `routes.py` — FastAPI router exposing `POST /api/billing/webhook`, `POST /api/v1/billing/checkout`, `POST /api/v1/billing/portal`, `GET /api/v1/billing/plan`, `GET /api/v1/billing/plans`. The webhook receiver verifies the signature when `STRIPE_WEBHOOK_SECRET` is set, dev-mode accepts otherwise (with a warning).
+
+**2. Plan tiers + metering (`safecadence.billing.plans` + `usage`)**
+- Three hardcoded plans: `Free` ($0, 25 assets, 5 reports/mo, API disabled), `Pro` ($49/mo, 250 assets, unlimited reports, 100k API calls/mo, all integrations), `Enterprise` ($499/mo, unlimited everything, SAML SSO, dedicated support).
+- `get_plan(plan_id)`, `list_plans()`, `get_org_plan(org_id)`, `set_org_plan(org_id, plan_id, source=, status=, stripe_*=)`. Plan record persisted to `billing.json` per org.
+- `check_quota(org_id, resource)` → `{ok, used, limit, plan, resource}` for `"assets"`, `"reports"`, `"api_calls"`. Limit of `-1` means unlimited, `0` means disabled.
+- `usage.record_usage(org_id, resource, count=1, meta=None)` appends to `~/.safecadence/orgs/<org_id>/usage.jsonl`. `get_usage(org_id, period="month")` aggregates the current month; `get_usage_history(org_id, resource, months=6)` returns per-month buckets.
+- `billing.middleware.UsageMeteringMiddleware` counts every `/api/v1/*` hit as one `api_calls` event for the requesting org and short-circuits the response with HTTP 402 + `quota_error_payload()` when the org's quota is already over. Exempts `/api/v1/billing/*`, `/api/v1/me`, `/api/v1/plans`, `/api/billing/webhook`. Disable via `SC_USAGE_METERING_DISABLED=1`.
+
+**3. Self-service signup (`safecadence.auth.signup` + `signup_routes`)**
+- `request_signup(email, org_name, plan="Free", return_url=None)` creates a pending verification record (`~/.safecadence/signups.json`), emails a magic link via the existing SMTP helper, returns `{sent, token, verify_url, plan}`. 24-hour TTL.
+- `verify_signup(token)` provisions the Org via `org_store.create_org`, assigns ADMIN role, sets the initial plan via `set_org_plan`, creates a session, and (for paid plans with Stripe configured) creates a Checkout session and returns `checkout_url`. Records a `signup_completed` change event for audit.
+- Routes: `GET /signup` (HTML form, plan-prefilled via `?plan=Pro`), `POST /signup` (submit), `GET /signup/verify?token=...` (consume + set session cookie + redirect to portal or Stripe).
+
+**4. Customer portal (`safecadence.portal.customer`)**
+- Server-rendered HTML at `/portal/*` — consistent with the rest of the codebase, no React build step. Routes:
+  - `GET /portal` — overview dashboard: current plan card, three KPI cards (assets / reports / API calls used this month with progress bars), action items (trial ending, past-due, near-quota).
+  - `GET /portal/billing` — current subscription card, plan cards (Free/Pro/Enterprise) with switch buttons, invoice table from Stripe.
+  - `POST /portal/billing/change` — switches Free in-process; paid plans redirect to a Checkout Session.
+  - `POST /portal/billing/manage` — returns Stripe Customer Portal URL via `create_billing_portal_session`.
+  - `GET /portal/team` — RBAC roster table; admins see invite + remove forms.
+  - `POST /portal/team/invite` — assigns role + emails magic-link sign-in. Admin-only.
+  - `POST /portal/team/remove` + `DELETE /portal/team/{user_id}` — drops member from RBAC. Admin-only.
+  - `GET /portal/usage` — 6-month per-resource bar charts via `get_usage_history`.
+  - `GET /portal/support` + `POST /portal/support` — ticket form + table backed by `portal.support_tickets` (JSONL store at `<org_dir>/support_tickets.jsonl`).
+
+**5. Pricing page on safecadence.com**
+- New static file at `/srv/safecadence/sites/safecadence.com/pricing/index.html` (mirrored in repo at `outputs/safecadence-site/pricing/index.html`). Three-tier comparison table, feature matrix, 6-item FAQ. CTAs link to `https://app.safecadence.com/signup?plan=<Free|Pro>` and `mailto:sales@safecadence.com` for Enterprise. Prominent "14-day free Pro trial — no credit card required" pill.
+- Main `index.html` (mirror at `outputs/safecadence-site/index.html`) gains a "Pricing" link in the top nav (between Live Demo + Studio) and a featured Pricing card in the right rail of the hero. v10.9.0 version chip in the footer.
+
+**6. Tests (`tests/test_v10_9.py`)**
+- Stripe client: BillingNotConfigured when key unset; price_id env lookup; create_customer mocked request shape.
+- Webhook: HMAC signature verify good + bad + replay-rejected; checkout.session.completed activates plan; invoice.payment_failed flags `past_due`.
+- Plans + quota: registry sanity; set/get org plan; Free 402 shape after exceeding 25 assets; API disabled on Free; unlimited on Enterprise.
+- Usage: aggregate; 6-month history; readonly no-op; unknown resource rejected.
+- Signup: Free round-trip creates Org + ADMIN role; Pro produces checkout URL with Stripe mocked; bad email rejected; expired token rejected; readonly refused.
+- Portal: dashboard renders all sections + plan; billing lists all three plans; `/api/v1/billing/plans` is public; checkout returns 503 when unconfigured.
+- Pricing page: file exists in outputs dir + contains "Free", "Pro", "Enterprise", and the droplet path comment.
+
+**7. Wiring**
+- `safecadence.ui.app.create_app` now mounts (in try/except blocks): `auth.signup_routes`, `billing.routes`, `portal.customer`, and adds `billing.middleware.UsageMeteringMiddleware`. Every mount is best-effort so the demo never breaks on a missing dependency.
+- `safecadence` 10.8.0 → 10.9.0 in `pyproject.toml` + `__init__.py`.
+
+## [10.8.0] — 2026-05-10
+
+### Workflow + governance: approval chains, SOC 2 evidence, change hooks, pentest, SAML, AWS Security Hub
+
+All persistent, env-gated, no new dependencies. Read-only demos (`SC_READONLY=1`) refuse mutations with a clear `PermissionError` → HTTP 403.
+
+**1. Approval chains for risk acceptance (`safecadence.workflow.approval_chains`)**
+- `ApprovalChain` dataclass with per-step role + signer + signed-at.
+- `define_chain(org_id, name, role_steps)` saves a chain template.
+- `start_approval(org_id, finding_id, chain_name)` instantiates a pending approval.
+- `sign_step(approval_id, user_email, role)` verifies the signer holds the step's role via `safecadence.auth.rbac` (or a custom roles file for non-builtin labels like `CISO`), advances the chain, and on the final step applies the risk acceptance via `reports.risk_acceptance.add_acceptance`.
+- `list_approvals(org_id, status=None)` + `cancel_approval(approval_id, reason)`.
+- Persisted as append-only JSONL at `~/.safecadence/orgs/<org_id>/approvals.jsonl`.
+
+**2. SOC 2 evidence collection (`safecadence.workflow.soc2_evidence`)**
+- `EvidenceItem` (id / control_id / framework / kind / file_ref / captured_at / captured_by / note).
+- `attach_evidence(org_id, control_id, framework, kind, file_data, filename, note, user)` writes the blob under `~/.safecadence/orgs/<org_id>/evidence/<framework>/<control_id>/` and indexes it.
+- `list_evidence(org_id, framework=, control_id=)`.
+- `export_evidence_pack(org_id, framework) -> bytes` returns a ZIP with `MANIFEST.csv` listing every control + evidence file plus every file.
+- Auto-capture: `reports.builder.compose_report` calls `record_report_as_evidence` whenever the scope carries `framework` + `controls` so generating a compliance report leaves a per-control receipt automatically.
+
+**3. Change-management hooks (`safecadence.workflow.change_mgmt`)**
+- `ChangeEvent` dataclass + `register_hook(name, callback) / unregister_hook / list_hooks`.
+- `record_change(org_id, kind, before, after, actor, asset_id, extra)` appends a JSONL event to `~/.safecadence/orgs/<org_id>/change_log.jsonl` and fires every registered hook.
+- Built-in `jira` + `servicenow` hooks call into the v10.6 / v10.7 integration modules and auto-create tickets for `risk_accepted`, `acceptance_expired`, `finding_transition`, `pentest_signoff` events. No-op when the integration's `is_configured()` returns False.
+- Wired into `risk_acceptance.add_acceptance` (`risk_accepted`), `risk_acceptance.expire` (`acceptance_expired`), `reports.templates.save_template` (`template_saved`), and `reports.audit_trail.log_event` (`finding_transition`).
+
+**4. Pen-test workflow (`safecadence.workflow.pentest`)**
+- `PenTest` + `PenTestFinding` dataclasses.
+- `create_pentest / start_pentest / complete_pentest / add_finding / update_finding_status / signoff` lifecycle (planned → running → completed → signed_off).
+- `gap_to_remediation(pentest_id)` returns rows with `days_open` + `overdue` flag against a 30-day target.
+- Persisted as one JSON per pentest under `~/.safecadence/orgs/<org_id>/pentests/`, with a `pentests.json` index refreshed atomically on every write.
+
+**5. SAML SSO + AWS Security Hub**
+- SAML SP at `safecadence.auth.saml`: SP-initiated flow with `metadata_xml() / handle_acs_response(saml_response)`. Signature verification uses HMAC-SHA256 over a stub canonicalisation of the assertion (documented limit — for production IdPs with RSA-SHA256 + exclusive XML-DSig, a follow-up will need `python3-saml` or `signxml`). Env-gated on `SC_SAML_IDP_METADATA_URL` + `SC_SAML_SP_ENTITY_ID`. Routes `GET /auth/saml/metadata` + `POST /auth/saml/acs`.
+- AWS Security Hub at `safecadence.integrations.aws_security_hub`: stdlib HTTP + SigV4 (reused from `storage.s3_store`). `ingest_findings(profile, region, max)` calls Security Hub `/findings` with `x-amz-target=SecurityHub.GetFindings` and returns SafeCadence-shaped findings (severity normalised, CVE pulled from `Vulnerabilities[]` or title). Env: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` (optional), `AWS_REGION`. CLI: `safecadence ingest aws-security-hub --region us-east-1`.
+
+**6. REST API**
+- `POST/GET /api/v1/approvals` (+ `/chains`) — start / sign / cancel / list.
+- `POST /api/v1/evidence` (multipart) + `GET /api/v1/evidence` + `GET /api/v1/evidence/export?framework=...` (returns ZIP).
+- `GET /api/v1/changes?org=...` — list change events.
+- `/api/v1/pentests` CRUD + `/start /complete /findings /signoff /gap`.
+- All routes are org-scoped via `X-SafeCadence-Org` header or `?org_id=` query.
+
+**7. Tests**
+- `tests/test_v10_8.py` — approval chains happy path + wrong-role rejection; evidence attach/list/export-zip shape; change_mgmt hook firing; pentest lifecycle; SAML metadata + ACS rejection of unsigned response; AWS Security Hub mocked HTTP returning normalised shape.
+- Every prior test (5 + 6 + 7 + reports + identity + intel + policy) continues to pass.
+
+## [10.7.0] — 2026-05-10
+
+### Scale + failover code: Redis, Postgres, S3, cluster + 3 new integrations
+
+All env-gated. No `SC_REDIS_URL` / `SC_POSTGRES_URL` / `SC_S3_BUCKET` = identical behaviour to v10.6 (in-memory queue + SQLite + local disk).
+
+**1. Redis-backed job queue (`safecadence.queue`)**
+- New stdlib-only RESP client at `safecadence.queue.redis_queue` — no `redis` package required.
+- Public surface: `enqueue(queue, payload) -> job_id`, `dequeue(queue, timeout)`, `set_status(job_id, status, result)`, `get_status(job_id)`.
+- `__init__.py` proxies to Redis when `SC_REDIS_URL` is set; falls through to an in-process dict otherwise.
+- `reports.api_v1._REPORT_JOBS` now mirrors every state transition to Redis (`_mirror_status`) so multi-worker deployments share the job table. Mirroring is best-effort and silently no-ops if Redis is down — never crashes the wizard.
+
+**2. Postgres adapter (`safecadence.storage.postgres_store`)**
+- Stdlib + `psycopg` (v3) when available. Schema mirrors SQLite column-for-column.
+- `safecadence.storage.open_store()` now resolves in order: `SC_POSTGRES_URL` → PostgresStore, SQLAlchemy URL → SqlStore, else SqliteStore.
+- New `safecadence migrate --from sqlite --to postgres` CLI: streams every scan in 500-row batches via `executemany`.
+
+**3. S3 / DO Spaces object store (`safecadence.storage.s3_store`)**
+- Stdlib AWS Signature V4 — no boto3 dependency. Works with real S3, DigitalOcean Spaces, Backblaze B2, MinIO.
+- `S3Store.put_object / get_object / delete_object / list_objects`.
+- `reports.templates.put_rendered_report(filename, body, content_type)` writes to S3 when `SC_S3_BUCKET` is configured, falls back to `<data_dir>/reports/rendered/` otherwise. Silently degrades on any S3 failure.
+
+**4. Cluster + failover code (`safecadence.cluster`)**
+- `cluster.health.node_health()` — cpu/mem/disk, last-scan age, db/redis/s3 status, is-active flag.
+- `cluster.health.cluster_state()` — aggregates `node_health` from every peer in `SC_CLUSTER_PEERS`. Injectable fetcher for tests.
+- `cluster.failover.{am_i_active, try_take_lease, renew_lease, release_lease}` — SETNX-backed 60s lease at `safecadence:cluster:active_node`. Background renewer at 15s via `start_lease_loop()`. Single-node mode (no Redis) reports active forever — demo unaffected.
+- `deploy/postgres-replication-setup.sh` — Postgres 16 streaming replication primary/standby installer.
+- `deploy/load-balancer.md` — DO Load Balancer + DNS playbook for active-passive.
+
+**5. ServiceNow / Teams / Splunk (`safecadence.integrations`)**
+- `servicenow.create_servicenow_incident(finding)` — Table API basic auth, severity→impact/urgency mapping, returns `{sys_id, number, url}`. Env: `SC_SERVICENOW_INSTANCE/USER/PASS`.
+- `teams.post_message(text)` + `teams.post_finding(finding)` — MessageCard via channel webhook. Env: `SC_TEAMS_WEBHOOK_URL`.
+- `splunk.forward_event(event)` + `splunk.forward_finding(finding)` — HEC token auth, configurable index + sourcetype. Env: `SC_SPLUNK_HEC_URL/HEC_TOKEN`.
+
+**6. Tests**
+- `tests/test_v10_7.py` covers Redis queue (memory + mocked-socket fallback), Postgres adapter (mocked psycopg), S3 (mocked HTTP + SigV4 shape + XML LIST), cluster health/failover (lease lifecycle), and all three integrations (mocked HTTP). All existing 206 tests still pass.
+
+## [10.6.0] — 2026-05-10
+
+### Real AI, Slack + Jira integrations, configurable dashboard widgets
+
+**1. Real LLM integration (`safecadence.reports.ai_helpers`)**
+- Deterministic stub path replaced with a stdlib-only LLM client (no SDK dependency).
+- **OpenAI Chat Completions** (`gpt-4o-mini`) when `OPENAI_API_KEY` is set; **Anthropic Messages API** (`claude-haiku-4-5-20251001`) when `ANTHROPIC_API_KEY` is set. 30-second timeout, one retry on 5xx.
+- `generate_executive_summary()` now sends structured KPI JSON plus a tone hint so the LLM rephrases without inventing numbers; falls back to the deterministic three-part summary on any failure.
+- New `explain_cve(cve_id, severity, kev=False, host=None) -> {explanation, source}` — `source` is `"llm"` or `"stub"` so the UI can badge the result.
+- New `detect_quick_wins(actions, top_n=3) -> list[dict]` — LLM-ranked when keys are set; deterministic `risk_reduction/effort_minutes` heuristic otherwise.
+- `llm_status()` reports the active provider/model.
+- Env-gated everywhere: with zero keys configured, every helper degrades to the v10.5 deterministic path. The demo keeps working.
+
+**2. Slack OAuth bot (`safecadence.integrations.slack`)**
+- OAuth 2.0 install flow: `GET /oauth/slack/install` → consent → `GET /oauth/slack/callback` exchanges code, persists to `~/.safecadence/orgs/<org_id>/slack_install.json`.
+- Slash command handler at `POST /slack/commands` verifies HMAC-SHA256 signature over `v0:{timestamp}:{body}` with `SLACK_SIGNING_SECRET`, rejects requests older than 5 minutes.
+- Supports `/safecadence report <preset>`, `/safecadence status`, `/safecadence findings <severity>`.
+- `post_message(channel, text, token=…)` sends `chat.postMessage` (uses `SLACK_BOT_TOKEN` env if no token passed).
+- Env-gated on `SLACK_CLIENT_ID`; install returns 503 with `{"error":"not_configured"}` when missing.
+
+**3. Jira integration (`safecadence.integrations.jira`)**
+- Atlassian 3LO OAuth: `GET /oauth/jira/install` → consent → `GET /oauth/jira/callback` trades code, looks up cloud-id via `/oauth/token/accessible-resources`, persists token + cloud-id to `~/.safecadence/orgs/<org_id>/jira_install.json`.
+- `create_jira_ticket(finding, *, org_id=None, project_key=None) -> {issue_key, url}` — POSTs `/rest/api/3/issue` with an ADF description and severity-to-priority mapping. Returns `None` when no token is available.
+- `poll_status_updates(org_id)` — read-only sync stub that searches `labels = safecadence` and returns `{issue_key, status, resolution}` rows the caller can use to close out findings.
+- Env-gated on `JIRA_CLIENT_ID`.
+
+**4. Configurable dashboard widgets (`safecadence.dashboard.widgets`)**
+- `Widget` dataclass: `{id, type, title, config, position}`. Seven types ship: `kpi_card`, `severity_donut`, `compliance_radar`, `top_findings_list`, `recent_changes`, `vendor_concentration`, `risk_trend_sparkline`.
+- `list_widgets(org_id)` returns 6 sensible defaults when no per-org file exists.
+- `save_widgets(org_id, widgets)` validates type, normalises positions, persists to `~/.safecadence/orgs/<org_id>/widgets.json`.
+- `render_widget(widget, store) -> dict` returns `{id, type, title, data, empty}` — store may be a dict (`hosts`, `severity`, `vendors`, ...) or `None` for an empty card.
+- Endpoints: `GET /api/v1/dashboard/widgets`, `PUT /api/v1/dashboard/widgets` (admin-gated via `require_role(ADMIN)`), `GET /api/v1/dashboard/widget/{id}`.
+
+**5. Wizard hooks**
+- `POST /api/reports/ai/explain-cve` → `{explanation, source}` from `explain_cve()`.
+- `POST /api/reports/ai/quick-wins` → `{top: [...]}` from `detect_quick_wins()`.
+
+**6. Tests**
+- New `tests/test_v10_6.py` — 36 tests covering AI stub/LLM paths, signature verification, install round-trip, slash-command dispatch routing, Jira issue create (mocked HTTP), and widget defaults + render + save/load round-trip.
+- All existing reports/v10.4/v10.5/identity/cli/intel/policy tests continue to pass.
+
+**No new external dependencies.** Every LLM call and integration uses stdlib `urllib` + `json` + `hmac` + `hashlib`.
+
+## [10.5.0] — 2026-05-10
+
+### Multi-tenant foundation: auth, isolation, RBAC, observability
+
+**1. Magic-link email auth (`safecadence.auth.magic_link`)**
+- `request_login(email, return_url=None)` issues a 32-byte token, persists it to `~/.safecadence/auth_tokens.json` with 15-minute expiry, emails the sign-in link via `safecadence.reports.email_delivery.send_email_raw()`.
+- `verify_token(token)` — one-shot consume → returns `(user_id, email)` or `None`.
+- `create_session(user_id, email)` → 30-day session token persisted to `~/.safecadence/sessions.json`.
+- `get_session(token)` / `revoke_session(token)` round out the lifecycle.
+- **Demo bypass**: `SC_AUTH_DISABLED=1` short-circuits every helper to a deterministic `demo@safecadence.com` pseudo-session — keeps `demo.safecadence.com` open with zero config.
+- New FastAPI routes: `GET /login`, `POST /login/request`, `GET /auth/callback?token=…`, `POST /logout`, `GET /me`. HttpOnly + Secure (when HTTPS) + SameSite=Lax cookie management.
+
+**2. Per-org data isolation (`safecadence.storage.org_store`)**
+- `Org` dataclass + `create_org / get_org / list_orgs / delete_org` CRUD persisted to `~/.safecadence/orgs.json`.
+- `org_data_dir(org_id) -> Path` returns `~/.safecadence/orgs/<org_id>/` with `platform_assets/`, `scans/`, `reports/`, `members.json`, `audit.jsonl` provisioned on demand.
+- `compose_report(..., org_id=None)` is now org-aware via a `contextvars`-scoped shim — section composers reading `_load_platform_assets()` automatically pick up the org's directory. `org_id=None` keeps the legacy global-data behavior.
+
+**3. RBAC (`safecadence.auth.rbac`)**
+- `UserRole` enum: `VIEWER < EDITOR < ADMIN`.
+- `assign_role / get_role / remove_role / list_members` persisted to `~/.safecadence/orgs/<org_id>/members.json`.
+- `require_role(min_role)` FastAPI dependency factory — reads org id from `X-SafeCadence-Org` header or `org_id` query; 403s on insufficient role. Bypassed under `SC_AUTH_DISABLED=1`.
+
+**4. Audit log (`safecadence.audit.log`)**
+- `log_event(org_id, user_email, action, target=None, metadata=None)` appends one JSON object per line to `~/.safecadence/orgs/<org_id>/audit.jsonl`.
+- `read_events(org_id, limit=100, since=None)` returns newest-first list.
+- Wired into the report wizard write endpoints: `report.template.save`, `report.template.delete`, `report.share_token.issue`, `report.render` are all recorded.
+
+**5. Observability (`safecadence.observability`)**
+- **Stdlib-only Prometheus exposition** at `GET /metrics` — counters, histograms, gauges hand-rendered to text. No `prometheus_client` dependency.
+  - `safecadence_requests_total{path,method,status}` counter.
+  - `safecadence_request_duration_seconds_bucket{path,method,le}` histogram (+ `_sum`/`_count`).
+  - `safecadence_active_sessions` gauge.
+  - `safecadence_reports_generated_total{format,preset}` counter.
+- `GET /healthz/detail` JSON dashboard — `{status, version, uptime_seconds, disk_free_mb, recent_errors_count, scheduled_jobs_age_seconds}`. Status: healthy / degraded / unhealthy thresholds.
+- Error log at `~/.safecadence/errors.jsonl` — `record_error(exc, context)`. `MetricsMiddleware` auto-records uncaught exceptions. Last 100 viewable at `GET /api/v1/admin/errors`.
+
+**6. Test-fix carryover**
+- Fixed `tests/test_link_audit.py::test_chrome_sidebar_links_resolve` and `test_asset_detail_links_resolve` — the `/reports` route wasn't registered on the `safecadence.server.create_app()` factory (only on the standalone UI app). Both factories now include the reports router.
+
+**Wiring**
+- `server.app.create_app()` and `ui.app.create_app()` both mount: reports router, auth router, observability router + `MetricsMiddleware`. All wrapped in try/except so an install without `[server]` extras still imports cleanly.
+- `email_delivery.send_email_raw(to, subject, body)` added for transactional email (magic links).
+
+**New modules**
+- `src/safecadence/auth/__init__.py`
+- `src/safecadence/auth/magic_link.py`
+- `src/safecadence/auth/rbac.py`
+- `src/safecadence/auth/deps.py`
+- `src/safecadence/auth/routes.py`
+- `src/safecadence/storage/org_store.py`
+- `src/safecadence/audit/__init__.py`
+- `src/safecadence/audit/log.py`
+- `src/safecadence/observability/__init__.py`
+- `src/safecadence/observability/metrics.py`
+- `src/safecadence/observability/errors.py`
+- `src/safecadence/reports/_scope_ctx.py`
+- `tests/test_v10_5.py` (17 tests)
+
+**Tests**: 1433 collected, all passing. `tests/test_v10_5.py` adds 17.
+
+---
+
 ## [10.4.0] — 2026-05-10
 
 ### Three themes: scheduled & scriptable / compliance depth / inventory polish

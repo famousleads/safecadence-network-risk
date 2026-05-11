@@ -1,0 +1,30 @@
+{
+  "app.name": "SafeCadence",
+  "app.tagline": "[TODO-DE] Infrastructure + identity risk, local-first.",
+
+  "nav.home": "[TODO-DE] Home",
+  "nav.inventory": "[TODO-DE] Inventory",
+  "nav.reports": "[TODO-DE] Reports",
+  "nav.settings": "[TODO-DE] Settings",
+  "nav.help": "[TODO-DE] Help",
+
+  "common.save": "[TODO-DE] Save",
+  "common.cancel": "[TODO-DE] Cancel",
+  "common.delete": "[TODO-DE] Delete",
+  "common.download": "[TODO-DE] Download",
+  "common.next": "[TODO-DE] Next",
+  "common.back": "[TODO-DE] Back",
+  "common.loading": "[TODO-DE] Loading…",
+
+  "reports.title": "[TODO-DE] Reports",
+  "reports.step.template": "[TODO-DE] Template",
+  "reports.step.sections": "[TODO-DE] Sections",
+  "reports.step.scope": "[TODO-DE] Scope",
+  "reports.step.preview": "[TODO-DE] Preview",
+  "reports.step.export": "[TODO-DE] Export",
+  "reports.choose_start": "[TODO-DE] Choose a starting point",
+  "reports.download.html": "[TODO-DE] Download HTML",
+  "reports.download.pdf": "[TODO-DE] Download PDF",
+
+  "a11y.skip_to_content": "[TODO-DE] Skip to main content"
+}

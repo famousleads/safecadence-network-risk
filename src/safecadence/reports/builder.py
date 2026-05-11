@@ -81,14 +81,46 @@ def compose_report(
     store: Any | None = None,
     title: str = "SafeCadence NetRisk Report",
     include_delta: bool = False,
+    org_id: str | None = None,
 ) -> dict:
     """Compose a full report dict from the chosen sections + scope.
 
     When ``include_delta`` is True, attaches a top-level ``delta`` key with
     the current vs previous snapshot diff (used by the quarterly_review
     preset and the "Recent changes" section to render sparklines).
+
+    v10.5: when ``org_id`` is provided, section composers that read from
+    the on-disk ``platform_assets`` store will read from
+    ``~/.safecadence/orgs/<org_id>/platform_assets/`` instead of the
+    global directory. Pass ``None`` (the default) for the legacy global
+    behavior — keeps every existing call site working.
     """
     scope = dict(scope or {})
+    # v10.5: contextvar-scoped org id. Section composers take only
+    # (store, scope) so we route the org_id through a process-wide
+    # contextvar that _load_platform_assets() consults at read time.
+    from safecadence.reports import _scope_ctx
+    token = _scope_ctx.push_org(org_id)
+    try:
+        return _compose_report_impl(
+            sections=sections,
+            scope=scope,
+            store=store,
+            title=title,
+            include_delta=include_delta,
+        )
+    finally:
+        _scope_ctx.pop_org(token)
+
+
+def _compose_report_impl(
+    *,
+    sections,
+    scope: dict,
+    store,
+    title: str,
+    include_delta: bool,
+) -> dict:
     keys = list(sections) if sections else [s["key"] for s in SECTION_REGISTRY if s.get("default_enabled")]
 
     own_store = False
@@ -157,6 +189,30 @@ def compose_report(
     }
     if delta_payload is not None:
         out["delta"] = delta_payload
+    # v10.8: auto-capture SOC 2 evidence for every control covered by
+    # a compliance report. We infer the framework + control list from
+    # the scope (when provided) and persist one evidence-of-type-report
+    # per control. The capture is best-effort and skipped silently when:
+    #   * there's no scope.framework / scope.org_id
+    #   * SC_READONLY=1 (the soc2_evidence module already enforces this)
+    #   * the workflow package isn't importable
+    fw = (scope or {}).get("framework")
+    org = (scope or {}).get("org_id")
+    controls = (scope or {}).get("controls") or []
+    if fw and org and controls:
+        try:
+            from safecadence.workflow.soc2_evidence import (
+                record_report_as_evidence,
+            )
+            record_report_as_evidence(
+                org, fw, list(controls),
+                report_blob=None,
+                report_filename=f"{fw}-{out['generated_at'][:10]}.json",
+                captured_by=(scope or {}).get("captured_by"),
+                note="Auto-captured by compose_report()",
+            )
+        except Exception:                          # pragma: no cover
+            pass
     return out
 
 

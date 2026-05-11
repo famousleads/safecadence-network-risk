@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "safecadence-sdk"
+version = "0.1.0"
+description = "Official Python SDK for the SafeCadence NetRisk REST API."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+keywords = ["safecadence", "netrisk", "sdk", "api"]
+authors = [
+    {name = "SafeCadence", email = "hello@safecadence.com"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Security",
+]
+dependencies = [
+    "requests>=2.28",
+]
+
+[project.urls]
+Homepage = "https://safecadence.com"
+Source = "https://github.com/famousleads/safecadence-network-risk"
+Documentation = "https://safecadence.com/docs/sdk/python"
+
+[tool.hatch.build.targets.wheel]
+packages = ["safecadence_sdk"]

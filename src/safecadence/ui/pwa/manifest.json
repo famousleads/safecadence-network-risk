@@ -1,0 +1,44 @@
+{
+  "name": "SafeCadence NetRisk",
+  "short_name": "SafeCadence",
+  "description": "Infrastructure + identity risk platform — 45 adapters, attack-path graph, KEV+EPSS CVEs, local-first.",
+  "start_url": "/home",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#1F6F6A",
+  "background_color": "#0b1020",
+  "lang": "en",
+  "categories": ["security", "productivity", "business"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='36' fill='%231F6F6A'/><path d='M96 36 L150 60 V100 C150 132 126 156 96 168 C66 156 42 132 42 100 V60 Z' fill='%235FC6BC'/><path d='M76 96 L92 112 L120 80' stroke='%23ffffff' stroke-width='10' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='96' fill='%231F6F6A'/><path d='M256 96 L400 160 V268 C400 352 336 416 256 448 C176 416 112 352 112 268 V160 Z' fill='%235FC6BC'/><path d='M204 256 L244 296 L316 216' stroke='%23ffffff' stroke-width='28' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Home",
+      "url": "/home"
+    },
+    {
+      "name": "Reports",
+      "short_name": "Reports",
+      "url": "/reports"
+    },
+    {
+      "name": "Inventory",
+      "short_name": "Inventory",
+      "url": "/inventory"
+    }
+  ]
+}

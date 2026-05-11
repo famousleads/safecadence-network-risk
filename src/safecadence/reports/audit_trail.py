@@ -77,6 +77,26 @@ def log_event(
     p.parent.mkdir(parents=True, exist_ok=True)
     with p.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(record) + "\n")
+    # v10.8: replay every state transition into the workflow change log
+    # so the org-wide change feed sees them.
+    if event in {"triaged", "in_progress", "remediated",
+                 "accepted", "reopened", "verified"}:
+        try:
+            from safecadence.workflow.change_mgmt import record_change
+            record_change(
+                None,                       # global / single-tenant for now
+                "finding_transition",
+                before=None,
+                after={
+                    "finding_id": finding_id,
+                    "host": host,
+                    "event": event,
+                },
+                actor=actor,
+                asset_id=host,
+            )
+        except Exception:                          # pragma: no cover
+            pass
     return record
 
 

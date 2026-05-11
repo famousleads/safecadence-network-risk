@@ -1,0 +1,29 @@
+# Copy to docker-compose.override.yml to customise local dev env vars.
+#
+# Override values are merged into docker-compose.yml at runtime.
+
+version: "3.9"
+
+services:
+  safecadence:
+    environment:
+      # Connect to supporting services (override docker-compose.yml).
+      SC_DATABASE_URL: postgres://safecadence:devpass@postgres:5432/safecadence
+      SC_REDIS_URL: redis://redis:6379/0
+      SC_S3_ENDPOINT: http://minio:9000
+      SC_S3_BUCKET: safecadence
+      SC_S3_ACCESS_KEY: minioadmin
+      SC_S3_SECRET_KEY: minioadmin
+
+      # API credentials / integrations.
+      OPENAI_API_KEY: ""
+      STRIPE_SECRET_KEY: ""
+      STRIPE_WEBHOOK_SECRET: ""
+      SC_SMTP_HOST: ""
+      SC_SMTP_PORT: "587"
+      SC_SMTP_USER: ""
+      SC_SMTP_PASS: ""
+
+      # Multi-tenancy + auth.
+      SC_PORTAL_SECRET: "change-me-in-prod"
+      SAFECADENCE_SUPERADMIN_EMAILS: "you@example.com"

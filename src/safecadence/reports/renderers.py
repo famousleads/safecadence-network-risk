@@ -462,7 +462,7 @@ def _render_cover(report: dict) -> str:
         prepared_by = _esc(brand_org_name)
     else:
         logo_html = '<div class="sc-logo">SafeCadence<span>·</span>NetRisk</div>'
-        prepared_by = "SafeCadence NetRisk v10.4.0"
+        prepared_by = "SafeCadence NetRisk v10.7.0"
 
     return (
         f'<header class="sc-cover"{style_attr}>'
@@ -717,7 +717,7 @@ def render_html(report: dict, *, standalone: bool = True,
     foot_org = _esc(brand_org_name) if brand_org_name else "SafeCadence"
     foot = (
         '<footer class="sc-foot">'
-        f'<strong>{foot_org} NetRisk v10.4.0</strong> &middot; '
+        f'<strong>{foot_org} NetRisk v10.7.0</strong> &middot; '
         f'CISA KEV catalog rev {rev} &middot; '
         'NVD CVE feed &middot; MITRE ATT&amp;CK v15.1<br>'
         'This document contains confidential security findings. Distribute only to '
@@ -1798,7 +1798,7 @@ def _docx_revision_history(report: dict) -> str:
         {"text": "Author"},
     ]]
     rows.append([
-        {"text": "v10.4.0", "bold": True},
+        {"text": "v10.7.0", "bold": True},
         {"text": _today()},
         {"text": "Initial assessment"},
         {"text": "SafeCadence NetRisk"},
@@ -1823,7 +1823,7 @@ def _docx_methodology_section(report: dict) -> str:
         ("Frameworks evaluated", "NIST 800-53 r5, CIS v8, PCI DSS v4.0, HIPAA Security Rule, SOC 2"),
         ("CISA KEV catalog rev", _kev_catalog_rev()),
         ("NVD CVE feed rev",    today + " (NVD 2.0 API snapshot)"),
-        ("Tooling",             "SafeCadence NetRisk v10.4.0 + signal-based config analysis"),
+        ("Tooling",             "SafeCadence NetRisk v10.7.0 + signal-based config analysis"),
         ("Methodology",         "Evidence-driven posture: each finding is mapped to one or more "
                                 "controls and ranked by exploitability, asset criticality, "
                                 "and KEV status before remediation prioritization."),
@@ -4330,7 +4330,7 @@ def _pptx_closing_slide() -> str:
     shapes.append(_pptx_text_box(
         x=0, y=4100000, w=_PPTX_W, h=400000, shape_id=5,
         paragraphs=[_pptx_paragraph([
-            _pptx_text_run("SafeCadence NetRisk v10.4.0", size_pt=14,
+            _pptx_text_run("SafeCadence NetRisk v10.7.0", size_pt=14,
                             color="CBD5E1"),
         ], align="ctr")],
     ))
@@ -4423,7 +4423,7 @@ def render_pptx(report: dict, *, preset: dict | None = None) -> bytes:
                                 f"{safe_org} · Confidential")
                        for s in slide_xmls]
         # Closing slide brand line + version
-        slide_xmls = [s.replace("SafeCadence NetRisk v10.4.0",
+        slide_xmls = [s.replace("SafeCadence NetRisk v10.7.0",
                                 f"{safe_org} — Security Assessment")
                        for s in slide_xmls]
 

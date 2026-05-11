@@ -25,7 +25,10 @@ _HEAD = """<!doctype html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#1F6F6A" />
 <title>SafeCadence — %TITLE%</title>
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="stylesheet" href="/static/responsive.css" />
 <style>
 :root {
   --bg: #0b1020; --panel: #121a33; --panel-2: #1a2447;
@@ -329,9 +332,13 @@ th { color: var(--muted); font-weight: 500; }
 </head>
 <body data-theme="dark">
 
+<!-- ============ A11Y: skip-to-content ============ -->
+<a class="skip-to-content" href="#sc-main-content">Skip to main content</a>
+
 <!-- ============ SIDEBAR ============ -->
-<aside class="sc-sidebar">
-  <div class="sc-logo" onclick="location.href='/home'">
+<aside class="sc-sidebar" id="sc-sidebar" aria-label="Primary navigation">
+  <div class="sc-logo" onclick="location.href='/home'" role="link" tabindex="0"
+       aria-label="SafeCadence home">
     SafeCadence<span class="dot">.</span>
   </div>
   <div class="sc-search" onclick="scOpenPalette()">
@@ -424,19 +431,28 @@ th { color: var(--muted); font-weight: 500; }
 </aside>
 
 <!-- ============ MAIN ============ -->
-<main class="sc-main">
+<main class="sc-main" id="sc-main-content" role="main">
 
   <!-- Top bar -->
-  <div class="sc-topbar">
-    <div class="sc-breadcrumb" id="sc-breadcrumb">
+  <div class="sc-topbar" role="banner">
+    <button class="sc-hamburger" aria-label="Toggle navigation menu"
+            aria-controls="sc-sidebar" aria-expanded="false"
+            onclick="scToggleSidebar()">&#9776;</button>
+    <div class="sc-breadcrumb" id="sc-breadcrumb" aria-label="Breadcrumb">
       <strong>%TITLE%</strong>
     </div>
-    <button class="sc-iconbtn" onclick="scOpenPalette()" title="Cmd+K">⌘K</button>
-    <button class="sc-iconbtn" onclick="location.href='/ask'">🤖 Ask AI</button>
-    <button class="sc-iconbtn" id="sc-bell" onclick="scToggleDrawer()">
-      🔔<span class="badge">0</span>
+    <button class="sc-iconbtn" onclick="scOpenPalette()" title="Cmd+K"
+            aria-label="Open command palette (Cmd+K)">⌘K</button>
+    <button class="sc-iconbtn" onclick="location.href='/ask'"
+            aria-label="Open Ask AI">🤖 Ask AI</button>
+    <button class="sc-iconbtn" id="sc-bell" onclick="scToggleDrawer()"
+            aria-label="Notifications" aria-haspopup="true">
+      🔔<span class="badge" aria-hidden="true">0</span>
     </button>
   </div>
+
+  <!-- a11y live region for dynamic status messages (report preview etc) -->
+  <div id="sc-live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Onboarding banner -->
   <div class="sc-banner" id="sc-banner">
@@ -951,6 +967,35 @@ function scShowHelp() {
 "  g x   All tools (Hub)"
   );
 }
+
+// ---- v11.1 PWA: register the service worker ---------
+// Best-effort. Service workers are an enhancement, not a requirement.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .catch(() => {/* ignore – PWA is opt-in */});
+  });
+}
+
+// ---- v11.1 a11y helpers -----------------------------
+// Announce a message into the polite live region so assistive tech reads it.
+window.scAnnounce = function(msg) {
+  const live = document.getElementById('sc-live');
+  if (!live) return;
+  // Clear then set so duplicate text still re-announces.
+  live.textContent = '';
+  setTimeout(() => { live.textContent = msg; }, 30);
+};
+
+// Toggle the sidebar on mobile/tablet (hamburger button).
+window.scToggleSidebar = function() {
+  const aside = document.getElementById('sc-sidebar');
+  if (!aside) return;
+  const btn = document.querySelector('.sc-hamburger');
+  const open = aside.classList.toggle('open');
+  aside.style.display = open ? 'flex' : '';
+  if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+};
 
 // ---- Boot ----
 scHighlightNav();

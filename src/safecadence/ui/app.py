@@ -85,6 +85,84 @@ def create_app(*, password: str | None = None):
         # Reports wizard is optional — never break the rest of the UI.
         pass
 
+    # v11.1 — PWA + responsive.css. Mounts /manifest.webmanifest, /sw.js,
+    # /static/responsive.css. All cache-friendly, all safe in read-only mode.
+    try:
+        from safecadence.ui.pwa import register as _pwa_register
+        _pwa_register(app)
+    except Exception:                                # pragma: no cover
+        pass
+
+    # v10.5 — auth + observability scaffolding. Both routers and the
+    # middleware are wrapped in try/except so a missing dep / older
+    # FastAPI never breaks the UI.
+    try:
+        from safecadence.auth.routes import router as _auth_router
+        if _auth_router is not None:
+            app.include_router(_auth_router)
+    except Exception:                                # pragma: no cover
+        pass
+    try:
+        from safecadence.observability.metrics import (
+            router as _obs_router, MetricsMiddleware,
+        )
+        if _obs_router is not None:
+            app.include_router(_obs_router)
+            app.add_middleware(MetricsMiddleware)
+    except Exception:                                # pragma: no cover
+        pass
+
+    # v10.9 — signup + billing + customer portal. Each router is opt-in
+    # via try/except so the demo (which leaves Stripe unconfigured)
+    # still boots cleanly.
+    try:
+        from safecadence.auth.signup_routes import router as _signup_router
+        if _signup_router is not None:
+            app.include_router(_signup_router)
+    except Exception:                                # pragma: no cover
+        pass
+    try:
+        from safecadence.billing.routes import router as _billing_router
+        if _billing_router is not None:
+            app.include_router(_billing_router)
+    except Exception:                                # pragma: no cover
+        pass
+    try:
+        from safecadence.portal.customer import router as _portal_router
+        if _portal_router is not None:
+            app.include_router(_portal_router)
+    except Exception:                                # pragma: no cover
+        pass
+
+    # v10.9 — API usage metering middleware. Records one usage event per
+    # /api/v1/* hit (excluding billing/* + plans + /api/v1/me) so quota
+    # enforcement can compare against the org's plan.
+    try:
+        from safecadence.billing.middleware import UsageMeteringMiddleware
+        app.add_middleware(UsageMeteringMiddleware)
+    except Exception:                                # pragma: no cover
+        pass
+
+    # v11.0 — ML + intelligence depth: anomaly detection, predictive
+    # risk, finding clustering, drift forecasting, NLQ, threat-hunting
+    # playbooks. Mounts /api/v1/ml/*. Pure stdlib + math, no sklearn dep.
+    try:
+        from safecadence.ml.api import router as _ml_router
+        if _ml_router is not None:
+            app.include_router(_ml_router)
+    except Exception:                                # pragma: no cover
+        pass
+
+    # v11.3 — ops + governance API: /api/v1/orgs/{id}/export,
+    # /api/v1/orgs/{id}/audit-chain/verify, /api/v1/orgs/{id}/retention.
+    # Read-only, admin-only (enforced by upstream auth middleware).
+    try:
+        from safecadence.ops.routes import router as _ops_router
+        if _ops_router is not None:
+            app.include_router(_ops_router)
+    except Exception:                                # pragma: no cover
+        pass
+
     # v9.47 — activity tracking. Every authenticated mutation
     # (POST/PUT/PATCH/DELETE) lands in $SC_DATA_DIR/activity/YYYY-MM-DD.jsonl
     # so /audit can answer "who did what, when?" without trawling

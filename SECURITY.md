@@ -18,6 +18,50 @@ We will not pursue legal action against researchers acting in good faith under t
 
 A coordinated disclosure window is **90 days** by default — you and we agree on the public-disclosure date when the fix lands.
 
+## SLAs
+
+| Severity | Acknowledge | Triage decision | Mitigation / fix |
+|---|---|---|---|
+| Critical (RCE, auth bypass, mass-data exposure) | 24 h | 48 h | 7 days |
+| High (privilege escalation, stored XSS in auth'd surface) | 48 h | 5 business days | 30 days |
+| Medium (CSRF, info disclosure not affecting identity) | 5 business days | 10 business days | 90 days |
+| Low (rate-limit gaps, fingerprinting) | 10 business days | 20 business days | Next scheduled release |
+
+If we miss an SLA, we will tell you why and propose a new date. We do
+not silently slip.
+
+## Rewards
+
+This is a researcher-funded bounty paid by the SafeCadence project. We
+do not run on HackerOne or Bugcrowd; we route payouts directly via
+Stripe or wire. Pick whichever is easiest for you.
+
+| Severity | Reward (USD) |
+|---|---|
+| Critical | $2,500 – $5,000 |
+| High | $750 – $2,500 |
+| Medium | $200 – $750 |
+| Low | $50 – $200 |
+
+The exact amount inside a band depends on:
+
+- Quality of the report (reproducible, root-caused, optionally
+  including a patch suggestion → upper end).
+- Novelty (a never-before-reported class → upper end).
+- Whether the issue is exploitable in production-default config or
+  only with an unusual setting (production-default → upper end).
+
+We do not pay for:
+
+- Findings whose only impact is on a contributor's personal fork or
+  PR-staging environment.
+- Vulnerabilities in third-party services we use (Stripe, DigitalOcean,
+  Caddy upstreams) — please report to those vendors directly.
+- DoS that requires resource-exhaustion at the network layer (we will
+  fix it if it lands, but it isn't bounty-eligible).
+- Issues already in our public backlog (we'll show you the existing
+  ticket and credit you on the Hall of Fame regardless).
+
 ## What's in scope
 
 - The `safecadence-netrisk` Python package on PyPI (when shipped)
@@ -95,3 +139,5 @@ age1placeholder...
 ## Hall of fame
 
 We credit security researchers who report valid vulnerabilities. Email us with your name + handle (or stay anonymous, your choice) and we'll add you to `docs/SECURITY-CREDITS.md` once the fix ships.
+
+_No reports yet. Be the first — see "Reporting a vulnerability" above._
