@@ -12,7 +12,7 @@ on:
 
 # REQUIRED: trusted publishing needs id-token: write permission.
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
