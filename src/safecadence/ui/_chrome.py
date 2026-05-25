@@ -432,7 +432,7 @@ th { color: var(--muted); font-weight: 500; }
     <a class="sub" id="nav-cluster" href="/cluster-status">🗄️ Cluster status</a>
     <a class="sub" id="nav-customer" href="/customer">🤝 Customer portal</a>
     <a class="sub" id="nav-ai-agents" href="/ai-agents">🤖 AI agents</a>
-    <a class="sub" id="nav-api-keys" href="/api-keys">🔐 API key inventory</a>
+    <a class="sub" id="nav-api-keys" href="/api-keys">🔐 Identity &amp; API key governance</a>
   </div>
 
   <div class="group">

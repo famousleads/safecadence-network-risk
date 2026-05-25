@@ -8824,6 +8824,13 @@ _LLM_SETTINGS_BODY = """
 summaries, plain-language CVE explanations, and stakeholder narratives.
 Saved settings override environment variables. API keys are encrypted
 on disk.</p>
+<p class="muted" style="border-left:3px solid #7c5cff;padding-left:10px;margin-top:8px">
+  <strong>Different page:</strong> looking to GOVERN the third-party
+  API keys living in your environment (per-agent, per-scope, with
+  trust scores + rotation tracking)? That's
+  <a href="/api-keys" style="color:#7aa6ff">Identity &amp; API key governance</a>
+  &mdash; same concept, opposite direction.
+</p>
 
 <div class="card" style="margin-top:14px">
   <div style="display:grid;grid-template-columns:200px 1fr;gap:10px;font-size:13px">

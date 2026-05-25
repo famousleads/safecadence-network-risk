@@ -1,5 +1,74 @@
 # Changelog
 
+## [15.2.0] — 2026-05-25 — Peer configuration form (WebUI)
+
+Operators asked for it: peer / HA env vars are now editable from
+the WebUI in addition to systemd unit overrides. No root needed —
+config persists to a user-owned env file the systemd unit sources
+at boot.
+
+**`safecadence.cluster.config_persistence` (NEW)**
+- Read/write `~/.safecadence/cluster.env` atomically; file is
+  created with mode 0600 (owner-only) so secrets stay private.
+- `KNOWN_KEYS` enumerates the 12 supported env vars (HA mode,
+  node name, Redis URL, cluster peers, Postgres URL, S3 endpoint,
+  peer host/port, listen host/port, shared HMAC secret).
+- `validate()` runs per-mode + cross-field checks: peer-sync
+  requires `SC_PEER_HOST` and `SC_PEER_SECRET ≥ 24 chars`;
+  ports must be 1–65535; Redis URL must use redis:// scheme.
+- `read_config()` returns both the raw values dict and a "masked"
+  dict where `SC_PEER_SECRET` shows only the last 4 chars.
+- Empty secret on rewrite means "keep current" — so the form can
+  show a masked placeholder without forcing the user to re-paste.
+- `SC_READONLY=1` (demo mode) blocks writes; reads still work.
+
+**WebUI**
+- `GET /cluster-status/configure` — form with 12 fields, grouped
+  into Architecture A (shared stores) and Architecture B (peer-sync)
+  sections; in-page help text per field.
+- `POST /api/v1/cluster/configure` — validates + saves; on success
+  redirects with `?saved=1`; on failure re-renders with errors.
+- `/cluster-status` page gains a "⚙️ Configure peers" button +
+  a "Configure peers →" link in the empty-peers state.
+- Demo mode (`SC_READONLY=1`) shows the form as preview-only with
+  a clear banner explaining writes are blocked.
+
+**Operator install integration**
+- The systemd unit should add one line:
+  `EnvironmentFile=-/home/safecadence/.safecadence/cluster.env`
+  (leading `-` ignores missing file — single-node installs unaffected).
+- Settings take effect on next `systemctl restart safecadence`.
+
+**Tests**
+- `tests/test_v15_2_peer_config.py` — 17 new tests covering
+  persistence (round-trip + secret masking + empty-keep-current +
+  0600 file permissions), validation (mode/port/URL/length rules),
+  and WebUI (form renders, error display, redirect on success,
+  readonly preview, readonly blocks save).
+
+Version bump 15.1.2 → 15.2.0 (minor — new feature, no breaking change).
+
+## [15.1.2] — 2026-05-25 — Disambiguate /api-keys from /settings/llm
+
+UX fix: a user spotted that `/api-keys` (v14 governance inventory)
+and `/settings/llm` (v11.4 BYO-AI config) both deal with API keys
+and visually looked like duplicates of each other. They serve
+opposite roles (one tracks *other* people's keys living in the
+customer's environment; the other holds the operator's *own* LLM
+provider key). Now labeled to make that obvious.
+
+- `/api-keys` page title changed from "API key inventory" to
+  "Machine identity & API key governance".
+- Sidebar nav label changed from "🔐 API key inventory" to
+  "🔐 Identity & API key governance".
+- `/api-keys` page now opens with a disambiguating banner pointing
+  users looking for BYO-AI key config at `/settings/llm`.
+- `/settings/llm` page gets the reverse cross-link pointing the
+  user looking for governance at `/api-keys`.
+
+No new code modules; no API changes; no test changes. Cosmetic +
+copy fix shipped as 15.1.1 → 15.1.2.
+
 ## [15.1.1] — 2026-05-25 — Removed strategic docs from public tree
 
 No code changes. Four internal operator-facing documents stop being
