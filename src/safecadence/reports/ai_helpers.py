@@ -1,12 +1,20 @@
 """
 AI helpers for the report module.
 
-The strategy is:
+The strategy (auto-detected; override with ``SC_AI_PROVIDER``):
 
-  1. If ``OPENAI_API_KEY`` is set, call OpenAI Chat Completions
-     (stdlib-only HTTPS POST — no SDK dependency).
-  2. Else if ``ANTHROPIC_API_KEY`` is set, call Anthropic Messages API.
-  3. Otherwise, fall back to deterministic templated prose that uses the
+  1. If ``OLLAMA_HOST`` is set, call a local Ollama instance
+     (air-gap friendly, default model ``llama3.1``).
+  2. Else if ``OPENAI_API_KEY`` is set, call OpenAI Chat Completions
+     (stdlib-only HTTPS POST — no SDK dependency). If
+     ``SAFECADENCE_AI_BASE_URL`` is also set, the OpenAI code path hits
+     that URL instead of ``api.openai.com`` — works with any
+     OpenAI-compatible local endpoint (LM Studio, vLLM,
+     text-generation-inference, llama.cpp server, Together.ai, Groq,
+     Fireworks), which gives you Hugging Face model support without a
+     dedicated HF integration.
+  3. Else if ``ANTHROPIC_API_KEY`` is set, call Anthropic Messages API.
+  4. Otherwise, fall back to deterministic templated prose that uses the
      actual data values, so an offline build still produces realistic
      consultant-grade copy (not a placeholder).
 
@@ -18,6 +26,17 @@ v10.6 changes (May 2026):
     30-second timeout and a single retry on 5xx — no third-party SDK.
   * ``explain_cve`` and ``detect_quick_wins`` are LLM-aware on top of
     the existing deterministic fallbacks.
+
+v11.3.1 changes (May 2026):
+  * Ollama is now a first-class provider in the reports module (was
+    previously only available via the CLI shim). ``OLLAMA_HOST`` and
+    ``SAFECADENCE_LOCAL_LLM`` env vars activate it.
+  * ``SAFECADENCE_AI_BASE_URL`` lets the OpenAI code path hit a custom
+    base URL — unlocks LM Studio / vLLM / TGI / llama.cpp server / any
+    OpenAI-compatible local endpoint, which in practice is how most
+    Hugging Face models get exposed for inference.
+  * ``SC_AI_PROVIDER`` env var lets the operator force a specific
+    provider even when multiple keys are set.
 """
 
 from __future__ import annotations
@@ -40,13 +59,41 @@ OPENAI_MODEL = os.environ.get("SAFECADENCE_OPENAI_MODEL", "gpt-4o-mini")
 ANTHROPIC_MODEL = os.environ.get(
     "SAFECADENCE_ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"
 )
+# Default Ollama model — override with SAFECADENCE_LOCAL_LLM (e.g. mistral,
+# llama3.1:8b, codellama, or any model your local ollama has pulled).
+OLLAMA_MODEL_DEFAULT = "llama3.1"
+OLLAMA_HOST_DEFAULT = "http://127.0.0.1:11434"
+
+# OpenAI-compatible endpoint base URL. If unset, talks to api.openai.com.
+# Set this to point at LM Studio (http://localhost:1234/v1),
+# vLLM / text-generation-inference, llama.cpp server, or any hosted
+# OpenAI-compatible API (Together.ai, Groq, Fireworks, etc.). This is also
+# how Hugging Face models get used in practice — most HF inference runners
+# expose the OpenAI Chat Completions shape.
+OPENAI_BASE_URL = os.environ.get(
+    "SAFECADENCE_AI_BASE_URL", "https://api.openai.com"
+).rstrip("/")
+
 LLM_TIMEOUT_SEC = 30
 
 
 def _active_provider() -> str | None:
-    """Return ``'openai'`` or ``'anthropic'`` (whichever env key is set first)
-    or ``None`` for stub mode.
+    """Return ``'ollama'``, ``'openai'``, ``'anthropic'``, or ``None``.
+
+    Precedence (auto-detect):
+      1. ``SC_AI_PROVIDER`` explicit override (must be one of the three).
+      2. Ollama (``OLLAMA_HOST`` or ``SAFECADENCE_LOCAL_LLM``) — local-first
+         wins by default because if the operator went to the trouble of
+         standing up Ollama, they probably want it used.
+      3. OpenAI (``OPENAI_API_KEY``).
+      4. Anthropic (``ANTHROPIC_API_KEY``).
+      5. ``None`` → deterministic stub.
     """
+    forced = (os.environ.get("SC_AI_PROVIDER") or "").strip().lower()
+    if forced in {"ollama", "openai", "anthropic"}:
+        return forced
+    if os.environ.get("OLLAMA_HOST") or os.environ.get("SAFECADENCE_LOCAL_LLM"):
+        return "ollama"
     if os.environ.get("OPENAI_API_KEY"):
         return "openai"
     if os.environ.get("ANTHROPIC_API_KEY"):
@@ -55,10 +102,8 @@ def _active_provider() -> str | None:
 
 
 def _has_api_key() -> bool:
-    return _active_provider() is not None or bool(
-        os.environ.get("OLLAMA_HOST")
-        or os.environ.get("SAFECADENCE_LOCAL_LLM")
-    )
+    """True if any LLM provider is configured (including Ollama)."""
+    return _active_provider() is not None
 
 
 def _http_post_json(url: str, payload: dict, headers: dict,
@@ -112,8 +157,12 @@ def _call_openai(prompt: str, *, system: str | None = None,
         "max_tokens": max_tokens,
         "temperature": 0.3,
     }
+    # Honor SAFECADENCE_AI_BASE_URL — lets a local LM Studio / vLLM / TGI
+    # endpoint (or any HF-model runner that speaks the OpenAI shape) handle
+    # the request instead of OpenAI's cloud. Air-gap friendly.
+    url = f"{OPENAI_BASE_URL}/v1/chat/completions"
     resp = _http_post_json(
-        "https://api.openai.com/v1/chat/completions",
+        url,
         payload,
         {"Authorization": f"Bearer {key}"},
     )
@@ -164,46 +213,97 @@ def _call_anthropic(prompt: str, *, system: str | None = None,
     return None
 
 
+def _call_ollama(prompt: str, *, system: str | None = None,
+                 max_tokens: int = 400) -> str | None:
+    """Single Ollama /api/chat call. Returns assistant text or ``None``.
+
+    Hits the local Ollama daemon at ``OLLAMA_HOST`` (default
+    ``http://127.0.0.1:11434``). Uses the model named in
+    ``SAFECADENCE_LOCAL_LLM`` or falls back to ``llama3.1``. Air-gap
+    friendly — no outbound calls to anyone.
+    """
+    host = os.environ.get("OLLAMA_HOST", OLLAMA_HOST_DEFAULT).rstrip("/")
+    model = (
+        os.environ.get("SAFECADENCE_LOCAL_LLM")
+        or OLLAMA_MODEL_DEFAULT
+    )
+    msgs: list[dict] = []
+    if system:
+        msgs.append({"role": "system", "content": system})
+    msgs.append({"role": "user", "content": prompt})
+    payload = {
+        "model": model,
+        "messages": msgs,
+        "stream": False,
+        "options": {
+            "temperature": 0.3,
+            "num_predict": max_tokens,
+        },
+    }
+    resp = _http_post_json(
+        f"{host}/api/chat",
+        payload,
+        headers={},  # Ollama doesn't require auth on localhost
+    )
+    if not isinstance(resp, dict):
+        return None
+    try:
+        text = (resp.get("message") or {}).get("content")
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+    except Exception:
+        return None
+    return None
+
+
 def _try_ai(prompt: str, *, system: str | None = None,
             max_tokens: int = 400) -> str | None:
-    """Attempt a real LLM call (OpenAI first, Anthropic second).
-    Returns ``None`` when no key is configured, on network failure, or
-    on an empty response.
+    """Attempt a real LLM call honoring the auto-detected provider.
 
-    Falls back to the legacy ``safecadence.ai.explain_findings`` shim
-    when neither real provider key is set but a local-LLM env var is
-    (Ollama, SAFECADENCE_LOCAL_LLM) — keeps prior behavior alive.
+    Precedence: Ollama → OpenAI (or any OpenAI-compatible endpoint via
+    ``SAFECADENCE_AI_BASE_URL``) → Anthropic. Returns ``None`` when no
+    provider is configured, on network failure, or on an empty response.
+    Never raises — failures degrade to the caller's deterministic
+    fallback.
     """
     provider = _active_provider()
-    if provider == "openai":
+    if provider == "ollama":
+        out = _call_ollama(prompt, system=system, max_tokens=max_tokens)
+        if out:
+            return out
+        # Ollama configured but unreachable — fall through to whatever
+        # cloud key happens to be set, so the report still produces an
+        # AI summary. Better partial than empty.
+    if provider in ("ollama", "openai") and os.environ.get("OPENAI_API_KEY"):
         out = _call_openai(prompt, system=system, max_tokens=max_tokens)
         if out:
             return out
-        # If OpenAI is configured but failed, fall through to legacy/local LLM
-        # rather than silently returning None — keeps the demo "best-effort".
-    elif provider == "anthropic":
+    if provider in ("ollama", "openai", "anthropic") and os.environ.get("ANTHROPIC_API_KEY"):
         out = _call_anthropic(prompt, system=system, max_tokens=max_tokens)
         if out:
             return out
-
-    # Legacy / local LLM path — preserves earlier behavior.
-    if not _has_api_key():
-        return None
-    try:
-        from safecadence.ai import explain_findings  # type: ignore
-        out = explain_findings({"summary": prompt, "findings": [], "cves": []})
-        if isinstance(out, str) and out.strip():
-            return out.strip()
-    except Exception:
-        pass
     return None
 
 
 def llm_status() -> dict:
-    """Return ``{provider, model}`` for the active LLM, or ``{provider: None}``."""
+    """Return ``{provider, model, endpoint?}`` for the active LLM.
+
+    When the operator is using an OpenAI-compatible local endpoint
+    (LM Studio, vLLM, etc. — anything with ``SAFECADENCE_AI_BASE_URL``
+    set), the ``endpoint`` key is included so the UI can show "OpenAI
+    API at http://localhost:1234" instead of misleadingly claiming
+    OpenAI cloud.
+    """
     p = _active_provider()
+    if p == "ollama":
+        host = os.environ.get("OLLAMA_HOST", OLLAMA_HOST_DEFAULT)
+        model = os.environ.get("SAFECADENCE_LOCAL_LLM") or OLLAMA_MODEL_DEFAULT
+        return {"provider": "ollama", "model": model, "endpoint": host}
     if p == "openai":
-        return {"provider": "openai", "model": OPENAI_MODEL}
+        out: dict = {"provider": "openai", "model": OPENAI_MODEL}
+        if OPENAI_BASE_URL != "https://api.openai.com":
+            out["endpoint"] = OPENAI_BASE_URL
+        return out
     if p == "anthropic":
         return {"provider": "anthropic", "model": ANTHROPIC_MODEL}
     return {"provider": None, "model": None}

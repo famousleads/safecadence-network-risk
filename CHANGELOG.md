@@ -1,5 +1,83 @@
 # Changelog
 
+## [11.3.1] — 2026-05-24
+
+### Local LLM support in the reports module
+
+Patch release driven by real user feedback within hours of v11.3.0
+going public. A LinkedIn commenter pointed out that they use Ollama
+and Hugging Face for their LLM work when customer DPAs forbid SaaS
+uploads — and discovered (correctly) that the reports module was only
+wired for OpenAI and Anthropic clouds, despite the headline "BYO-AI"
+claim. This release fixes that gap.
+
+**1. Ollama is now a first-class provider in `reports/ai_helpers.py`**
+
+- New `_call_ollama()` posts to a local Ollama `/api/chat` endpoint
+  (default `http://127.0.0.1:11434`, default model `llama3.1`).
+- Activates automatically when `OLLAMA_HOST` or
+  `SAFECADENCE_LOCAL_LLM` is set.
+- Was already supported in the CLI (`safecadence.ai.client`) and the
+  discovery chat — the reports module was the gap.
+
+**2. OpenAI-compatible local endpoint support via `SAFECADENCE_AI_BASE_URL`**
+
+- The existing OpenAI code path now honors a custom base URL.
+- Unlocks LM Studio, vLLM, text-generation-inference, llama.cpp
+  server, Together.ai, Groq, Fireworks, and Hugging Face Inference
+  API in a single line of config.
+- In practice this is how Hugging Face models get served — anyone
+  running an HF model via vLLM / LM Studio / TGI can now point
+  SafeCadence at it directly.
+
+**3. Explicit provider override (`SC_AI_PROVIDER`)**
+
+- Matches the CLI's existing override. Forces `ollama`, `openai`, or
+  `anthropic` regardless of which other env vars are set.
+
+**4. Local-first precedence by default**
+
+- When multiple providers are configured, Ollama wins over OpenAI
+  over Anthropic. Rationale: if someone installed Ollama, they
+  probably want it used.
+
+**5. `llm_status()` now reports the active endpoint**
+
+- When `SAFECADENCE_AI_BASE_URL` is set, the status response includes
+  the actual URL the reports module is hitting — so the UI can show
+  "OpenAI API at http://localhost:1234" instead of misleadingly
+  implying OpenAI cloud.
+
+**6. Graceful provider fallback**
+
+- If Ollama is configured but the daemon is unreachable at request
+  time, the module now falls through to whatever cloud key happens
+  to be set rather than returning `None`.
+
+**7. New documentation: `docs/LOCAL-LLM.md`**
+
+- Step-by-step setup for Ollama (recommended), LM Studio / vLLM /
+  TGI (OpenAI-compatible runners), and Hugging Face models served
+  via any of the above. Provider precedence table, env var reference,
+  troubleshooting, air-gap notes.
+
+### Tests
+
+- New `tests/test_v11_3_1_local_llm.py` — 21 tests covering provider
+  detection precedence, `SC_AI_PROVIDER` override, Ollama HTTP call
+  shape, custom base URL routing, `llm_status` reporting, and the
+  end-to-end executive-summary path. All 21 pass; full reports suite
+  is 202 / 202 green.
+
+### Migration notes
+
+Zero. Fully additive. Existing OpenAI / Anthropic users are
+unaffected. The four new env vars (`OLLAMA_HOST`,
+`SAFECADENCE_LOCAL_LLM`, `SAFECADENCE_AI_BASE_URL`, `SC_AI_PROVIDER`)
+are all opt-in.
+
+---
+
 ## [11.3.0] — 2026-05-11
 
 ### Operations + governance

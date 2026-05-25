@@ -56,7 +56,28 @@ Three things SafeCadence does that none of the above do well together:
 
 2. **Attack-path-aware risk.** The score on each asset reflects whether it sits on a path to a crown-jewel — not just whether it has a CVE in isolation. The Weak Link card finds the asset whose remediation collapses the most paths.
 
-3. **Local-first / air-gap-ready.** Pure-stdlib SNMP, file-backed JSON storage by default, optional Postgres for scale, optional BYO-AI for the LLM bits (OpenAI / Anthropic / local Ollama). Nothing phones home. The whole thing runs on a laptop you took into a customer SCIF.
+3. **Local-first / air-gap-ready.** Pure-stdlib SNMP, file-backed JSON storage by default, optional Postgres for scale, optional BYO-AI for the LLM bits — **local Ollama, OpenAI, Anthropic, or any OpenAI-compatible local endpoint (LM Studio / vLLM / text-generation-inference / Hugging Face)**. Nothing phones home. The whole thing runs on a laptop you took into a customer SCIF.
+
+---
+
+## Local LLM setup (v11.3.1+)
+
+The reports module's AI features — executive summaries, plain-language CVE explainers, quick-win ranking, stakeholder narratives — work entirely against a local model. No vendor cloud, no upload.
+
+```bash
+# Path 1 — Ollama (simplest)
+brew install ollama && ollama pull llama3.1 && ollama serve
+export OLLAMA_HOST="http://127.0.0.1:11434"
+# done — every report now uses your local Llama 3.1
+
+# Path 2 — LM Studio / vLLM / TGI / Hugging Face model
+# (anything that speaks the OpenAI /v1/chat/completions shape)
+export OPENAI_API_KEY="lm-studio"                            # any string works for local runners
+export SAFECADENCE_AI_BASE_URL="http://localhost:1234"       # your runner's URL
+export SAFECADENCE_OPENAI_MODEL="meta-llama/Meta-Llama-3.1-8B-Instruct"
+```
+
+Precedence: Ollama > OpenAI > Anthropic > deterministic stub. Override with `SC_AI_PROVIDER`. Full guide: [`docs/LOCAL-LLM.md`](docs/LOCAL-LLM.md).
 
 ---
 
