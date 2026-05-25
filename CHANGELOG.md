@@ -20,54 +20,67 @@ claim. This release fixes that gap.
 - Was already supported in the CLI (`safecadence.ai.client`) and the
   discovery chat — the reports module was the gap.
 
-**2. OpenAI-compatible local endpoint support via `SAFECADENCE_AI_BASE_URL`**
+**2. Hugging Face Serverless Inference API as a first-class provider**
+
+- New `_call_huggingface()` posts to HF's OpenAI-compatible chat
+  endpoint (`api-inference.huggingface.co/v1/chat/completions`).
+- Activates via `HF_TOKEN` or `HUGGINGFACE_API_TOKEN` — HF docs use
+  both, so we honor both.
+- Default model `meta-llama/Meta-Llama-3.1-8B-Instruct`; override
+  with `SAFECADENCE_HF_MODEL`. Custom endpoints (HF Inference
+  Endpoints, the paid product) supported via `SAFECADENCE_HF_BASE_URL`.
+- `SC_AI_PROVIDER=hf` short alias accepted.
+
+**3. OpenAI-compatible local endpoint support via `SAFECADENCE_AI_BASE_URL`**
 
 - The existing OpenAI code path now honors a custom base URL.
 - Unlocks LM Studio, vLLM, text-generation-inference, llama.cpp
-  server, Together.ai, Groq, Fireworks, and Hugging Face Inference
-  API in a single line of config.
-- In practice this is how Hugging Face models get served — anyone
-  running an HF model via vLLM / LM Studio / TGI can now point
-  SafeCadence at it directly.
+  server, Together.ai, Groq, Fireworks in a single line of config.
+- HF models served via any of those local runners (the "self-host
+  the HF model" path) work through this code path; HF's hosted
+  serverless API uses the dedicated `_call_huggingface()` path above.
 
-**3. Explicit provider override (`SC_AI_PROVIDER`)**
+**4. Explicit provider override (`SC_AI_PROVIDER`)**
 
-- Matches the CLI's existing override. Forces `ollama`, `openai`, or
-  `anthropic` regardless of which other env vars are set.
+- Matches the CLI's existing override. Forces `ollama`, `huggingface`
+  (alias `hf`), `openai`, or `anthropic` regardless of which other
+  env vars are set.
 
-**4. Local-first precedence by default**
+**5. Local-first precedence by default**
 
-- When multiple providers are configured, Ollama wins over OpenAI
-  over Anthropic. Rationale: if someone installed Ollama, they
-  probably want it used.
+- When multiple providers are configured: Ollama > Hugging Face >
+  OpenAI > Anthropic. Rationale: if someone installed Ollama or
+  brought an HF token, they probably want it used over a cloud
+  default.
 
-**5. `llm_status()` now reports the active endpoint**
+**6. `llm_status()` now reports the active endpoint**
 
 - When `SAFECADENCE_AI_BASE_URL` is set, the status response includes
   the actual URL the reports module is hitting — so the UI can show
   "OpenAI API at http://localhost:1234" instead of misleadingly
   implying OpenAI cloud.
 
-**6. Graceful provider fallback**
+**7. Graceful provider fallback**
 
 - If Ollama is configured but the daemon is unreachable at request
   time, the module now falls through to whatever cloud key happens
   to be set rather than returning `None`.
 
-**7. New documentation: `docs/LOCAL-LLM.md`**
+**8. New documentation: `docs/LOCAL-LLM.md`**
 
-- Step-by-step setup for Ollama (recommended), LM Studio / vLLM /
-  TGI (OpenAI-compatible runners), and Hugging Face models served
-  via any of the above. Provider precedence table, env var reference,
-  troubleshooting, air-gap notes.
+- Step-by-step setup for Ollama, Hugging Face Serverless + Inference
+  Endpoints, LM Studio / vLLM / TGI / llama.cpp server (OpenAI-compatible
+  runners), and OpenAI / Anthropic cloud. Provider precedence table,
+  env var reference, troubleshooting, air-gap notes.
 
 ### Tests
 
-- New `tests/test_v11_3_1_local_llm.py` — 21 tests covering provider
-  detection precedence, `SC_AI_PROVIDER` override, Ollama HTTP call
-  shape, custom base URL routing, `llm_status` reporting, and the
-  end-to-end executive-summary path. All 21 pass; full reports suite
-  is 202 / 202 green.
+- New `tests/test_v11_3_1_local_llm.py` — 31 tests covering provider
+  detection precedence (Ollama > HF > OpenAI > Anthropic),
+  `SC_AI_PROVIDER` override (including `hf` alias), Ollama HTTP call
+  shape, Hugging Face HTTP call shape, custom base URL routing,
+  `llm_status` reporting, and graceful cross-provider fallback.
+  All 31 pass; full reports suite is 212 / 212 green.
 
 ### Migration notes
 

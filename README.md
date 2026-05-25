@@ -62,22 +62,27 @@ Three things SafeCadence does that none of the above do well together:
 
 ## Local LLM setup (v11.3.1+)
 
-The reports module's AI features — executive summaries, plain-language CVE explainers, quick-win ranking, stakeholder narratives — work entirely against a local model. No vendor cloud, no upload.
+The reports module's AI features — executive summaries, plain-language CVE explainers, quick-win ranking, stakeholder narratives — work entirely against a local model. No vendor cloud, no upload. Four providers, all first-class:
 
 ```bash
-# Path 1 — Ollama (simplest)
+# Option 1 — Ollama (simplest local setup)
 brew install ollama && ollama pull llama3.1 && ollama serve
 export OLLAMA_HOST="http://127.0.0.1:11434"
-# done — every report now uses your local Llama 3.1
 
-# Path 2 — LM Studio / vLLM / TGI / Hugging Face model
-# (anything that speaks the OpenAI /v1/chat/completions shape)
-export OPENAI_API_KEY="lm-studio"                            # any string works for local runners
+# Option 2 — Hugging Face Serverless Inference
+export HF_TOKEN="hf_xxxxxxxxxxxxxxxxxxxxxxxxx"               # from huggingface.co/settings/tokens
+export SAFECADENCE_HF_MODEL="meta-llama/Meta-Llama-3.1-8B-Instruct"
+
+# Option 3 — LM Studio / vLLM / TGI / llama.cpp (any OpenAI-compatible local runner)
+export OPENAI_API_KEY="any-string"                           # local runners ignore it
 export SAFECADENCE_AI_BASE_URL="http://localhost:1234"       # your runner's URL
-export SAFECADENCE_OPENAI_MODEL="meta-llama/Meta-Llama-3.1-8B-Instruct"
+export SAFECADENCE_OPENAI_MODEL="your-model-id"
+
+# Option 4 — OpenAI or Anthropic (cloud)
+export OPENAI_API_KEY="sk-..."          # or ANTHROPIC_API_KEY
 ```
 
-Precedence: Ollama > OpenAI > Anthropic > deterministic stub. Override with `SC_AI_PROVIDER`. Full guide: [`docs/LOCAL-LLM.md`](docs/LOCAL-LLM.md).
+Precedence: Ollama > Hugging Face > OpenAI > Anthropic > deterministic stub. Override with `SC_AI_PROVIDER`. Full guide: [`docs/LOCAL-LLM.md`](docs/LOCAL-LLM.md).
 
 ---
 

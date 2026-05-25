@@ -154,50 +154,77 @@ customers who ask where their data went.
 
 ---
 
-## Path 3 — Hugging Face models specifically
+## Path 3 — Hugging Face (first-class provider, v11.3.1+)
 
-There's no dedicated HF integration in SafeCadence (and we don't plan
-to add one). Instead, pick whichever HF model you want and serve it via
-one of the OpenAI-compatible runners in Path 2:
+Hugging Face is a labeled provider in SafeCadence — no env-var
+contortions, no pretending HF is OpenAI. Two flavors are supported.
 
-### Quickest path: LM Studio + an HF model
+### Flavor A — HF Serverless Inference (hosted, easiest)
 
-1. Open LM Studio
-2. Search for the model you want (e.g. `meta-llama/Meta-Llama-3.1-8B-Instruct`,
-   `mistralai/Mistral-7B-Instruct-v0.3`)
-3. Download → Load → "Local Server" → Start
-4. Point SafeCadence at `http://localhost:1234` (see Path 2 above)
-
-### Production path: vLLM + an HF model
+For any chat-capable model on the
+[HF Inference Catalog](https://huggingface.co/models?inference=warm):
 
 ```bash
-pip install vllm
-vllm serve meta-llama/Meta-Llama-3.1-8B-Instruct \
-    --host 0.0.0.0 --port 8000 \
-    --gpu-memory-utilization 0.85
+export HF_TOKEN="hf_xxxxxxxxxxxxxxxxxxxxxxxxx"     # from huggingface.co/settings/tokens
+export SAFECADENCE_HF_MODEL="meta-llama/Meta-Llama-3.1-8B-Instruct"   # any HF chat model
+# done — every report's AI sections now run on HF
 ```
 
-Then:
+That's it. Verify:
 
 ```bash
-export OPENAI_API_KEY="vllm"
-export SAFECADENCE_AI_BASE_URL="http://localhost:8000"
-export SAFECADENCE_OPENAI_MODEL="meta-llama/Meta-Llama-3.1-8B-Instruct"
+python3 -c "
+from safecadence.reports.ai_helpers import llm_status, _try_ai
+print('Status:', llm_status())
+print('Test:', _try_ai('Say hello in 5 words.'))
+"
 ```
 
-### Air-gapped path: text-generation-inference + a GGUF model from HF
+Expected:
+
+```text
+Status: {'provider': 'huggingface', 'model': 'meta-llama/Meta-Llama-3.1-8B-Instruct', 'endpoint': 'https://api-inference.huggingface.co/v1'}
+Test: Hi there, how can I help?
+```
+
+### Flavor B — HF Inference Endpoints (paid, dedicated)
+
+If you've stood up an HF Inference Endpoint (the paid product), point
+SafeCadence at it the same way — just override the base URL:
 
 ```bash
-docker pull ghcr.io/huggingface/text-generation-inference:latest
-docker run -d --name tgi \
-    --gpus all \
-    -p 8080:80 \
-    -v $PWD/models:/data \
-    ghcr.io/huggingface/text-generation-inference \
-    --model-id /data/your-hf-model
+export HF_TOKEN="hf_xxxxxxxxxxxxxxxxxxxxxxxxx"
+export SAFECADENCE_HF_BASE_URL="https://your-endpoint.us-east-1.aws.endpoints.huggingface.cloud/v1"
+export SAFECADENCE_HF_MODEL="your-deployed-model-name"
 ```
 
-Then point SafeCadence at `http://localhost:8080`.
+### Flavor C — Self-hosting an HF model (local, air-gappable)
+
+If you'd rather host the model yourself rather than use HF's cloud,
+pick any of these OpenAI-compatible runners and follow Path 2 above
+(`SAFECADENCE_AI_BASE_URL` + `OPENAI_API_KEY` = any string):
+
+- **LM Studio** — easiest for desktop, GUI-driven. Search the HF model
+  catalog in-app, download, click "Local Server" → Start.
+- **vLLM** — best for production GPU servers. `vllm serve meta-llama/Meta-Llama-3.1-8B-Instruct --host 0.0.0.0 --port 8000`.
+- **text-generation-inference (TGI)** — HF's own production runtime, Docker-friendly:
+  ```bash
+  docker run -d --name tgi --gpus all -p 8080:80 -v $PWD/models:/data \
+      ghcr.io/huggingface/text-generation-inference \
+      --model-id /data/your-hf-model
+  ```
+- **llama.cpp server** — best for CPU-only or low-VRAM scenarios with
+  GGUF-quantized HF models.
+
+### When to use which flavor
+
+| Constraint | Recommended flavor |
+|---|---|
+| Quick try, no infra | A — HF Serverless |
+| Production load, multi-tenant | B — HF Inference Endpoints |
+| Air-gapped customer (no outbound) | C — vLLM or TGI on the customer's network |
+| Desktop demo / single user | C — LM Studio |
+| Cost-sensitive, intermittent use | A — HF Serverless (pay per token) |
 
 ---
 
@@ -206,14 +233,15 @@ Then point SafeCadence at `http://localhost:8080`.
 When multiple env vars are set, the reports module auto-detects in this
 order:
 
-1. **`SC_AI_PROVIDER`** — explicit override, must be `ollama`, `openai`,
-   or `anthropic`. Highest priority.
+1. **`SC_AI_PROVIDER`** — explicit override, must be one of `ollama`,
+   `huggingface` (alias `hf`), `openai`, `anthropic`. Highest priority.
 2. **`OLLAMA_HOST`** or **`SAFECADENCE_LOCAL_LLM`** → Ollama. Local-first
    wins by default because if you went to the trouble of installing
    Ollama, you probably want it used.
-3. **`OPENAI_API_KEY`** → OpenAI (or your `SAFECADENCE_AI_BASE_URL`).
-4. **`ANTHROPIC_API_KEY`** → Anthropic.
-5. None of the above → deterministic stub. Reports still generate; the
+3. **`HF_TOKEN`** or **`HUGGINGFACE_API_TOKEN`** → Hugging Face.
+4. **`OPENAI_API_KEY`** → OpenAI (or your `SAFECADENCE_AI_BASE_URL`).
+5. **`ANTHROPIC_API_KEY`** → Anthropic.
+6. None of the above → deterministic stub. Reports still generate; the
    AI sections use the rule-based fallback (which is genuinely useful
    on its own, not a placeholder).
 
@@ -228,11 +256,15 @@ than empty.
 
 | Variable | Effect | Example |
 |---|---|---|
-| `SC_AI_PROVIDER` | Force a specific provider (`ollama`, `openai`, `anthropic`) | `SC_AI_PROVIDER=ollama` |
+| `SC_AI_PROVIDER` | Force a specific provider (`ollama`, `huggingface` (or `hf`), `openai`, `anthropic`) | `SC_AI_PROVIDER=huggingface` |
 | `OLLAMA_HOST` | Where Ollama is listening | `http://127.0.0.1:11434` |
 | `SAFECADENCE_LOCAL_LLM` | Which Ollama model to use | `mistral` or `llama3.1:8b` |
+| `HF_TOKEN` | Hugging Face API token (from huggingface.co/settings/tokens) | `hf_xxxxxxxxxxxxxxxxxxxxxxxxx` |
+| `HUGGINGFACE_API_TOKEN` | Alias for `HF_TOKEN` (HF docs use both interchangeably) | (same) |
+| `SAFECADENCE_HF_MODEL` | Which HF model to use (default `meta-llama/Meta-Llama-3.1-8B-Instruct`) | `mistralai/Mistral-7B-Instruct-v0.3` |
+| `SAFECADENCE_HF_BASE_URL` | Custom HF endpoint (default `https://api-inference.huggingface.co/v1`) | `https://your-endpoint.aws.endpoints.huggingface.cloud/v1` |
 | `OPENAI_API_KEY` | OpenAI API key (or any string when using a local OpenAI-compatible endpoint) | `sk-...` |
-| `SAFECADENCE_AI_BASE_URL` | Custom base URL for OpenAI calls (unlocks LM Studio / vLLM / TGI / HF) | `http://localhost:1234` |
+| `SAFECADENCE_AI_BASE_URL` | Custom base URL for OpenAI calls (unlocks LM Studio / vLLM / TGI) | `http://localhost:1234` |
 | `SAFECADENCE_OPENAI_MODEL` | Override the OpenAI model name (default `gpt-4o-mini`) | `meta-llama/Meta-Llama-3.1-8B-Instruct` |
 | `ANTHROPIC_API_KEY` | Anthropic API key | `sk-ant-...` |
 | `SAFECADENCE_ANTHROPIC_MODEL` | Override the Anthropic model (default `claude-haiku-4-5-20251001`) | `claude-3-5-sonnet-20241022` |

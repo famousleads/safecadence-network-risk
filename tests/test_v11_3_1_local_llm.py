@@ -35,6 +35,10 @@ def _clear_llm_env(monkeypatch):
         "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
         "SAFECADENCE_AI_BASE_URL",
+        "HF_TOKEN",
+        "HUGGINGFACE_API_TOKEN",
+        "SAFECADENCE_HF_MODEL",
+        "SAFECADENCE_HF_BASE_URL",
     ):
         monkeypatch.delenv(k, raising=False)
     # Reload module-level constant that snapshots env at import.
@@ -105,6 +109,98 @@ def test_openai_status_includes_endpoint_when_base_url_set(monkeypatch):
 def test_anthropic_detected_when_only_anthropic_set(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
     assert ah._active_provider() == "anthropic"
+
+
+# --------------------------------------------------------------------------
+# Hugging Face — first-class provider
+# --------------------------------------------------------------------------
+
+
+def test_hf_detected_via_hf_token(monkeypatch):
+    monkeypatch.setenv("HF_TOKEN", "hf_test123")
+    assert ah._active_provider() == "huggingface"
+
+
+def test_hf_detected_via_alternate_env_name(monkeypatch):
+    """HUGGINGFACE_API_TOKEN is the long form; honored equivalently."""
+    monkeypatch.setenv("HUGGINGFACE_API_TOKEN", "hf_test123")
+    assert ah._active_provider() == "huggingface"
+
+
+def test_hf_beats_openai_but_loses_to_ollama(monkeypatch):
+    """Precedence: Ollama > HF > OpenAI > Anthropic."""
+    monkeypatch.setenv("HF_TOKEN", "hf_test")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    assert ah._active_provider() == "huggingface"
+
+    monkeypatch.setenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+    assert ah._active_provider() == "ollama"
+
+
+def test_hf_sc_ai_provider_alias(monkeypatch):
+    """`SC_AI_PROVIDER=hf` should be accepted as a short alias for huggingface."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("HF_TOKEN", "hf_test")
+    monkeypatch.setenv("SC_AI_PROVIDER", "hf")
+    assert ah._active_provider() == "huggingface"
+
+
+def test_hf_status_reports_endpoint_and_model(monkeypatch):
+    monkeypatch.setenv("HF_TOKEN", "hf_test")
+    status = ah.llm_status()
+    assert status["provider"] == "huggingface"
+    assert status["endpoint"] == "https://api-inference.huggingface.co/v1"
+    assert status["model"] == "meta-llama/Meta-Llama-3.1-8B-Instruct"
+
+
+def test_hf_status_honors_custom_model_and_endpoint(monkeypatch):
+    monkeypatch.setenv("HF_TOKEN", "hf_test")
+    monkeypatch.setenv("SAFECADENCE_HF_MODEL", "mistralai/Mistral-7B-Instruct-v0.3")
+    monkeypatch.setenv("SAFECADENCE_HF_BASE_URL", "https://my-tgi.example.com/v1")
+    status = ah.llm_status()
+    assert status["model"] == "mistralai/Mistral-7B-Instruct-v0.3"
+    assert status["endpoint"] == "https://my-tgi.example.com/v1"
+
+
+def test_call_huggingface_happy_path(monkeypatch):
+    """_call_huggingface posts to /chat/completions with Bearer auth."""
+    monkeypatch.setenv("HF_TOKEN", "hf_abc123")
+    seen = {}
+
+    def fake_post(url, payload, headers, **kw):
+        seen["url"] = url
+        seen["payload"] = payload
+        seen["auth"] = headers.get("Authorization", "")
+        return {"choices": [{"message": {"content": "  HF replied.  "}}]}
+
+    monkeypatch.setattr(ah, "_http_post_json", fake_post)
+    out = ah._call_huggingface("Hello", system="be brief", max_tokens=50)
+    assert out == "HF replied."
+    assert seen["url"] == "https://api-inference.huggingface.co/v1/chat/completions"
+    assert seen["auth"] == "Bearer hf_abc123"
+    assert seen["payload"]["model"] == "meta-llama/Meta-Llama-3.1-8B-Instruct"
+
+
+def test_call_huggingface_returns_none_without_token(monkeypatch):
+    """No token → no call attempted, returns None."""
+    out = ah._call_huggingface("Hello")
+    assert out is None
+
+
+def test_try_ai_routes_to_huggingface(monkeypatch):
+    monkeypatch.setenv("HF_TOKEN", "hf_test")
+    monkeypatch.setattr(ah, "_call_huggingface", lambda *a, **kw: "HF said hi")
+    monkeypatch.setattr(ah, "_call_openai", lambda *a, **kw: pytest.fail("should not be called"))
+    assert ah._try_ai("hello") == "HF said hi"
+
+
+def test_try_ai_hf_failure_falls_through_to_openai(monkeypatch):
+    """HF configured but inference timed out → try OpenAI if key is also set."""
+    monkeypatch.setenv("HF_TOKEN", "hf_test")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setattr(ah, "_call_huggingface", lambda *a, **kw: None)  # HF down
+    monkeypatch.setattr(ah, "_call_openai", lambda *a, **kw: "cloud fallback")
+    assert ah._try_ai("hello") == "cloud fallback"
 
 
 # --------------------------------------------------------------------------

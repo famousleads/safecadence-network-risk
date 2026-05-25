@@ -5,16 +5,20 @@ The strategy (auto-detected; override with ``SC_AI_PROVIDER``):
 
   1. If ``OLLAMA_HOST`` is set, call a local Ollama instance
      (air-gap friendly, default model ``llama3.1``).
-  2. Else if ``OPENAI_API_KEY`` is set, call OpenAI Chat Completions
+  2. Else if ``HF_TOKEN`` or ``HUGGINGFACE_API_TOKEN`` is set, call the
+     Hugging Face Serverless Inference API (default endpoint
+     ``api-inference.huggingface.co``, default model
+     ``meta-llama/Meta-Llama-3.1-8B-Instruct``). HF as a first-class
+     provider — no env-var contortions.
+  3. Else if ``OPENAI_API_KEY`` is set, call OpenAI Chat Completions
      (stdlib-only HTTPS POST — no SDK dependency). If
      ``SAFECADENCE_AI_BASE_URL`` is also set, the OpenAI code path hits
      that URL instead of ``api.openai.com`` — works with any
      OpenAI-compatible local endpoint (LM Studio, vLLM,
      text-generation-inference, llama.cpp server, Together.ai, Groq,
-     Fireworks), which gives you Hugging Face model support without a
-     dedicated HF integration.
-  3. Else if ``ANTHROPIC_API_KEY`` is set, call Anthropic Messages API.
-  4. Otherwise, fall back to deterministic templated prose that uses the
+     Fireworks).
+  4. Else if ``ANTHROPIC_API_KEY`` is set, call Anthropic Messages API.
+  5. Otherwise, fall back to deterministic templated prose that uses the
      actual data values, so an offline build still produces realistic
      consultant-grade copy (not a placeholder).
 
@@ -77,23 +81,46 @@ OPENAI_BASE_URL = os.environ.get(
 LLM_TIMEOUT_SEC = 30
 
 
+# Hugging Face Inference API. The HF "Serverless Inference" endpoint
+# now speaks the OpenAI Chat Completions shape at /v1/chat/completions
+# for chat-capable models, so under the hood we route HF through the
+# OpenAI code path with this base URL — but we name "huggingface" as a
+# first-class provider so the UI dropdown and the docs match what HF
+# users expect to see.
+HF_BASE_URL_DEFAULT = "https://api-inference.huggingface.co/v1"
+HF_MODEL_DEFAULT = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+
+
+def _hf_token() -> str | None:
+    """HF's docs use both names interchangeably; honor both."""
+    return (
+        os.environ.get("HF_TOKEN")
+        or os.environ.get("HUGGINGFACE_API_TOKEN")
+        or None
+    )
+
+
 def _active_provider() -> str | None:
-    """Return ``'ollama'``, ``'openai'``, ``'anthropic'``, or ``None``.
+    """Return ``'ollama'``, ``'openai'``, ``'anthropic'``, ``'huggingface'``,
+    or ``None``.
 
     Precedence (auto-detect):
-      1. ``SC_AI_PROVIDER`` explicit override (must be one of the three).
+      1. ``SC_AI_PROVIDER`` explicit override.
       2. Ollama (``OLLAMA_HOST`` or ``SAFECADENCE_LOCAL_LLM``) — local-first
          wins by default because if the operator went to the trouble of
          standing up Ollama, they probably want it used.
-      3. OpenAI (``OPENAI_API_KEY``).
-      4. Anthropic (``ANTHROPIC_API_KEY``).
-      5. ``None`` → deterministic stub.
+      3. Hugging Face (``HF_TOKEN`` or ``HUGGINGFACE_API_TOKEN``).
+      4. OpenAI (``OPENAI_API_KEY``).
+      5. Anthropic (``ANTHROPIC_API_KEY``).
+      6. ``None`` → deterministic stub.
     """
     forced = (os.environ.get("SC_AI_PROVIDER") or "").strip().lower()
-    if forced in {"ollama", "openai", "anthropic"}:
-        return forced
+    if forced in {"ollama", "openai", "anthropic", "huggingface", "hf"}:
+        return "huggingface" if forced == "hf" else forced
     if os.environ.get("OLLAMA_HOST") or os.environ.get("SAFECADENCE_LOCAL_LLM"):
         return "ollama"
+    if _hf_token():
+        return "huggingface"
     if os.environ.get("OPENAI_API_KEY"):
         return "openai"
     if os.environ.get("ANTHROPIC_API_KEY"):
@@ -102,7 +129,7 @@ def _active_provider() -> str | None:
 
 
 def _has_api_key() -> bool:
-    """True if any LLM provider is configured (including Ollama)."""
+    """True if any LLM provider is configured (including Ollama, HF)."""
     return _active_provider() is not None
 
 
@@ -256,15 +283,62 @@ def _call_ollama(prompt: str, *, system: str | None = None,
     return None
 
 
+def _call_huggingface(prompt: str, *, system: str | None = None,
+                      max_tokens: int = 400) -> str | None:
+    """Single Hugging Face Inference call. Returns assistant text or ``None``.
+
+    Routes through HF's OpenAI-compatible Chat Completions endpoint
+    (``/v1/chat/completions``) which works for any chat-capable model
+    on HF Serverless or HF Inference Endpoints. The model name is
+    whatever HF model id you've configured (default
+    ``meta-llama/Meta-Llama-3.1-8B-Instruct``).
+
+    Auth: HF token from ``HF_TOKEN`` or ``HUGGINGFACE_API_TOKEN``.
+    Endpoint: override with ``SAFECADENCE_HF_BASE_URL`` (default
+    ``https://api-inference.huggingface.co/v1``). Model: override with
+    ``SAFECADENCE_HF_MODEL``.
+    """
+    token = _hf_token()
+    if not token:
+        return None
+    base = os.environ.get("SAFECADENCE_HF_BASE_URL", HF_BASE_URL_DEFAULT).rstrip("/")
+    model = os.environ.get("SAFECADENCE_HF_MODEL") or HF_MODEL_DEFAULT
+    msgs: list[dict] = []
+    if system:
+        msgs.append({"role": "system", "content": system})
+    msgs.append({"role": "user", "content": prompt})
+    payload = {
+        "model": model,
+        "messages": msgs,
+        "max_tokens": max_tokens,
+        "temperature": 0.3,
+        "stream": False,
+    }
+    resp = _http_post_json(
+        f"{base}/chat/completions",
+        payload,
+        {"Authorization": f"Bearer {token}"},
+    )
+    if not isinstance(resp, dict):
+        return None
+    try:
+        text = resp["choices"][0]["message"]["content"]
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+    except Exception:
+        return None
+    return None
+
+
 def _try_ai(prompt: str, *, system: str | None = None,
             max_tokens: int = 400) -> str | None:
     """Attempt a real LLM call honoring the auto-detected provider.
 
-    Precedence: Ollama → OpenAI (or any OpenAI-compatible endpoint via
-    ``SAFECADENCE_AI_BASE_URL``) → Anthropic. Returns ``None`` when no
-    provider is configured, on network failure, or on an empty response.
-    Never raises — failures degrade to the caller's deterministic
-    fallback.
+    Precedence: Ollama → Hugging Face → OpenAI (or any OpenAI-compatible
+    endpoint via ``SAFECADENCE_AI_BASE_URL``) → Anthropic. Returns
+    ``None`` when no provider is configured, on network failure, or
+    on an empty response. Never raises — failures degrade to the
+    caller's deterministic fallback.
     """
     provider = _active_provider()
     if provider == "ollama":
@@ -274,11 +348,15 @@ def _try_ai(prompt: str, *, system: str | None = None,
         # Ollama configured but unreachable — fall through to whatever
         # cloud key happens to be set, so the report still produces an
         # AI summary. Better partial than empty.
-    if provider in ("ollama", "openai") and os.environ.get("OPENAI_API_KEY"):
+    if provider in ("ollama", "huggingface") and _hf_token():
+        out = _call_huggingface(prompt, system=system, max_tokens=max_tokens)
+        if out:
+            return out
+    if provider in ("ollama", "huggingface", "openai") and os.environ.get("OPENAI_API_KEY"):
         out = _call_openai(prompt, system=system, max_tokens=max_tokens)
         if out:
             return out
-    if provider in ("ollama", "openai", "anthropic") and os.environ.get("ANTHROPIC_API_KEY"):
+    if provider in ("ollama", "huggingface", "openai", "anthropic") and os.environ.get("ANTHROPIC_API_KEY"):
         out = _call_anthropic(prompt, system=system, max_tokens=max_tokens)
         if out:
             return out
@@ -299,6 +377,10 @@ def llm_status() -> dict:
         host = os.environ.get("OLLAMA_HOST", OLLAMA_HOST_DEFAULT)
         model = os.environ.get("SAFECADENCE_LOCAL_LLM") or OLLAMA_MODEL_DEFAULT
         return {"provider": "ollama", "model": model, "endpoint": host}
+    if p == "huggingface":
+        base = os.environ.get("SAFECADENCE_HF_BASE_URL", HF_BASE_URL_DEFAULT)
+        model = os.environ.get("SAFECADENCE_HF_MODEL") or HF_MODEL_DEFAULT
+        return {"provider": "huggingface", "model": model, "endpoint": base}
     if p == "openai":
         out: dict = {"provider": "openai", "model": OPENAI_MODEL}
         if OPENAI_BASE_URL != "https://api.openai.com":
