@@ -94,3 +94,24 @@ Desktop.ini
 .project
 .classpath
 .settings/
+
+# ─── Internal-only strategic docs (kept local, not tracked publicly) ────
+#
+# These files contain commercially-sensitive material (pricing terms,
+# succession plans, revenue splits, customer-onboarding internals).
+# They live on the operator's machine for reference but should not
+# appear in the public repo.
+#
+# IMPORTANT: ignoring them here only stops FUTURE tracking. To stop
+# tracking files already committed, the operator must also run:
+#   git rm --cached GOVERNANCE.md PRICING_POLICY.md \
+#                    docs/FIRST_CUSTOMER_ONBOARDING.md \
+#                    ROADMAP_v12_to_v14.md
+#
+GOVERNANCE.md
+PRICING_POLICY.md
+docs/FIRST_CUSTOMER_ONBOARDING.md
+ROADMAP_v12_to_v14.md
+
+# ─── Local publish venv (created on-demand by the publish workflow) ─────
+.publish-venv/

@@ -1,5 +1,32 @@
 # Changelog
 
+## [15.1.1] — 2026-05-25 — Removed strategic docs from public tree
+
+No code changes. Four internal operator-facing documents stop being
+tracked in the public repo:
+
+- `GOVERNANCE.md` — single-maintainer model + succession plan
+- `PRICING_POLICY.md` — pricing terms (price-raise notice, money-back, grandfathering)
+- `docs/FIRST_CUSTOMER_ONBOARDING.md` — internal first-paying-customer runbook
+- `ROADMAP_v12_to_v14.md` — strategic detail including monetization splits and partnership numbers
+
+All four remain on operators' local disks for internal use; they're
+just no longer mirrored to GitHub. The `.gitignore` now lists them so
+they won't be accidentally re-added.
+
+README's "Operator runbooks" section was removed (its three links now
+point at gitignored files). The "Roadmap + history" section keeps
+public-facing items only (CHANGELOG, ROADMAP, ROADMAP_v16).
+
+**Note on git history:** these files appeared in `v15.0.0` and
+`v15.1.0` tagged releases on GitHub. Anyone who cloned between the
+v15.0.0 push and this commit can still find them in history. This
+release does not rewrite history (that would force every existing
+clone to re-fetch); operators concerned about that should
+explicitly run a history-scrub tool.
+
+Version bump 15.1.0 → 15.1.1.
+
 ## [15.1.0] — 2026-05-25 — Discoverability polish for v13/v14/v15
 
 Mechanical pass after v13.0, v14.0, and v15.0 all shipped earlier

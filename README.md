@@ -339,13 +339,7 @@ All docs live in this repo. Find what you need by audience.
 **Roadmap + history**
 - [CHANGELOG](CHANGELOG.md) — every release.
 - [ROADMAP](ROADMAP.md) — near-term direction.
-- [ROADMAP v12 → v14](ROADMAP_v12_to_v14.md) — extended roadmap (strategic detail; review before sharing externally).
 - [v16 planning doc](docs/ROADMAP_v16.md) — explicit "no code shipped" planning doc covering the three plausible futures for v16+.
-
-**Operator runbooks** (internal — for the team running the managed service)
-- [First-customer onboarding playbook](docs/FIRST_CUSTOMER_ONBOARDING.md)
-- [Governance](GOVERNANCE.md) — single-maintainer model + succession.
-- [Pricing policy](PRICING_POLICY.md) — price-raise notice, money-back, grandfathering.
 
 ---
 
