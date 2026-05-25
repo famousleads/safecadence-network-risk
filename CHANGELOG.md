@@ -1,5 +1,106 @@
 # Changelog
 
+## [11.5.0] — 2026-05-25
+
+### Three free-tier LLM providers as first-class options
+
+Following the v11.4.x BYO-AI story (Ollama + Hugging Face + UI Settings
+panel), v11.5.0 adds three more providers with generous free tiers, all
+selectable from the same `/settings/llm` dropdown. The architecture is
+table-driven now — adding a tenth provider becomes one table row plus
+a thin wrapper, not a new code path.
+
+**1. Google Gemini — 1M tokens/day free indefinitely**
+
+- `_call_gemini()` posts to Google's OpenAI-compatible endpoint at
+  `generativelanguage.googleapis.com/v1beta/openai`.
+- Activates via `GEMINI_API_KEY` or `GOOGLE_API_KEY` (both names
+  honored per Google's docs).
+- Default model `gemini-2.0-flash`; override with
+  `SAFECADENCE_GEMINI_MODEL`.
+- Most-requested provider after the v11.4 launch — closes the
+  "Gemini isn't on the dropdown" gap.
+
+**2. Groq — fast inference, free tier no card**
+
+- `_call_groq()` hits `api.groq.com/openai/v1`.
+- Activates via `GROQ_API_KEY`.
+- Default model `llama-3.1-70b-versatile`.
+- Speed differentiator: Groq runs at 300-500 tokens/sec, which means
+  the AI exec-summary lands in under 2 seconds. Real visible demo
+  moment vs. the 8-15 seconds OpenAI typically takes.
+
+**3. OpenRouter — 200+ models in one integration**
+
+- `_call_openrouter()` hits `openrouter.ai/api/v1`.
+- Activates via `OPENROUTER_API_KEY`.
+- Default model `meta-llama/llama-3.1-8b-instruct:free` (the `:free`
+  suffix is OpenRouter's convention for zero-cost variants).
+- Sends `HTTP-Referer: safecadence.com` + `X-Title: SafeCadence NetRisk`
+  to participate in OpenRouter's leaderboard.
+- Force-multiplier: one config exposes Llama, Mistral, Gemma, Claude,
+  GPT, Gemini, and dozens more through one key.
+
+**4. Updated provider precedence**
+
+When multiple env vars are set, auto-detection now goes:
+**Ollama > Hugging Face > Gemini > Groq > OpenRouter > OpenAI > Anthropic**.
+Free local first, then free cloud, then paid. Rationale: if the
+operator set up a free option, they probably want it used over paid.
+
+**5. UI dropdown grouping**
+
+The `/settings/llm` provider dropdown now uses `<optgroup>` to visually
+separate **Local (free, air-gap)** / **Free cloud tier** / **Paid cloud**.
+Helps buyers see the three tiers at a glance instead of one flat list.
+
+**6. Architectural refactor: `_call_openai_compatible`**
+
+Gemini, Groq, OpenRouter (and OpenAI's own code path with a custom base
+URL) all share a single generic OpenAI-Chat-Completions caller now.
+Adding the seven providers planned for v11.6 (Cloudflare Workers AI,
+DeepSeek, GitHub Models, Mistral La Plateforme + Cohere) becomes mostly
+config-table additions.
+
+**7. Test endpoint + UI form updates**
+
+- `/api/settings/llm/test` routes to the three new providers
+  correctly when called with a body override.
+- `/settings/llm` form has per-provider field groups (API key, model,
+  base URL) for each, with show/hide JS toggling on selection.
+
+### Tests
+
+- New `tests/test_v11_5_0_free_cloud.py` — 18 tests covering provider
+  detection precedence (with new providers slotted in correctly),
+  `SC_AI_PROVIDER` override accepting `gemini`/`groq`/`openrouter`,
+  HTTP call shape for each (verifying URL, auth header, model in
+  payload), OpenRouter's `HTTP-Referer`/`X-Title` headers, store
+  schema integration (encryption + masked previews), and `_try_ai`
+  routing through stored credentials for each.
+- All 18 pass. Full suite: **185 / 185 green.**
+- Fixed a pre-existing bug in `load_config()` where new provider
+  blocks were dropped on round-trip (the merge loop had a hardcoded
+  provider list that needed extending).
+
+### Migration notes
+
+Fully additive. Existing OpenAI / Anthropic / Ollama / HF users see
+no behavior change. The three new env vars (`GEMINI_API_KEY` /
+`GOOGLE_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`) and the four
+new `SAFECADENCE_*_MODEL` / `SAFECADENCE_*_BASE_URL` overrides are
+all opt-in.
+
+### What v11.5.0 does NOT include (slated for v11.6)
+
+- Cloudflare Workers AI (free 10k neurons/day)
+- DeepSeek (free, strong reasoning models)
+- GitHub Models (free with any GitHub token)
+- Mistral La Plateforme (free credits)
+- Cohere (free 1k calls/month) — needs its own non-OpenAI shape
+
+---
+
 ## [11.4.2] — 2026-05-25
 
 ### Navigation polish

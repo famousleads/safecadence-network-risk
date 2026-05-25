@@ -91,6 +91,41 @@ HF_BASE_URL_DEFAULT = "https://api-inference.huggingface.co/v1"
 HF_MODEL_DEFAULT = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 
 
+# --------------------------------------------------------------------------
+# v11.5.0 — Free-tier OpenAI-compatible providers (Gemini / Groq / OpenRouter)
+#
+# All three speak the OpenAI Chat Completions API shape, so they share the
+# generic `_call_openai_compatible` helper below. Adding a 9th provider is
+# one table row + one wrapper function.
+# --------------------------------------------------------------------------
+
+GEMINI_BASE_URL_DEFAULT = "https://generativelanguage.googleapis.com/v1beta/openai"
+GEMINI_MODEL_DEFAULT = "gemini-2.0-flash"
+
+GROQ_BASE_URL_DEFAULT = "https://api.groq.com/openai/v1"
+GROQ_MODEL_DEFAULT = "llama-3.1-70b-versatile"
+
+OPENROUTER_BASE_URL_DEFAULT = "https://openrouter.ai/api/v1"
+OPENROUTER_MODEL_DEFAULT = "meta-llama/llama-3.1-8b-instruct:free"
+
+
+def _gemini_token() -> str | None:
+    """Honor both Google's preferred env-var names."""
+    return (
+        os.environ.get("GEMINI_API_KEY")
+        or os.environ.get("GOOGLE_API_KEY")
+        or None
+    )
+
+
+def _groq_token() -> str | None:
+    return os.environ.get("GROQ_API_KEY") or None
+
+
+def _openrouter_token() -> str | None:
+    return os.environ.get("OPENROUTER_API_KEY") or None
+
+
 def _hf_token() -> str | None:
     """HF's docs use both names interchangeably; honor both."""
     return (
@@ -101,26 +136,38 @@ def _hf_token() -> str | None:
 
 
 def _active_provider() -> str | None:
-    """Return ``'ollama'``, ``'openai'``, ``'anthropic'``, ``'huggingface'``,
-    or ``None``.
+    """Return the active provider name or ``None``.
 
     Precedence (auto-detect):
       1. ``SC_AI_PROVIDER`` explicit override.
       2. Ollama (``OLLAMA_HOST`` or ``SAFECADENCE_LOCAL_LLM``) — local-first
-         wins by default because if the operator went to the trouble of
-         standing up Ollama, they probably want it used.
+         wins by default.
       3. Hugging Face (``HF_TOKEN`` or ``HUGGINGFACE_API_TOKEN``).
-      4. OpenAI (``OPENAI_API_KEY``).
-      5. Anthropic (``ANTHROPIC_API_KEY``).
-      6. ``None`` → deterministic stub.
+      4. Gemini (``GEMINI_API_KEY`` or ``GOOGLE_API_KEY``) — generous free tier.
+      5. Groq (``GROQ_API_KEY``) — fast inference, real free tier.
+      6. OpenRouter (``OPENROUTER_API_KEY``) — 200+ models incl. free ones.
+      7. OpenAI (``OPENAI_API_KEY``).
+      8. Anthropic (``ANTHROPIC_API_KEY``).
+      9. ``None`` → deterministic stub.
+
+    Free local + free cloud win over paid by default — sensible because
+    if the operator set up the free key, they probably want it used.
     """
+    valid = {"ollama", "openai", "anthropic", "huggingface", "hf",
+             "gemini", "groq", "openrouter"}
     forced = (os.environ.get("SC_AI_PROVIDER") or "").strip().lower()
-    if forced in {"ollama", "openai", "anthropic", "huggingface", "hf"}:
+    if forced in valid:
         return "huggingface" if forced == "hf" else forced
     if os.environ.get("OLLAMA_HOST") or os.environ.get("SAFECADENCE_LOCAL_LLM"):
         return "ollama"
     if _hf_token():
         return "huggingface"
+    if _gemini_token():
+        return "gemini"
+    if _groq_token():
+        return "groq"
+    if _openrouter_token():
+        return "openrouter"
     if os.environ.get("OPENAI_API_KEY"):
         return "openai"
     if os.environ.get("ANTHROPIC_API_KEY"):
@@ -345,6 +392,114 @@ def _call_huggingface(prompt: str, *, system: str | None = None,
     return None
 
 
+def _call_openai_compatible(
+    prompt: str,
+    *,
+    system: str | None,
+    max_tokens: int,
+    api_key: str,
+    base_url: str,
+    model: str,
+    extra_headers: dict | None = None,
+) -> str | None:
+    """Generic OpenAI Chat Completions caller.
+
+    Powers Gemini / Groq / OpenRouter (and anything else that speaks the
+    OpenAI /v1/chat/completions shape). Returns assistant text or
+    ``None`` on any failure mode (missing key, network error, empty
+    response, parse error).
+    """
+    if not api_key:
+        return None
+    msgs: list[dict] = []
+    if system:
+        msgs.append({"role": "system", "content": system})
+    msgs.append({"role": "user", "content": prompt})
+    payload = {
+        "model": model,
+        "messages": msgs,
+        "max_tokens": max_tokens,
+        "temperature": 0.3,
+    }
+    headers = {"Authorization": f"Bearer {api_key}"}
+    if extra_headers:
+        headers.update(extra_headers)
+    url = f"{base_url.rstrip('/')}/chat/completions"
+    resp = _http_post_json(url, payload, headers)
+    if not isinstance(resp, dict):
+        return None
+    try:
+        text = resp["choices"][0]["message"]["content"]
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+    except Exception:
+        return None
+    return None
+
+
+def _call_gemini(prompt: str, *, system: str | None = None,
+                 max_tokens: int = 400,
+                 api_key: str | None = None,
+                 base_url: str | None = None,
+                 model: str | None = None) -> str | None:
+    """Google Gemini via the OpenAI-compatible endpoint at
+    ``generativelanguage.googleapis.com/v1beta/openai``.
+
+    Default model ``gemini-2.0-flash`` — 1M tokens/day free indefinitely
+    as of 2026. Override with ``SAFECADENCE_GEMINI_MODEL`` or pass
+    ``model=`` directly from UI config.
+    """
+    return _call_openai_compatible(
+        prompt, system=system, max_tokens=max_tokens,
+        api_key=api_key or _gemini_token() or "",
+        base_url=base_url or os.environ.get("SAFECADENCE_GEMINI_BASE_URL", GEMINI_BASE_URL_DEFAULT),
+        model=model or os.environ.get("SAFECADENCE_GEMINI_MODEL") or GEMINI_MODEL_DEFAULT,
+    )
+
+
+def _call_groq(prompt: str, *, system: str | None = None,
+               max_tokens: int = 400,
+               api_key: str | None = None,
+               base_url: str | None = None,
+               model: str | None = None) -> str | None:
+    """Groq Cloud — 300-500 tokens/sec inference, free tier no card.
+
+    Default model ``llama-3.1-70b-versatile``. Other strong options:
+    ``mixtral-8x7b-32768``, ``llama-3.2-90b-text-preview``.
+    """
+    return _call_openai_compatible(
+        prompt, system=system, max_tokens=max_tokens,
+        api_key=api_key or _groq_token() or "",
+        base_url=base_url or os.environ.get("SAFECADENCE_GROQ_BASE_URL", GROQ_BASE_URL_DEFAULT),
+        model=model or os.environ.get("SAFECADENCE_GROQ_MODEL") or GROQ_MODEL_DEFAULT,
+    )
+
+
+def _call_openrouter(prompt: str, *, system: str | None = None,
+                     max_tokens: int = 400,
+                     api_key: str | None = None,
+                     base_url: str | None = None,
+                     model: str | None = None) -> str | None:
+    """OpenRouter — aggregator for 200+ models, several free.
+
+    Default model ``meta-llama/llama-3.1-8b-instruct:free`` (the ``:free``
+    suffix is OpenRouter's convention for zero-cost variants). Includes
+    an optional ``HTTP-Referer`` header so SafeCadence shows up in
+    OpenRouter's leaderboard — purely informational.
+    """
+    extra = {
+        "HTTP-Referer": "https://safecadence.com",
+        "X-Title": "SafeCadence NetRisk",
+    }
+    return _call_openai_compatible(
+        prompt, system=system, max_tokens=max_tokens,
+        api_key=api_key or _openrouter_token() or "",
+        base_url=base_url or os.environ.get("SAFECADENCE_OPENROUTER_BASE_URL", OPENROUTER_BASE_URL_DEFAULT),
+        model=model or os.environ.get("SAFECADENCE_OPENROUTER_MODEL") or OPENROUTER_MODEL_DEFAULT,
+        extra_headers=extra,
+    )
+
+
 def _try_ai(prompt: str, *, system: str | None = None,
             max_tokens: int = 400) -> str | None:
     """Attempt a real LLM call honoring the auto-detected provider.
@@ -379,6 +534,18 @@ def _try_ai(prompt: str, *, system: str | None = None,
             return _call_huggingface(prompt, system=system, max_tokens=max_tokens,
                                      token=s.get("token"), base_url=s.get("base_url"),
                                      model=s.get("model"))
+        if ui_provider == "gemini":
+            return _call_gemini(prompt, system=system, max_tokens=max_tokens,
+                                api_key=s.get("api_key"), base_url=s.get("base_url"),
+                                model=s.get("model"))
+        if ui_provider == "groq":
+            return _call_groq(prompt, system=system, max_tokens=max_tokens,
+                              api_key=s.get("api_key"), base_url=s.get("base_url"),
+                              model=s.get("model"))
+        if ui_provider == "openrouter":
+            return _call_openrouter(prompt, system=system, max_tokens=max_tokens,
+                                    api_key=s.get("api_key"), base_url=s.get("base_url"),
+                                    model=s.get("model"))
         if ui_provider == "openai":
             return _call_openai(prompt, system=system, max_tokens=max_tokens,
                                 api_key=s.get("api_key"), base_url=s.get("base_url"),
@@ -387,24 +554,36 @@ def _try_ai(prompt: str, *, system: str | None = None,
             return _call_anthropic(prompt, system=system, max_tokens=max_tokens,
                                    api_key=s.get("api_key"), model=s.get("model"))
 
-    # ---- Env-var path (v11.3.x — unchanged behavior) ----
+    # ---- Env-var path (v11.5.0 — Ollama > HF > Gemini > Groq > OpenRouter > OpenAI > Anthropic) ----
     provider = _active_provider()
+    # Each step: if I'm one of the providers that could fall through to
+    # the next, AND the next provider's key is actually set, try it.
+    # First success wins.
     if provider == "ollama":
         out = _call_ollama(prompt, system=system, max_tokens=max_tokens)
         if out:
             return out
-        # Ollama configured but unreachable — fall through to whatever
-        # cloud key happens to be set, so the report still produces an
-        # AI summary. Better partial than empty.
     if provider in ("ollama", "huggingface") and _hf_token():
         out = _call_huggingface(prompt, system=system, max_tokens=max_tokens)
         if out:
             return out
-    if provider in ("ollama", "huggingface", "openai") and os.environ.get("OPENAI_API_KEY"):
+    if provider in ("ollama", "huggingface", "gemini") and _gemini_token():
+        out = _call_gemini(prompt, system=system, max_tokens=max_tokens)
+        if out:
+            return out
+    if provider in ("ollama", "huggingface", "gemini", "groq") and _groq_token():
+        out = _call_groq(prompt, system=system, max_tokens=max_tokens)
+        if out:
+            return out
+    if provider in ("ollama", "huggingface", "gemini", "groq", "openrouter") and _openrouter_token():
+        out = _call_openrouter(prompt, system=system, max_tokens=max_tokens)
+        if out:
+            return out
+    if provider in ("ollama", "huggingface", "gemini", "groq", "openrouter", "openai") and os.environ.get("OPENAI_API_KEY"):
         out = _call_openai(prompt, system=system, max_tokens=max_tokens)
         if out:
             return out
-    if provider in ("ollama", "huggingface", "openai", "anthropic") and os.environ.get("ANTHROPIC_API_KEY"):
+    if provider in ("ollama", "huggingface", "gemini", "groq", "openrouter", "openai", "anthropic") and os.environ.get("ANTHROPIC_API_KEY"):
         out = _call_anthropic(prompt, system=system, max_tokens=max_tokens)
         if out:
             return out
@@ -435,6 +614,15 @@ def llm_status() -> dict:
             elif ui_provider == "huggingface":
                 out["model"] = s.get("model") or HF_MODEL_DEFAULT
                 out["endpoint"] = s.get("base_url") or HF_BASE_URL_DEFAULT
+            elif ui_provider == "gemini":
+                out["model"] = s.get("model") or GEMINI_MODEL_DEFAULT
+                out["endpoint"] = s.get("base_url") or GEMINI_BASE_URL_DEFAULT
+            elif ui_provider == "groq":
+                out["model"] = s.get("model") or GROQ_MODEL_DEFAULT
+                out["endpoint"] = s.get("base_url") or GROQ_BASE_URL_DEFAULT
+            elif ui_provider == "openrouter":
+                out["model"] = s.get("model") or OPENROUTER_MODEL_DEFAULT
+                out["endpoint"] = s.get("base_url") or OPENROUTER_BASE_URL_DEFAULT
             elif ui_provider == "openai":
                 out["model"] = s.get("model") or OPENAI_MODEL
                 out["endpoint"] = s.get("base_url") or "https://api.openai.com"
@@ -452,7 +640,19 @@ def llm_status() -> dict:
     if p == "huggingface":
         base = os.environ.get("SAFECADENCE_HF_BASE_URL", HF_BASE_URL_DEFAULT)
         model = os.environ.get("SAFECADENCE_HF_MODEL") or HF_MODEL_DEFAULT
-        return {"provider": "huggingface", "model": model, "endpoint": base}
+        return {"provider": "huggingface", "model": model, "endpoint": base, "source": "env"}
+    if p == "gemini":
+        base = os.environ.get("SAFECADENCE_GEMINI_BASE_URL", GEMINI_BASE_URL_DEFAULT)
+        model = os.environ.get("SAFECADENCE_GEMINI_MODEL") or GEMINI_MODEL_DEFAULT
+        return {"provider": "gemini", "model": model, "endpoint": base, "source": "env"}
+    if p == "groq":
+        base = os.environ.get("SAFECADENCE_GROQ_BASE_URL", GROQ_BASE_URL_DEFAULT)
+        model = os.environ.get("SAFECADENCE_GROQ_MODEL") or GROQ_MODEL_DEFAULT
+        return {"provider": "groq", "model": model, "endpoint": base, "source": "env"}
+    if p == "openrouter":
+        base = os.environ.get("SAFECADENCE_OPENROUTER_BASE_URL", OPENROUTER_BASE_URL_DEFAULT)
+        model = os.environ.get("SAFECADENCE_OPENROUTER_MODEL") or OPENROUTER_MODEL_DEFAULT
+        return {"provider": "openrouter", "model": model, "endpoint": base, "source": "env"}
     if p == "openai":
         out: dict = {"provider": "openai", "model": OPENAI_MODEL}
         if OPENAI_BASE_URL != "https://api.openai.com":

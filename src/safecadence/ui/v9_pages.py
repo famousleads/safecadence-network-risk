@@ -8832,10 +8832,19 @@ on disk.</p>
     <select id="llm-provider" onchange="llmShowProvider()" style="padding:6px">
       <option value="env">Use environment variables (default)</option>
       <option value="none">None — disable AI, use deterministic stub</option>
-      <option value="ollama">Ollama (local)</option>
-      <option value="huggingface">Hugging Face Serverless Inference</option>
-      <option value="openai">OpenAI (or OpenAI-compatible local: LM Studio / vLLM / TGI)</option>
-      <option value="anthropic">Anthropic</option>
+      <optgroup label="Local (free, air-gap)">
+        <option value="ollama">Ollama (local)</option>
+      </optgroup>
+      <optgroup label="Free cloud tier">
+        <option value="huggingface">Hugging Face Serverless Inference</option>
+        <option value="gemini">Google Gemini (1M tokens/day free)</option>
+        <option value="groq">Groq (free, ~300 tok/s)</option>
+        <option value="openrouter">OpenRouter (200+ models incl. free)</option>
+      </optgroup>
+      <optgroup label="Paid cloud">
+        <option value="openai">OpenAI (or OpenAI-compatible local: LM Studio / vLLM / TGI)</option>
+        <option value="anthropic">Anthropic</option>
+      </optgroup>
     </select>
 
     <!-- Ollama section -->
@@ -8856,6 +8865,39 @@ on disk.</p>
     <div id="llm-hf-base-label" class="llm-hf" style="display:none"><strong>Base URL</strong></div>
     <input id="llm-hf-base" class="llm-hf" style="display:none;padding:6px"
            placeholder="https://api-inference.huggingface.co/v1" />
+
+    <!-- Gemini section (v11.5.0) -->
+    <div id="llm-gm-key-label" class="llm-gemini" style="display:none"><strong>API key</strong></div>
+    <input id="llm-gm-key" type="password" class="llm-gemini" style="display:none;padding:6px"
+           placeholder="AIzaSy... (from aistudio.google.com — leave blank to keep current)" />
+    <div id="llm-gm-model-label" class="llm-gemini" style="display:none"><strong>Model</strong></div>
+    <input id="llm-gm-model" class="llm-gemini" style="display:none;padding:6px"
+           placeholder="gemini-2.0-flash" />
+    <div id="llm-gm-base-label" class="llm-gemini" style="display:none"><strong>Base URL</strong></div>
+    <input id="llm-gm-base" class="llm-gemini" style="display:none;padding:6px"
+           placeholder="https://generativelanguage.googleapis.com/v1beta/openai" />
+
+    <!-- Groq section (v11.5.0) -->
+    <div id="llm-gq-key-label" class="llm-groq" style="display:none"><strong>API key</strong></div>
+    <input id="llm-gq-key" type="password" class="llm-groq" style="display:none;padding:6px"
+           placeholder="gsk_... (from console.groq.com — leave blank to keep current)" />
+    <div id="llm-gq-model-label" class="llm-groq" style="display:none"><strong>Model</strong></div>
+    <input id="llm-gq-model" class="llm-groq" style="display:none;padding:6px"
+           placeholder="llama-3.1-70b-versatile" />
+    <div id="llm-gq-base-label" class="llm-groq" style="display:none"><strong>Base URL</strong></div>
+    <input id="llm-gq-base" class="llm-groq" style="display:none;padding:6px"
+           placeholder="https://api.groq.com/openai/v1" />
+
+    <!-- OpenRouter section (v11.5.0) -->
+    <div id="llm-or-key-label" class="llm-openrouter" style="display:none"><strong>API key</strong></div>
+    <input id="llm-or-key" type="password" class="llm-openrouter" style="display:none;padding:6px"
+           placeholder="sk-or-... (from openrouter.ai — leave blank to keep current)" />
+    <div id="llm-or-model-label" class="llm-openrouter" style="display:none"><strong>Model</strong></div>
+    <input id="llm-or-model" class="llm-openrouter" style="display:none;padding:6px"
+           placeholder="meta-llama/llama-3.1-8b-instruct:free  (use :free suffix for zero-cost variants)" />
+    <div id="llm-or-base-label" class="llm-openrouter" style="display:none"><strong>Base URL</strong></div>
+    <input id="llm-or-base" class="llm-openrouter" style="display:none;padding:6px"
+           placeholder="https://openrouter.ai/api/v1" />
 
     <!-- OpenAI section -->
     <div id="llm-oa-key-label" class="llm-openai" style="display:none"><strong>API key</strong></div>
@@ -8914,12 +8956,15 @@ on disk.</p>
 _LLM_SETTINGS_SCRIPT = """
 function llmShowProvider() {
   const p = document.getElementById('llm-provider').value;
-  document.querySelectorAll('.llm-section, .llm-hf, .llm-openai, .llm-anthropic')
+  document.querySelectorAll('.llm-section, .llm-hf, .llm-gemini, .llm-groq, .llm-openrouter, .llm-openai, .llm-anthropic')
           .forEach(el => el.style.display = 'none');
   const show = (cls) => document.querySelectorAll('.' + cls)
                                 .forEach(el => el.style.display = '');
   if (p === 'ollama') show('llm-section');
   if (p === 'huggingface') show('llm-hf');
+  if (p === 'gemini') show('llm-gemini');
+  if (p === 'groq') show('llm-groq');
+  if (p === 'openrouter') show('llm-openrouter');
   if (p === 'openai') show('llm-openai');
   if (p === 'anthropic') show('llm-anthropic');
 }
@@ -8944,6 +8989,18 @@ async function llmLoad() {
     if (p.huggingface) {
       document.getElementById('llm-hf-model').value = p.huggingface.model || '';
       document.getElementById('llm-hf-base').value = p.huggingface.base_url || '';
+    }
+    if (p.gemini) {
+      document.getElementById('llm-gm-model').value = p.gemini.model || '';
+      document.getElementById('llm-gm-base').value = p.gemini.base_url || '';
+    }
+    if (p.groq) {
+      document.getElementById('llm-gq-model').value = p.groq.model || '';
+      document.getElementById('llm-gq-base').value = p.groq.base_url || '';
+    }
+    if (p.openrouter) {
+      document.getElementById('llm-or-model').value = p.openrouter.model || '';
+      document.getElementById('llm-or-base').value = p.openrouter.base_url || '';
     }
     if (p.openai) {
       document.getElementById('llm-oa-base').value = p.openai.base_url || '';
@@ -8974,6 +9031,21 @@ function llmReadForm() {
     token: document.getElementById('llm-hf-token').value || '',
     model: document.getElementById('llm-hf-model').value || '',
     base_url: document.getElementById('llm-hf-base').value || '',
+  };
+  if (p === 'gemini') body.gemini = {
+    api_key: document.getElementById('llm-gm-key').value || '',
+    model: document.getElementById('llm-gm-model').value || '',
+    base_url: document.getElementById('llm-gm-base').value || '',
+  };
+  if (p === 'groq') body.groq = {
+    api_key: document.getElementById('llm-gq-key').value || '',
+    model: document.getElementById('llm-gq-model').value || '',
+    base_url: document.getElementById('llm-gq-base').value || '',
+  };
+  if (p === 'openrouter') body.openrouter = {
+    api_key: document.getElementById('llm-or-key').value || '',
+    model: document.getElementById('llm-or-model').value || '',
+    base_url: document.getElementById('llm-or-base').value || '',
   };
   if (p === 'openai') body.openai = {
     api_key: document.getElementById('llm-oa-key').value || '',

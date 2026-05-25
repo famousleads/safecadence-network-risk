@@ -770,7 +770,9 @@ def register(app, get_current_user, require_writer):
             body = {}
         from safecadence.reports import llm_config as _llm
         from safecadence.reports.ai_helpers import (
-            _call_ollama, _call_huggingface, _call_openai, _call_anthropic,
+            _call_ollama, _call_huggingface,
+            _call_gemini, _call_groq, _call_openrouter,
+            _call_openai, _call_anthropic,
         )
 
         # Resolve provider + settings: body overrides win; else use store.
@@ -806,6 +808,21 @@ def register(app, get_current_user, require_writer):
                                         token=sub.get("token"),
                                         base_url=sub.get("base_url"),
                                         model=sub.get("model"))
+            elif provider == "gemini":
+                out = _call_gemini(prompt, max_tokens=10,
+                                   api_key=sub.get("api_key"),
+                                   base_url=sub.get("base_url"),
+                                   model=sub.get("model"))
+            elif provider == "groq":
+                out = _call_groq(prompt, max_tokens=10,
+                                 api_key=sub.get("api_key"),
+                                 base_url=sub.get("base_url"),
+                                 model=sub.get("model"))
+            elif provider == "openrouter":
+                out = _call_openrouter(prompt, max_tokens=10,
+                                       api_key=sub.get("api_key"),
+                                       base_url=sub.get("base_url"),
+                                       model=sub.get("model"))
             elif provider == "openai":
                 out = _call_openai(prompt, max_tokens=10,
                                    api_key=sub.get("api_key"),

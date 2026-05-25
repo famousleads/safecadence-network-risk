@@ -150,7 +150,12 @@ def decrypt_secret(stored: str) -> str:
 # deterministic stub". ``"env"`` means "ignore this store and read env
 # vars" — useful for operators who want to manage config via container
 # environment but still see the panel exists.
-SUPPORTED_PROVIDERS = ("none", "env", "ollama", "huggingface", "openai", "anthropic")
+SUPPORTED_PROVIDERS = (
+    "none", "env",
+    "ollama", "huggingface",
+    "gemini", "groq", "openrouter",      # v11.5.0 free-tier additions
+    "openai", "anthropic",
+)
 
 
 def empty_config() -> dict:
@@ -165,6 +170,21 @@ def empty_config() -> dict:
             "token": "",        # encrypted on save
             "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
             "base_url": "https://api-inference.huggingface.co/v1",
+        },
+        "gemini": {
+            "api_key": "",      # encrypted on save
+            "model": "gemini-2.0-flash",
+            "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+        },
+        "groq": {
+            "api_key": "",      # encrypted on save
+            "model": "llama-3.1-70b-versatile",
+            "base_url": "https://api.groq.com/openai/v1",
+        },
+        "openrouter": {
+            "api_key": "",      # encrypted on save
+            "model": "meta-llama/llama-3.1-8b-instruct:free",
+            "base_url": "https://openrouter.ai/api/v1",
         },
         "openai": {
             "api_key": "",      # encrypted on save
@@ -200,7 +220,8 @@ def load_config() -> dict:
     out = empty_config()
     if raw.get("provider") in SUPPORTED_PROVIDERS:
         out["provider"] = raw["provider"]
-    for prov in ("ollama", "huggingface", "openai", "anthropic"):
+    for prov in ("ollama", "huggingface", "gemini", "groq", "openrouter",
+                 "openai", "anthropic"):
         sub = raw.get(prov) or {}
         if isinstance(sub, dict):
             out[prov].update({k: v for k, v in sub.items() if isinstance(k, str)})
@@ -222,6 +243,9 @@ def save_config(new_cfg: dict) -> dict:
             for prov, secret_fields in (
                 ("ollama", ()),
                 ("huggingface", ("token",)),
+                ("gemini", ("api_key",)),
+                ("groq", ("api_key",)),
+                ("openrouter", ("api_key",)),
                 ("openai", ("api_key",)),
                 ("anthropic", ("api_key",)),
             ):
@@ -305,7 +329,7 @@ def public_view() -> dict:
     """
     cfg = load_config()
     out: dict = {"provider": cfg.get("provider", "env"), "providers": {}}
-    for prov in ("ollama", "huggingface", "openai", "anthropic"):
+    for prov in ("ollama", "huggingface", "gemini", "groq", "openrouter", "openai", "anthropic"):
         sub = dict(cfg.get(prov) or {})
         for secret in ("token", "api_key"):
             if secret in sub:
