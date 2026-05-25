@@ -1,5 +1,68 @@
 # Changelog
 
+## [11.3.2] — 2026-05-24
+
+### Hugging Face Serverless Inference completes the v11.3.1 BYO-AI story
+
+Companion to v11.3.1. The earlier release added Ollama and an
+OpenAI-compatible base URL (which technically covered Hugging Face
+via vLLM / LM Studio / TGI), but did not include a dedicated
+first-class Hugging Face provider. v11.3.2 closes that gap.
+
+**1. Hugging Face as a labeled provider in the reports module**
+
+- New `_call_huggingface()` posts to HF's OpenAI-compatible chat
+  endpoint (`api-inference.huggingface.co/v1/chat/completions`).
+- Activates via `HF_TOKEN` or `HUGGINGFACE_API_TOKEN` — HF docs use
+  both names; we honor both.
+- Default model `meta-llama/Meta-Llama-3.1-8B-Instruct`. Override
+  with `SAFECADENCE_HF_MODEL`. HF Inference Endpoints (the paid
+  product) supported via `SAFECADENCE_HF_BASE_URL`.
+- `SC_AI_PROVIDER=hf` short alias accepted.
+
+**2. Updated provider precedence**
+
+- Ollama > **Hugging Face** > OpenAI > Anthropic > deterministic stub.
+- HF wins over OpenAI by default because if the operator brought an
+  HF token, they probably want it used over a cloud default.
+
+**3. Graceful cross-provider fallback**
+
+- If HF is configured but the inference call times out, the module
+  falls through to whatever other key is set (OpenAI, Anthropic)
+  rather than returning `None`. Better partial AI output than none.
+
+**4. `llm_status()` reports HF as a first-class provider**
+
+- Returns `{provider: "huggingface", model: "...", endpoint: "..."}`
+  with the actual model and endpoint URL, so the (forthcoming) UI
+  Settings panel can show "Hugging Face: meta-llama/...-8B-Instruct
+  at api-inference.huggingface.co" rather than guessing.
+
+**5. Documentation: `docs/LOCAL-LLM.md` Path 3 rewritten**
+
+- Hugging Face section now described as a first-class path with
+  three sub-flavors (Serverless / Inference Endpoints / self-hosted)
+  and a "when to use which" guidance table.
+
+### Tests
+
+- New `tests/test_v11_3_1_local_llm.py` grew from 21 to 31 tests
+  covering HF detection, the `hf` alias, custom HF endpoint + model
+  overrides, the HTTP call shape, and graceful fallback from HF to
+  OpenAI. All 31 pass; full reports suite remains 212 / 212 green.
+
+### Why two releases in 12 hours
+
+v11.3.1 went out via Trusted Publishing on a tag that was created
+before the HF additions landed, due to an in-session split commit.
+PyPI doesn't allow re-uploading the same version, so the complete
+release ships as v11.3.2. Both are functionally compatible — v11.3.1
+users will see "Hugging Face" appear as a labeled option after
+upgrading.
+
+---
+
 ## [11.3.1] — 2026-05-24
 
 ### Local LLM support in the reports module
