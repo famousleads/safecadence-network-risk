@@ -1,5 +1,27 @@
 # Changelog
 
+## [15.1.0] — 2026-05-25 — Discoverability polish for v13/v14/v15
+
+Mechanical pass after v13.0, v14.0, and v15.0 all shipped earlier
+the same day. Closes the gaps between "feature shipped" and "user
+can find it." No new code modules — just navigation, README, public
+site, and a stale-roadmap header.
+
+- README `Documentation` section now links the two v15 docs:
+  `docs/WHITE_LABEL.md` (deployment section) and
+  `docs/ROADMAP_v16.md` (roadmap section).
+- Sidebar nav gains `🔍 All help topics` under the Settings group
+  (links to `/help/topics`, the v13 help directory).
+- `ROADMAP_v12_to_v14.md` gets a status-update header noting that
+  v12–v15 all shipped 2026-05-25 vs. the original Q3 2026 → Q1 2028
+  target dates. Original "Target ship date" sections kept as
+  historical record.
+- (SecurityAlgo / public site, separate repo, separate commit:)
+  Hero callout updated from "v12 alpha" → "v15.0.0 is live" with
+  per-release headline-capability lists for v12 / v13 / v14 / v15.
+
+Version bump 15.0.0 → 15.1.0. No new tests; no behavior change.
+
 ## [15.0.0] — 2026-05-25 — Ecosystem foundations
 
 The third v12→v15 release lands the ecosystem layer the roadmap

@@ -312,6 +312,7 @@ All docs live in this repo. Find what you need by audience.
 - [DEPLOY](docs/DEPLOY.md) — single-node install (the 90% case).
 - [DEPLOYMENT](docs/DEPLOYMENT.md) — Docker, Compose, Helm references.
 - [HA deployment](docs/HA_DEPLOYMENT.md) — active/standby; Architecture A (Postgres + Redis + S3) and Architecture B (peer-to-peer continuous sync) side by side.
+- [White-label theming](docs/WHITE_LABEL.md) — MSP / VAR rebranding guide; per-org brand colors; reseller considerations.
 - [Local LLM setup](docs/LOCAL-LLM.md) — Ollama / LM Studio / llama.cpp wiring for BYO-AI.
 
 **Per-feature deep-dives**
@@ -339,6 +340,7 @@ All docs live in this repo. Find what you need by audience.
 - [CHANGELOG](CHANGELOG.md) — every release.
 - [ROADMAP](ROADMAP.md) — near-term direction.
 - [ROADMAP v12 → v14](ROADMAP_v12_to_v14.md) — extended roadmap (strategic detail; review before sharing externally).
+- [v16 planning doc](docs/ROADMAP_v16.md) — explicit "no code shipped" planning doc covering the three plausible futures for v16+.
 
 **Operator runbooks** (internal — for the team running the managed service)
 - [First-customer onboarding playbook](docs/FIRST_CUSTOMER_ONBOARDING.md)

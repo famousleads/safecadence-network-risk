@@ -2,6 +2,18 @@
 
 **Last updated:** 2026-05-25 · **Maintainer:** Faz Karim ([@famousleads](https://github.com/famousleads))
 
+> ## Status update (2026-05-25)
+>
+> **v12.0, v13.0, v14.0, AND v15.0 all shipped on 2026-05-25**, well ahead
+> of the original Q3 2026 / Q1 2027 / Q3 2027 / Q1 2028 target dates. The
+> "Target ship date" headers below are kept as historical record of what
+> the original plan called for; see CHANGELOG.md for actual ship dates +
+> the specific themes that landed in each release.
+>
+> v16 remains a **planning doc only** — see `docs/ROADMAP_v16.md` for the
+> three plausible futures and the customer-signal conditions that would
+> trigger code work. No v16 code has shipped or will ship pre-emptively.
+
 This document covers the next three major releases. Each version has a
 clear positioning sentence, a committed scope, and explicit callouts for
 what is *not* in scope. Things change — but they change *publicly*, with

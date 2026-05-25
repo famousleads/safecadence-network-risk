@@ -443,6 +443,7 @@ th { color: var(--muted); font-weight: 500; }
     <a class="sub" id="nav-onboarding" href="/onboarding">Onboarding</a>
     <a class="sub" id="nav-hub" href="/hub">All tools</a>
     <a class="sub" id="nav-help" href="/help">📖 Help</a>
+    <a class="sub" id="nav-help-topics" href="/help/topics">🔍 All help topics</a>
   </div>
 
   <div class="footer">
