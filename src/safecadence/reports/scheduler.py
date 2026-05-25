@@ -462,6 +462,25 @@ def run_due(now: _dt.datetime | None = None) -> list[dict]:
     Returns a list of result dicts (one per schedule that fired). Also
     runs the v11.3 built-in daily retention pass at 03:00 UTC.
     """
+    # v12.1 — HA guard: only the active cluster node fires scheduled
+    # reports. Otherwise both nodes would each generate + deliver the
+    # same report (and double-charge LLM tokens).
+    try:
+        from safecadence.cluster.guards import is_standby
+        if is_standby():
+            return [{"skipped": "standby cluster node"}]
+    except Exception:
+        pass
+
+    # v12.2 — peer-sync: announce the scheduler tick to the standby.
+    try:
+        from safecadence.cluster.peer_sync import record_replicated_event
+        record_replicated_event("scheduled_reports_tick", {
+            "tick_at": int(_dt.datetime.now(_dt.timezone.utc).timestamp()),
+        })
+    except Exception:
+        pass
+
     if now is None:
         now = _dt.datetime.now(_dt.timezone.utc)
     # Drop sub-minute precision so a schedule cannot fire twice in one minute.

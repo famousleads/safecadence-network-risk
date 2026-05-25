@@ -204,6 +204,23 @@ def run_due_schedules() -> list[dict]:
     Returns a per-schedule report dict. Best-effort: an exception in
     one schedule never aborts the others.
     """
+    # v12.1 — HA guard: only the active cluster node generates the
+    # scheduled evidence packs. Standby would otherwise double-generate
+    # + double-deliver every pack.
+    try:
+        from safecadence.cluster.guards import is_standby
+        if is_standby():
+            return [{"skipped": "standby cluster node"}]
+    except Exception:
+        pass
+
+    # v12.2 — peer-sync: announce the evidence-schedule tick.
+    try:
+        from safecadence.cluster.peer_sync import record_replicated_event
+        record_replicated_event("evidence_schedules_tick", {})
+    except Exception:
+        pass
+
     rows = _read()
     out: list[dict] = []
     now = _now()

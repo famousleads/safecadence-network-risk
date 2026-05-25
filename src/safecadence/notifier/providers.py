@@ -109,6 +109,27 @@ def send_webhook(
     Returns ``(ok, error_message)``. Never raises — the caller's
     audit log captures (provider, ok, error).
     """
+    # v12.1 — HA guard: only the active cluster node fires outbound
+    # webhooks. Otherwise two nodes would each post the same alert.
+    try:
+        from safecadence.cluster.guards import is_standby
+        if is_standby():
+            return False, "skipped: standby cluster node"
+    except Exception:
+        pass
+
+    # v12.2 — peer-sync: record the intent in the local event log so
+    # the standby has a record of what was fired (best-effort; no-op
+    # when peer-sync is disabled).
+    try:
+        from safecadence.cluster.peer_sync import record_replicated_event
+        record_replicated_event("webhook_fire", {
+            "provider": provider, "url": url,
+            "event_title": (event or {}).get("title", ""),
+        })
+    except Exception:
+        pass
+
     p = (provider or detect_provider(url) or "").lower()
     # Slack-API-compatible providers share the renderer
     if p in ("slack", "mattermost", "rocketchat"):

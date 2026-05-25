@@ -171,6 +171,109 @@ def create_app(*, password: str | None = None):
     except Exception:                                # pragma: no cover
         pass
 
+    # v12.1 — HA / cluster control endpoints + lease loop.
+    # GET  /api/v1/cluster/status   — node + peers + replication lag
+    # POST /api/v1/cluster/transfer — voluntary lease release (manual failover)
+    @app.get("/api/v1/cluster/status")
+    def _cluster_status():
+        try:
+            from safecadence.cluster.health import cluster_state
+            from safecadence.cluster.replication_lag import probe_lag
+            state = cluster_state()
+            state["replication_lag"] = probe_lag()
+            return state
+        except Exception as exc:
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    @app.post("/api/v1/cluster/transfer")
+    def _cluster_transfer():
+        try:
+            from safecadence.cluster.failover import (
+                am_i_active, release_lease,
+            )
+            if not am_i_active():
+                return {"ok": True, "action": "noop",
+                        "reason": "this node is not active"}
+            release_lease()
+            return {"ok": True, "action": "released"}
+        except Exception as exc:
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    # Start the failover lease loop when Redis is configured.
+    # Without Redis, the cluster module reports "always active" and
+    # the loop is a no-op — single-node behavior preserved.
+    if os.environ.get("SC_REDIS_URL"):
+        try:
+            from safecadence.cluster.failover import start_lease_loop
+            start_lease_loop()
+        except Exception:                            # pragma: no cover
+            pass
+
+    # v12.2 — Peer-sync HA (Architecture B). Active when
+    # SC_HA_MODE=peer-sync; pure no-op otherwise.
+    if (os.environ.get("SC_HA_MODE") or "").lower() == "peer-sync":
+        try:
+            import sqlite3 as _sqlite3
+            import pathlib as _pathlib
+            from safecadence.cluster.peer_sync import start_peer_sync
+            ha_db_path = (
+                os.environ.get("SC_PEER_DB")
+                or str(_pathlib.Path.home() / ".safecadence" / "peer_sync.db")
+            )
+            _pathlib.Path(ha_db_path).parent.mkdir(parents=True, exist_ok=True)
+            ha_conn = _sqlite3.connect(ha_db_path, check_same_thread=False)
+            start_peer_sync(ha_conn)
+        except Exception:                            # pragma: no cover
+            pass
+
+    # v12.2 — additional cluster endpoints for peer-sync mode.
+    @app.get("/api/v1/cluster/peer/status")
+    def _peer_status():
+        try:
+            from safecadence.cluster.peer_sync import peer_sync_status
+            return peer_sync_status()
+        except Exception as exc:
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    @app.post("/api/v1/cluster/peer/promote")
+    def _peer_promote():
+        try:
+            from safecadence.cluster.peer_sync import (
+                is_enabled, peer_sync_status, promote_self,
+            )
+            if not is_enabled():
+                return {"ok": False, "error": "peer-sync not enabled"}
+            conn = _STATE_get_peer_conn()
+            if conn is None:
+                return {"ok": False, "error": "peer-sync not initialized"}
+            promote_self(conn)
+            return {"ok": True, "role": "active"}
+        except Exception as exc:
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    @app.post("/api/v1/cluster/peer/demote")
+    def _peer_demote():
+        try:
+            from safecadence.cluster.peer_sync import (
+                demote_self, is_enabled,
+            )
+            if not is_enabled():
+                return {"ok": False, "error": "peer-sync not enabled"}
+            conn = _STATE_get_peer_conn()
+            if conn is None:
+                return {"ok": False, "error": "peer-sync not initialized"}
+            demote_self(conn)
+            return {"ok": True, "role": "standby"}
+        except Exception as exc:
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    def _STATE_get_peer_conn():
+        try:
+            from safecadence.cluster.peer_sync import _STATE as _PS_STATE
+            return _PS_STATE.get("conn")
+        except Exception:
+            return None
+
     # v9.47 — activity tracking. Every authenticated mutation
     # (POST/PUT/PATCH/DELETE) lands in $SC_DATA_DIR/activity/YYYY-MM-DD.jsonl
     # so /audit can answer "who did what, when?" without trawling

@@ -1,5 +1,122 @@
 # Changelog
 
+## [12.0.0a5] — 2026-05-25 — Peer-to-peer continuous sync (Architecture B)
+
+Ships the second HA architecture alongside v12.1's shared-stores
+architecture. Customers can now pick the model that fits their
+infrastructure:
+
+| Mode | Backing infra | Pick when |
+|------|---------------|-----------|
+| `SC_HA_MODE=` (unset) | none | single-node default |
+| `SC_HA_MODE=shared-stores` | Postgres + Redis + S3 | enterprise |
+| `SC_HA_MODE=peer-sync` | nothing — direct TCP | MSP / SMB / air-gapped |
+
+**`safecadence.cluster.peer_sync` (NEW package, 5 submodules)**
+- `writer.py` — `peer_events` table with monotonic seq + per-row
+  HMAC; `record_event`, `list_events_since`, `trim_events_below`.
+- `transport.py` — length-prefixed JSON frames over TCP; stdlib
+  socket + struct only; `send_frame`/`recv_frame` with
+  `MAX_FRAME_BYTES` ceiling.
+- `applier.py` — receive loop; HMAC verify → idempotent dedupe
+  on seq → dispatch to registered handler → ACK back with new
+  `last_applied_seq`. `register_handler(kind, fn)` is the wiring
+  point.
+- `streamer.py` — active node's sender; persistent TCP connection
+  to peer; reconnect with exponential backoff + catch-up from
+  `last_applied_seq + 1`; per-event ack tracking; idle heartbeats.
+- `heartbeat.py` — `LivenessMonitor` decides when to auto-promote
+  on peer silence (30s default); split-brain guard via
+  "no events AND no heartbeat" combined check;
+  `request_demotion()` flag for graceful drain.
+
+**Wired into the running app:**
+- `start_peer_sync(conn)` called from `ui/app.py` boot when
+  `SC_HA_MODE=peer-sync`; spawns applier + streamer + monitor as
+  daemon threads.
+- `GET /api/v1/cluster/peer/status` — full peer-sync state.
+- `POST /api/v1/cluster/peer/promote` — force self to active.
+- `POST /api/v1/cluster/peer/demote` — force self to standby.
+- `record_replicated_event(kind, payload)` called from the four
+  v12.1-guarded mutation paths (webhook fire / email send /
+  scheduled reports / evidence schedules) — best-effort, no-op
+  when peer-sync is disabled.
+
+**Tests:**
+- `tests/test_v12_2_peer_sync.py` — 18 tests covering writer
+  ordering + HMAC + trim, transport loopback + oversized rejection,
+  applier dedupe + bad-HMAC rejection + unknown-kind handling,
+  heartbeat role transitions + monitor decisions, and a full
+  end-to-end live-socket test (active writes → streamer ships
+  → applier verifies + dispatches + ACKs).
+
+**Docs:**
+- `docs/HA_DEPLOYMENT.md` extended with Architecture B section:
+  topology, env-var configuration, wire format spec, failover
+  behavior table, operational endpoints, catch-up mechanics,
+  failover test procedure, explicit non-goals, and a
+  "which architecture should you pick" decision matrix.
+
+Version bump 12.0.0a4 → 12.0.0a5. No breaking changes; single-node
+behavior identical to v11.x.
+
+## [12.0.0a4] — 2026-05-25 — High availability (active/standby)
+
+Turns the v10.7 cluster scaffold into a working, tested HA story.
+Single-node behavior is preserved exactly — no Redis = no cluster =
+"always active" forever, same as v11.x.
+
+**`safecadence.cluster.guards` (NEW)**
+- `@active_only(default_return=None, raise_on_standby=False)` decorator.
+- `require_active()` imperative helper raising `IsStandbyError`.
+- `is_standby()` defensive check (returns False on any failure).
+- Single guard pattern used across every mutation path.
+
+**`safecadence.cluster.replication_lag` (NEW)**
+- `probe_lag()` queries Postgres for primary/standby role + replay lag
+  in seconds + bytes.
+- Degrades to `{"status": "unknown"}` on SQLite / missing psycopg /
+  unreachable database.
+- `is_safe_to_failover(max_lag_s=5.0)` convenience for automatic
+  promotion logic.
+
+**Wired into the running app:**
+- `GET /api/v1/cluster/status` — full cluster view (this node + peers
+  + replication lag).
+- `POST /api/v1/cluster/transfer` — voluntary lease release for
+  manual failover.
+- Failover lease loop auto-starts on `safecadence ui` boot when
+  `SC_REDIS_URL` is set.
+
+**Mutation paths guarded:**
+- `notifier.providers.send_webhook` — standby returns
+  `(False, "skipped: standby cluster node")`.
+- `notifier.email_notifier.send_email` — same pattern.
+- `reports.scheduler.run_due` — standby returns `[{"skipped": ...}]`.
+- `compliance.evidence_schedule.run_due_schedules` — same pattern.
+- Result: two SafeCadence nodes pointed at the same Postgres never
+  double-write findings, double-fire webhooks, or double-deliver
+  scheduled reports.
+
+**UI:**
+- Cluster status badge in topbar chrome — green `ACTIVE` / amber
+  `STANDBY` / hidden when single-node. Tooltip shows peer
+  reachability + replication lag. Polls every 30s.
+
+**Docs:**
+- `docs/HA_DEPLOYMENT.md` — full recipe covering Postgres streaming
+  replication setup, S3/MinIO shared bucket, Redis sizing, Caddy
+  load balancer config, failover test procedure, manual transfer
+  procedure, sizing guidance, what we deliberately do NOT automate.
+
+**Tests:**
+- `tests/test_v12_1_ha.py` — 18 tests covering guards (decorator +
+  imperative + defensive), replication_lag fallbacks, route shape +
+  behavior (single-node + simulated standby), and mutation guard
+  integration for all four guarded paths.
+
+Version bump 12.0.0a3 → 12.0.0a4. No breaking changes.
+
 ## [12.0.0a3] — 2026-05-25 — Intelligence layer
 
 Adds the v14 intelligence layer that produces honest, useful AI-driven

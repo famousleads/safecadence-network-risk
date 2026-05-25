@@ -126,6 +126,21 @@ main.sc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 }
 .sc-iconbtn.has-events .badge { display: inline-block; }
 
+/* v12.1 — HA / cluster status badge in the topbar. */
+.sc-cluster-badge {
+  display: inline-block; padding: 3px 8px; margin-left: 6px;
+  border-radius: 999px; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  border: 1px solid transparent; cursor: help;
+}
+.sc-cluster-badge-hidden  { display: none; }
+.sc-cluster-badge-active  { background: rgba(16,185,129,.16);
+                            color: #10b981; border-color: rgba(16,185,129,.4); }
+.sc-cluster-badge-standby { background: rgba(245,158,11,.16);
+                            color: #f59e0b; border-color: rgba(245,158,11,.4); }
+.sc-cluster-badge-error   { background: rgba(220,38,38,.16);
+                            color: #dc2626; border-color: rgba(220,38,38,.4); }
+
 .sc-page { padding: 24px 28px; max-width: 1280px; }
 
 /* ============ ONBOARDING BANNER ============ */
@@ -449,6 +464,11 @@ th { color: var(--muted); font-weight: 500; }
             aria-label="Notifications" aria-haspopup="true">
       🔔<span class="badge" aria-hidden="true">0</span>
     </button>
+    <!-- v12.1 — HA / cluster status badge.
+         Hidden by default; the cluster.js fetch turns it on only when
+         /api/v1/cluster/status returns a real cluster view. -->
+    <span id="sc-cluster-badge" class="sc-cluster-badge sc-cluster-badge-hidden"
+          title="Cluster role"></span>
   </div>
 
   <!-- a11y live region for dynamic status messages (report preview etc) -->
@@ -503,6 +523,38 @@ _FOOT = """
 // ============================================================
 
 const SC_TOKEN = localStorage.getItem("SC_TOKEN") || "";
+
+// v12.1 — Cluster status poller. Pings /api/v1/cluster/status every 30s.
+// Shows the topbar badge only when this install is actually clustered
+// (peers configured) — single-node installs see nothing extra.
+async function scUpdateClusterBadge() {
+  try {
+    const r = await fetch("/api/v1/cluster/status", {cache: "no-store"});
+    if (!r.ok) return;
+    const d = await r.json();
+    const badge = document.getElementById("sc-cluster-badge");
+    if (!badge) return;
+    const peerCount = d.peer_count || 0;
+    if (peerCount === 0) { badge.classList.add("sc-cluster-badge-hidden"); return; }
+    const active = (d.local && d.local.is_active_node);
+    const reachable = d.reachable_peers || 0;
+    const lag = (d.replication_lag && d.replication_lag.lag_seconds);
+    badge.classList.remove("sc-cluster-badge-hidden",
+                            "sc-cluster-badge-active",
+                            "sc-cluster-badge-standby",
+                            "sc-cluster-badge-error");
+    badge.classList.add(active ? "sc-cluster-badge-active"
+                                : "sc-cluster-badge-standby");
+    badge.textContent = active ? "ACTIVE" : "STANDBY";
+    let tip = (active ? "This node is the active cluster leader."
+                       : "This node is on standby; reads only.");
+    tip += " Peers reachable: " + reachable + "/" + peerCount + ".";
+    if (lag != null) tip += " Replication lag: " + lag + "s.";
+    badge.title = tip;
+  } catch (e) { /* no-op; cluster polling is best-effort */ }
+}
+scUpdateClusterBadge();
+setInterval(scUpdateClusterBadge, 30000);
 
 // Help registry — injected by the chrome from help_registry.py
 window.SC_HELP = %SC_HELP_JSON%;

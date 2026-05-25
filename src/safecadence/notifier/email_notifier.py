@@ -205,6 +205,25 @@ def send_email(*, to: str, subject: str, body: str,
     if not to:
         return False, "no recipient"
 
+    # v12.1 — HA guard: only the active cluster node sends mail.
+    # Otherwise both nodes would deliver the same notification.
+    try:
+        from safecadence.cluster.guards import is_standby
+        if is_standby():
+            return False, "skipped: standby cluster node"
+    except Exception:
+        pass
+
+    # v12.2 — peer-sync: log the send into the event stream so the
+    # standby knows it went out (best-effort; no-op when disabled).
+    try:
+        from safecadence.cluster.peer_sync import record_replicated_event
+        record_replicated_event("email_send", {
+            "to": to, "subject": subject,
+        })
+    except Exception:
+        pass
+
     # v12 — opt-in Postmark fast-path. When SC_POSTMARK_TOKEN +
     # SC_POSTMARK_FROM are set, prefer the Postmark API over SMTP.
     # If Postmark errors, fall through to SMTP so we don't silently
