@@ -1,5 +1,44 @@
 # Changelog
 
+## [12.0.0a6] — 2026-05-25 — Discoverability + audit fixes
+
+Polishes the v12 release so every new capability is reachable from the
+README, the sidebar nav, and the public site — and fixes one real bug
++ three doc inaccuracies the audit caught.
+
+**Discoverability:**
+- README rewritten with a `Documentation` section grouping all 30 docs
+  by audience (Getting started / Deployment / Per-feature / Migrations
+  / Policies / Roadmap / Internal runbooks).
+- Sidebar nav gains a new "Cluster & AI" group exposing the v12+
+  surfaces (Cluster status / Customer portal / AI agents /
+  API key inventory).
+- Three new operator UI pages: `/cluster-status`, `/ai-agents`,
+  `/api-keys` — thin server-rendered wrappers over the existing
+  v12.1, v14 APIs.
+- Public marketing site (`safecadence.com` / `SecurityAlgo` repo)
+  hero updated with a v12 alpha callout listing the eight new
+  capabilities; `pip install --pre` instructions inline.
+
+**Bug fixes from the audit:**
+- `scores/multi_dim_score.py` — fixed broken import of
+  non-existent `safecadence.platform.platform_assets`; now uses the
+  correct `safecadence.reports.sections._load_platform_assets`.
+  Effect: `patch_freshness` dimension actually reads asset data
+  instead of silently returning None.
+- `docs/FIRST_CUSTOMER_ONBOARDING.md` — three CLI commands that
+  don't exist (`safecadence org create`, `safecadence inventory`,
+  `safecadence reports compose`) replaced with the real Python
+  helper / HTTP API equivalents that actually ship today.
+
+**Tests:**
+- `tests/test_v12_0a6_ui_pages.py` — 7 tests covering the three
+  new operator UI pages including defensive-degradation when
+  underlying APIs raise.
+- All 1,868 v9.x–v14 tests still passing.
+
+Version bump 12.0.0a5 → 12.0.0a6. No breaking changes.
+
 ## [12.0.0a5] — 2026-05-25 — Peer-to-peer continuous sync (Architecture B)
 
 Ships the second HA architecture alongside v12.1's shared-stores

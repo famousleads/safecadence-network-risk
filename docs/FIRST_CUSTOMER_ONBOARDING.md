@@ -48,10 +48,12 @@ business days**.
 
 - [ ] Scope confirmed in `~/safecadence/scope.yaml` (committed to your
       internal ops repo, not the customer's).
-- [ ] Org row created in your operator install:
-      `safecadence org create --name "Acme Co" --owner ops@yours.example`.
-- [ ] Credentials stored in the vault
-      (`safecadence identity vault put …` — never plain text).
+- [ ] Org row created in your operator install — call the
+      `safecadence.multitenant.create_org()` Python helper from a
+      bootstrap script (no top-level CLI yet; tracked for v13).
+- [ ] Credentials stored in the vault — use `safecadence vault put …`
+      (the existing v9.x vault CLI). Never paste plain text into chat
+      or email.
 
 ---
 
@@ -60,26 +62,30 @@ business days**.
 ### Morning: scan
 
 ```bash
-# Run the first full discovery + scan
-safecadence scan --org acme --site primary --all-vendors
+# Run the first full discovery + scan (existing v9.x command)
+safecadence scan --site primary --all-vendors
 
-# Verify count is reasonable
-safecadence inventory --org acme
+# Verify count is reasonable — use the running UI/API, not a CLI flag
+curl -s http://127.0.0.1:8766/api/devices | jq '. | length'
 ```
 
-If the inventory comes back surprisingly small, **stop and confirm with
+If the count comes back surprisingly small, **stop and confirm with
 the customer** before generating a report — a too-small inventory almost
 always means a missing credential, not a smaller-than-expected network.
 
 ### Afternoon: report
 
+The report wizard is API-driven (no top-level CLI yet — tracked for
+v13). Use the running UI at `/reports` or POST directly:
+
 ```bash
-# Use the v12 flagship preset for the first deliverable
-safecadence reports compose \
-  --org acme \
-  --preset executive_risk_brief \
-  --format pdf \
-  --output /tmp/acme-first-report.pdf
+curl -X POST http://127.0.0.1:8766/api/reports/render-download \
+  -H "Content-Type: application/json" \
+  -d '{
+    "preset_id":"executive_risk_brief",
+    "format":"pdf",
+    "filename":"acme-first-report.pdf"
+  }' --output /tmp/acme-first-report.pdf
 ```
 
 The Executive Risk Brief is intentionally 8 pages and board-ready — it

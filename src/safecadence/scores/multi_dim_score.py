@@ -189,8 +189,13 @@ def _patch_freshness() -> dict:
     severity_weight = {"critical": 4.0, "high": 2.5, "medium": 1.2, "low": 0.5}
 
     try:
-        from safecadence.platform.platform_assets import load_assets
-        for a in (load_assets() or []):
+        # v12.0.0a6 — fixed: the platform_assets snapshot is read via the
+        # shared helper in reports.sections (same path used by graph.build
+        # and dashboard.widgets), NOT a non-existent platform.platform_assets
+        # module. Defensive: still wrapped so a missing snapshot returns
+        # asset_count == 0 instead of crashing.
+        from safecadence.reports.sections import _load_platform_assets
+        for a in (_load_platform_assets() or []):
             asset_count += 1
             for f in (a.get("findings") or []):
                 age = float(f.get("age_days") or 0)

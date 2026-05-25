@@ -142,6 +142,15 @@ def create_app(*, password: str | None = None):
     except Exception:                                # pragma: no cover
         pass
 
+    # v12.0.0a6 — operator UI pages for v12+ surfaces:
+    # /cluster-status, /ai-agents, /api-keys
+    try:
+        from safecadence.ui.v12_pages import router as _v12_router
+        if _v12_router is not None:
+            app.include_router(_v12_router)
+    except Exception:                                # pragma: no cover
+        pass
+
     # v10.9 — API usage metering middleware. Records one usage event per
     # /api/v1/* hit (excluding billing/* + plans + /api/v1/me) so quota
     # enforcement can compare against the org's plan.

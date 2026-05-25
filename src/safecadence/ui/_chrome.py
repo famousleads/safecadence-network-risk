@@ -426,6 +426,15 @@ th { color: var(--muted); font-weight: 500; }
     <a class="sub" id="nav-reports" href="/reports">📊 Builder</a>
   </div>
 
+  <!-- v12.0.0a6 — Cluster & AI nav. Shows v12+ surfaces in one place. -->
+  <div class="group">
+    <div class="group-title">Cluster &amp; AI</div>
+    <a class="sub" id="nav-cluster" href="/cluster-status">🗄️ Cluster status</a>
+    <a class="sub" id="nav-customer" href="/customer">🤝 Customer portal</a>
+    <a class="sub" id="nav-ai-agents" href="/ai-agents">🤖 AI agents</a>
+    <a class="sub" id="nav-api-keys" href="/api-keys">🔐 API key inventory</a>
+  </div>
+
   <div class="group">
     <div class="group-title">Settings</div>
     <a class="sub" id="nav-settings" href="/settings">⚙️ Settings</a>

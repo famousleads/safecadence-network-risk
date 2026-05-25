@@ -298,6 +298,55 @@ pytest tests/ -q
 
 ---
 
+## Documentation
+
+All docs live in this repo. Find what you need by audience.
+
+**Getting started**
+- [HOWTO](docs/HOWTO.md) — common tasks, walked through end-to-end.
+- [Architecture](docs/ARCHITECTURE.md) — what runs where, single-process design rationale.
+- [Platform architecture](docs/PLATFORM_ARCHITECTURE.md) — adapter / identity / policy / scoring layer details.
+- [Threat model](docs/THREAT_MODEL.md) — what we protect against, what's out of scope.
+
+**Deployment**
+- [DEPLOY](docs/DEPLOY.md) — single-node install (the 90% case).
+- [DEPLOYMENT](docs/DEPLOYMENT.md) — Docker, Compose, Helm references.
+- [HA deployment](docs/HA_DEPLOYMENT.md) — active/standby; Architecture A (Postgres + Redis + S3) and Architecture B (peer-to-peer continuous sync) side by side.
+- [Local LLM setup](docs/LOCAL-LLM.md) — Ollama / LM Studio / llama.cpp wiring for BYO-AI.
+
+**Per-feature deep-dives**
+- [Identity integration](docs/IDENTITY-INTEGRATION.md) — Okta / Entra / AD / ISE / ClearPass adapter behavior.
+- [Policy targeting](docs/POLICY-TARGETING.md) — how rules pick the assets they apply to.
+- [Rule guide](docs/RULE_GUIDE.md) — authoring custom YAML rules.
+- [Adapter guide](docs/ADAPTER_GUIDE.md) — writing a new vendor adapter.
+- [UI design (v9)](docs/UI-V9-DESIGN.md) — visual + interaction conventions.
+- [Test plan](docs/TEST-PLAN.md) — the test architecture + how to add tests.
+
+**Migrating from another tool**
+- [From Tenable / Nessus / Tenable.io](docs/migrations/from-tenable.md)
+- [From Qualys VMDR](docs/migrations/from-qualys.md)
+- [From Rapid7 InsightVM / Nexpose](docs/migrations/from-rapid7.md)
+- [From CrowdStrike Falcon Spotlight](docs/migrations/from-falcon-spotlight.md)
+
+**Policies + governance** (public commitments)
+- [Privacy policy](PRIVACY.md) — local-first; what does and does not leave the customer's network.
+- [Security policy](SECURITY.md) — how to report vulnerabilities (private advisory, never public issue).
+- [Support policy](SUPPORT_POLICY.md) — version support window.
+- [Code of conduct](CODE_OF_CONDUCT.md)
+- [Contributing](CONTRIBUTING.md)
+
+**Roadmap + history**
+- [CHANGELOG](CHANGELOG.md) — every release.
+- [ROADMAP](ROADMAP.md) — near-term direction.
+- [ROADMAP v12 → v14](ROADMAP_v12_to_v14.md) — extended roadmap (strategic detail; review before sharing externally).
+
+**Operator runbooks** (internal — for the team running the managed service)
+- [First-customer onboarding playbook](docs/FIRST_CUSTOMER_ONBOARDING.md)
+- [Governance](GOVERNANCE.md) — single-maintainer model + succession.
+- [Pricing policy](PRICING_POLICY.md) — price-raise notice, money-back, grandfathering.
+
+---
+
 ## Status
 
 **v10.0.1 — shipped to PyPI.** The v9.x line was a sustained
