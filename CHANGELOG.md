@@ -1,5 +1,30 @@
 # Changelog
 
+## [11.4.2] — 2026-05-25
+
+### Navigation polish
+
+Tiny patch on top of v11.4.0. The `/settings/llm` page was reachable
+by direct URL but had no link from the main `/settings` hub, so most
+users would never find it. Closes that discoverability gap.
+
+- `/settings` tab strip now ends with an **"AI / LLM →"** link that
+  navigates to `/settings/llm`.
+- `/settings/llm` now shows a **"← Back to Settings"** breadcrumb at
+  the top so navigation flows both ways.
+
+### Why v11.4.2 instead of v11.4.1
+
+v11.4.1 was tagged + pushed with the navigation fix but without
+bumping the package version (operator forgot to edit `__init__.py` +
+`pyproject.toml`). PyPI rejected the upload because v11.4.0 was
+already taken. v11.4.2 is the same nav fix shipped with a clean
+version bump. v11.4.1 remains as a tag on GitHub but never reached
+PyPI — `pip install safecadence-netrisk==11.4.1` will fail; use
+v11.4.2 instead.
+
+---
+
 ## [11.4.0] — 2026-05-25
 
 ### UI Settings panel for LLM provider configuration
