@@ -48,7 +48,50 @@ _ALL_SECTIONS = [
 
 _PRESETS: list[dict] = [
     # --------------------------------------------------------------
-    # 1. Executive brief — 3 pages
+    # 0. Executive Risk Brief — v12 flagship demo preset
+    # --------------------------------------------------------------
+    {
+        "id": "executive_risk_brief",
+        "name": "Executive Risk Brief",
+        "description": (
+            "v12 flagship — 5-minute board-ready report. Risk score, "
+            "compliance posture, weakest-link analysis, attack-path summary, "
+            "estimated audit exposure, top 5 executive actions, remediation "
+            "roadmap. Designed for the 'upload → 5 minutes → board' demo flow."
+        ),
+        "audience": "ceo",
+        "icon": "spark",
+        "sections": [
+            "kpi_summary",
+            "executive_summary",
+            "multi_dim_safe_score",       # v12 new section
+            "weakest_link_analysis",      # v12 new section
+            "attack_path_summary",
+            "compliance_executive_summary",
+            "risk_economics",             # v12 new section ($ exposure, ROI)
+            "top_5_executive_actions",    # v12 new section
+            "remediation_roadmap",
+        ],
+        "visual_style": {
+            "cover_style": "gradient-bold",
+            "page_size": "letter",
+            "font_scale": 1.1,
+            "show_kpi_band": True,
+            "show_risk_gauge": True,
+            "include_multidim_radar": True,  # v12 — radar chart of dimensions
+        },
+        "narrative_tone": "executive",
+        "extras": {
+            "include_evidence_appendix": False,
+            "include_control_mappings": False,
+            "max_pages_hint": 8,
+            "show_top_actions_callout": True,
+            "show_dollar_exposure": True,    # v12 risk economics
+            "five_minute_target": True,      # signals the demo-flow target
+        },
+    },
+    # --------------------------------------------------------------
+    # 1. Executive brief — 3 pages (legacy preset, kept for v11.x users)
     # --------------------------------------------------------------
     {
         "id": "exec_brief",

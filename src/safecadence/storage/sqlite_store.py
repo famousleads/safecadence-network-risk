@@ -65,6 +65,15 @@ class SqliteStore(BaseStore):
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(_SCHEMA)
         self._conn.commit()
+        # v12 — bootstrap multi-tenant org schema on the same connection.
+        # Idempotent; safe to call on every boot. Single-tenant installs
+        # keep working because every existing query passes org_id=None.
+        try:
+            from safecadence.multitenant import ensure_org_schema
+            ensure_org_schema(self._conn)
+        except Exception:
+            # Never let optional v12 wiring break v11.x store init.
+            pass
 
     # ---- BaseStore ---------------------------------------------- #
     def save(self, scan_dict: dict, *, tenant_id: str = "default") -> int:

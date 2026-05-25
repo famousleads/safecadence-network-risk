@@ -1,0 +1,26 @@
+{
+  "vertical": "msp-smb",
+  "description": "Small/medium businesses served by managed service providers (5-500 employees). High posture variance across customers; MSP's job is to lift the bottom quartile.",
+  "metrics": {
+    "safe_score":                 {"p25": 54,  "p50": 70,  "p75": 83,  "p90": 91,  "p99": 96,  "unit": "0-100"},
+    "open_critical":              {"p25": 1,   "p50": 5,   "p75": 13,  "p90": 29,  "p99": 68,  "unit": "count"},
+    "open_high":                  {"p25": 7,   "p50": 21,  "p75": 45,  "p90": 84,  "p99": 180, "unit": "count"},
+    "drift_events_per_week":      {"p25": 0.3, "p50": 1.2, "p75": 3.5, "p90": 8,   "p99": 19,  "unit": "events/week"},
+    "mean_time_to_remediate_days":{"p25": 9,   "p50": 25,  "p75": 58,  "p90": 105, "p99": 200, "unit": "days"},
+    "mfa_coverage_pct":           {"p25": 55,  "p50": 76,  "p75": 89,  "p90": 95,  "p99": 99,  "unit": "%"},
+    "stale_account_pct":          {"p25": 2,   "p50": 5.5, "p75": 12,  "p90": 21,  "p99": 35,  "unit": "%"},
+    "patch_lag_days":             {"p25": 11,  "p50": 32,  "p75": 68,  "p90": 125, "p99": 240, "unit": "days"},
+    "nhi_growth_rate_pct":        {"p25": 2.5, "p50": 7,   "p75": 16,  "p90": 30,  "p99": 52,  "unit": "%/quarter"}
+  },
+  "citations": {
+    "safe_score":                 "IBM Cost of a Data Breach 2025 SMB section + Verizon DBIR 2025 small-business breakdown.",
+    "open_critical":              "NVD CVE distribution against typical SMB vendor mix (SonicWall, FortiGate, Ubiquiti, Microsoft 365, Google Workspace). KEV active count.",
+    "open_high":                  "Same NVD/KEV intersection at HIGH severity.",
+    "drift_events_per_week":      "Mandiant M-Trends 2025; SMB rate lower than enterprise because of fewer changes overall.",
+    "mean_time_to_remediate_days":"IBM 2025 SMB: 213-day average breach lifecycle.",
+    "mfa_coverage_pct":           "Microsoft Digital Defense Report 2025 + CompTIA State of Cybersecurity 2025.",
+    "stale_account_pct":          "Verizon DBIR 2025 small-business section.",
+    "patch_lag_days":             "Qualys TruRisk 2025 SMB subsection + Datto State of MSP Report 2025.",
+    "nhi_growth_rate_pct":        "CyberArk 2025; SMBs typical NHI growth driven by SaaS app sprawl."
+  }
+}

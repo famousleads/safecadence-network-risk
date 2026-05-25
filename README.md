@@ -8,6 +8,12 @@ Forty-five adapters across network gear, servers, identity, cloud, and backup. T
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI](https://img.shields.io/pypi/v/safecadence-netrisk.svg)](https://pypi.org/project/safecadence-netrisk/)
+[![Tests](https://img.shields.io/badge/tests-1749%20passing-brightgreen.svg)](#testing)
+[![Local-first](https://img.shields.io/badge/local--first-yes-blue.svg)](PRIVACY.md)
+[![No telemetry](https://img.shields.io/badge/telemetry-none-success.svg)](PRIVACY.md)
+[![MCP](https://img.shields.io/badge/MCP-2024--11--05-purple.svg)](#mcp-server)
+[![Code of Conduct](https://img.shields.io/badge/contributor%20covenant-2.1-ff69b4.svg)](CODE_OF_CONDUCT.md)
 
 </div>
 
@@ -121,6 +127,60 @@ discovery → unified asset schema → policy/control evaluator → findings
 ```
 
 Storage auto-upgrades from file-backed JSON to Postgres when `DATABASE_URL` is set. The same code path runs both. Nothing in the UI changes.
+
+### Reference deployments
+
+**Single-tenant — laptop or one server**
+
+```mermaid
+flowchart LR
+  user[User / CLI]
+  ui[safecadence ui]
+  cli[safecadence cli]
+  store[(SQLite / files)]
+  vault[(Local vault)]
+  ai[BYO-AI key]
+  user --> ui --> store
+  user --> cli --> store
+  store --- vault
+  cli -.-> ai
+```
+
+**MSP multi-tenant — one operator, many customer orgs**
+
+```mermaid
+flowchart LR
+  ops[Operator]
+  app[ui.app + portal/customer_routes]
+  multi[multitenant.orgs / org_users]
+  cust1[(Customer A data)]
+  cust2[(Customer B data)]
+  custN[(Customer N data)]
+  portal[Customer portal<br/>read-only]
+  ops --> app
+  app --> multi
+  multi --> cust1
+  multi --> cust2
+  multi --> custN
+  cust1 --> portal
+  cust2 --> portal
+  custN --> portal
+```
+
+**Air-gapped — no internet, no telemetry**
+
+```mermaid
+flowchart LR
+  bundle[Offline install bundle]
+  host[Hardened host]
+  scans[Local scans]
+  reports[Local reports]
+  printer[Network printer]
+  bundle --> host
+  host --> scans --> reports
+  reports --> printer
+  host -. no egress .- internet((Internet))
+```
 
 ---
 

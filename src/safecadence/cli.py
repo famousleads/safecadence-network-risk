@@ -3826,5 +3826,47 @@ def cmd_retention_apply(org_id):
     click.echo(f"  total purged: {report.get('total_purged', 0)}")
 
 
+# --------------------------------------------------------------------------
+# v12 — MCP Server (Anthropic Model Context Protocol)
+# --------------------------------------------------------------------------
+
+@cli.command("mcp-server")
+@click.option("--org-id", default=None,
+              help="Org ID for capability/RBAC context (default: SC_MCP_ORG_ID env or 'local')")
+@click.option("--user", default=None,
+              help="Actor identity for audit logging (default: SC_MCP_USER env or 'mcp-stdio')")
+def cmd_mcp_server(org_id, user):
+    """v12.0 — Run as an Anthropic MCP server on stdio.
+
+    Lets MCP clients (Claude Desktop, Cursor, Claude Code, etc.) query
+    SafeCadence directly. Exposes 7 tools: query_topology,
+    retrieve_findings, query_compliance, fetch_evidence,
+    inspect_identities, generate_report, evaluate_posture.
+
+    All calls are RBAC-aware (gated by capability set), audit-logged
+    (every call → v11.3 hash-chained audit log), and explainable
+    (responses cite source object IDs).
+
+    Add this to your MCP client config:
+
+      {
+        "mcpServers": {
+          "safecadence": {
+            "command": "safecadence",
+            "args": ["mcp-server"]
+          }
+        }
+      }
+    """
+    import os as _os
+    import sys as _sys
+    if org_id:
+        _os.environ["SC_MCP_ORG_ID"] = org_id
+    if user:
+        _os.environ["SC_MCP_USER"] = user
+    from safecadence.mcp.server import serve_stdio
+    _sys.exit(serve_stdio())
+
+
 if __name__ == "__main__":   # pragma: no cover
     cli()

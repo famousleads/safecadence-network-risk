@@ -367,6 +367,6 @@ def test_error_log_record_and_read():
 
 def test_version_is_v10_7():
     from safecadence import __version__
-    # Bumped to 11.0.0 in v11.0 (ML + intelligence depth). Accept
-    # 10.x or 11.x as "we're on a recent major" sanity check.
-    assert __version__.startswith(("10.", "11."))
+    # Bumped to 11.0.0 in v11.0, 12.0.0a1 in v12.0. Accept any
+    # recent major as a "we're on a recent major" sanity check.
+    assert __version__.startswith(("10.", "11.", "12."))

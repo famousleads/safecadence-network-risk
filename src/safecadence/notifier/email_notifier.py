@@ -202,12 +202,33 @@ def send_email(*, to: str, subject: str, body: str,
     """
     if cfg is None:
         cfg = load_email_config()
+    if not to:
+        return False, "no recipient"
+
+    # v12 — opt-in Postmark fast-path. When SC_POSTMARK_TOKEN +
+    # SC_POSTMARK_FROM are set, prefer the Postmark API over SMTP.
+    # If Postmark errors, fall through to SMTP so we don't silently
+    # drop the message.
+    import os as _os
+    if _os.getenv("SC_POSTMARK_TOKEN") and _os.getenv("SC_POSTMARK_FROM"):
+        try:
+            from safecadence.notifier.postmark import send_via_postmark
+            status, info = send_via_postmark(
+                to=to, subject=subject,
+                body_text=body, body_html=html_body,
+            )
+            if status == "sent":
+                return True, ""
+            if status == "dry_run":
+                return False, f"postmark dry_run: {info.get('reason', '')}"
+            # status == "error" — fall through to SMTP below
+        except Exception:
+            pass  # fall through
+
     if not cfg.enabled:
         return False, "email notifications disabled"
     if not cfg.host or not cfg.from_addr:
         return False, "incomplete email config (host/from_addr)"
-    if not to:
-        return False, "no recipient"
 
     msg = EmailMessage()
     msg["From"] = cfg.from_addr

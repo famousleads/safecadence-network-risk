@@ -1,0 +1,26 @@
+{
+  "vertical": "defense",
+  "description": "Defense contractors and CMMC-regulated suppliers. Strongest posture across all dimensions due to mandatory CMMC v2.5 compliance + DFARS 252.204-7012; trade-off is slow change cadence.",
+  "metrics": {
+    "safe_score":                 {"p25": 71,  "p50": 84,  "p75": 92,  "p90": 96,  "p99": 99,  "unit": "0-100"},
+    "open_critical":              {"p25": 0,   "p50": 1,   "p75": 4,   "p90": 11,  "p99": 29,  "unit": "count"},
+    "open_high":                  {"p25": 3,   "p50": 9,   "p75": 22,  "p90": 45,  "p99": 100, "unit": "count"},
+    "drift_events_per_week":      {"p25": 0.2, "p50": 0.8, "p75": 2.2, "p90": 5,   "p99": 13,  "unit": "events/week"},
+    "mean_time_to_remediate_days":{"p25": 3,   "p50": 10,  "p75": 25,  "p90": 50,  "p99": 110, "unit": "days"},
+    "mfa_coverage_pct":           {"p25": 88,  "p50": 96,  "p75": 99,  "p90": 99.5,"p99": 99.9,"unit": "%"},
+    "stale_account_pct":          {"p25": 0.5, "p50": 1.8, "p75": 4.5, "p90": 9,   "p99": 18,  "unit": "%"},
+    "patch_lag_days":             {"p25": 4,   "p50": 13,  "p75": 31,  "p90": 60,  "p99": 120, "unit": "days"},
+    "nhi_growth_rate_pct":        {"p25": 1,   "p50": 3,   "p75": 8,   "p90": 16,  "p99": 30,  "unit": "%/quarter"}
+  },
+  "citations": {
+    "safe_score":                 "DoD CMMC Assessment Process Guide 2024 + IBM Cost of a Data Breach 2025 public sector section.",
+    "open_critical":              "NVD CVE distribution intersected with NIST 800-171 controls coverage + CISA KEV defense-targeting subset.",
+    "open_high":                  "Same NVD/KEV intersection at HIGH severity.",
+    "drift_events_per_week":      "Mandiant M-Trends 2025 government / defense section; lowest of any vertical due to change-control rigor.",
+    "mean_time_to_remediate_days":"IBM 2025 public sector + DoD DFARS 252.204-7012 72-hour reporting requirement.",
+    "mfa_coverage_pct":           "Microsoft Digital Defense Report 2025 + DoD Zero Trust Strategy 2025 milestones.",
+    "stale_account_pct":          "Verizon DBIR 2025 public sector + DoD Insider Threat Program 2024 metrics.",
+    "patch_lag_days":             "Qualys TruRisk 2025 defense contractor subsection + STIG compliance benchmarks.",
+    "nhi_growth_rate_pct":        "CyberArk 2025; defense NHI growth slowest due to credential management rigor."
+  }
+}

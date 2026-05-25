@@ -1,0 +1,26 @@
+{
+  "vertical": "finance",
+  "description": "PCI-DSS / SOX / GLBA-regulated finance orgs. Strongest baseline posture due to mature compliance programs; NHI growth dominant exposure factor as cloud + API surface expands.",
+  "metrics": {
+    "safe_score":                 {"p25": 68,  "p50": 81,  "p75": 90,  "p90": 95,  "p99": 98,  "unit": "0-100"},
+    "open_critical":              {"p25": 0,   "p50": 2,   "p75": 7,   "p90": 16,  "p99": 41,  "unit": "count"},
+    "open_high":                  {"p25": 4,   "p50": 12,  "p75": 28,  "p90": 55,  "p99": 120, "unit": "count"},
+    "drift_events_per_week":      {"p25": 0.6, "p50": 2.1, "p75": 5,   "p90": 12,  "p99": 28,  "unit": "events/week"},
+    "mean_time_to_remediate_days":{"p25": 4,   "p50": 13,  "p75": 31,  "p90": 60,  "p99": 130, "unit": "days"},
+    "mfa_coverage_pct":           {"p25": 82,  "p50": 93,  "p75": 98,  "p90": 99,  "p99": 99.8,"unit": "%"},
+    "stale_account_pct":          {"p25": 0.8, "p50": 2.5, "p75": 6,   "p90": 12,  "p99": 22,  "unit": "%"},
+    "patch_lag_days":             {"p25": 5,   "p50": 16,  "p75": 38,  "p90": 72,  "p99": 145, "unit": "days"},
+    "nhi_growth_rate_pct":        {"p25": 3,   "p50": 9,   "p75": 21,  "p90": 38,  "p99": 65,  "unit": "%/quarter"}
+  },
+  "citations": {
+    "safe_score":                 "IBM Cost of a Data Breach Report 2025 finance section ($6.08M avg) + Verizon DBIR 2025 financial services.",
+    "open_critical":              "NVD CVE distribution intersected with finance vendor stack (Cisco, F5, Palo Alto, Citrix). KEV filtered to financial sector targeting.",
+    "open_high":                  "Same NVD/KEV intersection at HIGH severity.",
+    "drift_events_per_week":      "Mandiant M-Trends 2025 financial services; higher than healthcare due to CI/CD maturity.",
+    "mean_time_to_remediate_days":"IBM 2025 finance: 168-day breach lifecycle (vs 277 healthcare).",
+    "mfa_coverage_pct":           "Microsoft Digital Defense Report 2025 + FFIEC mandates.",
+    "stale_account_pct":          "Verizon DBIR 2025 + FFIEC guidance compliance.",
+    "patch_lag_days":             "Qualys TruRisk 2025 financial sector subsection.",
+    "nhi_growth_rate_pct":        "CyberArk 2025; finance leads NHI growth due to fintech API expansion."
+  }
+}

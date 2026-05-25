@@ -2244,6 +2244,88 @@ def _suggest_remediation(category: str, control_id: str, framework: str) -> str:
 
 
 # --------------------------------------------------------------------------
+# v12 — SOC 2 evidence pack section (Schellman / A-LIGN format)
+# --------------------------------------------------------------------------
+
+
+def soc2_evidence_pack(store: Any, scope: dict) -> dict:
+    """Section: roll up every in-scope finding into a SOC 2 CC1–CC9 manifest.
+
+    Auditor-facing. Off by default; enable in the compliance_audit preset
+    or any custom preset that needs the external pack format.
+    """
+    title = "SOC 2 evidence pack (CC1–CC9)"
+    try:
+        from safecadence.compliance.soc2_evidence import build_manifest
+    except Exception:
+        return _empty(title)
+
+    rows = _filter(_safe_list(store), scope)
+    # Flatten any per-host findings into a single list of finding dicts.
+    findings: list[dict] = []
+    for row in rows:
+        for f in (row.get("findings") or []):
+            findings.append(f)
+    # Fallback: platform_assets store (matches the rest of the v11 sections).
+    if not findings:
+        for a in _load_platform_assets():
+            for f in (a.get("findings") or []):
+                findings.append(f)
+
+    if not findings:
+        return _empty(title)
+
+    org_name = (scope or {}).get("prepared_for") or "SafeCadence Customer"
+    manifest = build_manifest(
+        findings,
+        period_start=(scope.get("period_start") if scope else None),
+        period_end=(scope.get("period_end") if scope else None),
+        org_display_name=org_name,
+    )
+
+    # Render a compact HTML table. The actual artefact bundling (zip,
+    # hash manifest, per-finding samples folder) is produced by the
+    # download renderer; this section is the in-report summary.
+    rows_html: list[str] = []
+    for area in manifest["areas"]:
+        if not area["finding_count"]:
+            continue
+        ctrl_list = ", ".join(
+            f"{_esc(c['control_id'])} ({c['evidence_count']})"
+            for c in area["controls"][:6]
+        ) or "—"
+        rows_html.append(
+            f"<tr><td><strong>{_esc(area['id'])}</strong></td>"
+            f"<td>{_esc(area['title'])}</td>"
+            f"<td style=\"text-align:right\">{area['finding_count']}</td>"
+            f"<td>{ctrl_list}</td></tr>"
+        )
+
+    table = (
+        '<table class="sc-table">'
+        "<thead><tr><th>CC</th><th>Area</th>"
+        "<th style=\"text-align:right\">Findings</th>"
+        "<th>Top controls (evidence count)</th></tr></thead>"
+        f"<tbody>{''.join(rows_html) or '<tr><td colspan=4>No mapped findings.</td></tr>'}</tbody>"
+        "</table>"
+    )
+
+    return {
+        "title": title,
+        "data": manifest,
+        "html_fragment": (
+            f"<h3>{_esc(title)}</h3>"
+            f"<p style=\"color:#475569;font-size:13px\">Format: "
+            f"{_esc(manifest['format'])}. "
+            f"Period: {_esc(manifest['period'].get('start') or '—')} → "
+            f"{_esc(manifest['period'].get('end') or '—')}. "
+            f"Total findings: {manifest['total_finding_count']}.</p>"
+            + table
+        ),
+    }
+
+
+# --------------------------------------------------------------------------
 # Section registry
 # --------------------------------------------------------------------------
 
@@ -2289,6 +2371,10 @@ SECTION_REGISTRY: list[dict] = [
      "description": "Auditor-on-demand log of active risk acceptances with rationale + compensating controls.",
      "category": "Compliance", "default_enabled": False,
      "fn": risk_acceptance_log},
+    {"key": "soc2_evidence_pack", "name": "SOC 2 evidence pack (CC1–CC9)",
+     "description": "Schellman / A-LIGN-format manifest mapping every finding to a SOC 2 Common Criteria area.",
+     "category": "Compliance", "default_enabled": False,
+     "fn": soc2_evidence_pack},
     {"key": "eol_hardware", "name": "EOL hardware",
      "description": "Devices on end-of-support / end-of-software platforms.",
      "category": "Risk", "default_enabled": False,
@@ -2325,7 +2411,7 @@ __all__ = [
     "kpi_summary", "host_inventory", "cve_exposure", "compliance_posture",
     "compliance_executive_summary", "compliance_control_matrix",
     "compliance_evidence_pack", "compliance_gap_analysis",
-    "risk_acceptance_log",
+    "risk_acceptance_log", "soc2_evidence_pack",
     "eol_hardware", "attack_paths", "identity_drift", "recommended_actions",
     "recent_changes", "executive_summary",
     "_load_platform_assets", "_scope_values_from_assets",

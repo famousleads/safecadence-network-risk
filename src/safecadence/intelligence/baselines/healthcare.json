@@ -1,0 +1,26 @@
+{
+  "vertical": "healthcare",
+  "description": "HIPAA-regulated healthcare orgs. Posture historically softer than finance due to legacy device prevalence; MFA coverage trails. Patch lag is the dominant exposure factor.",
+  "metrics": {
+    "safe_score":                 {"p25": 51,  "p50": 65,  "p75": 78,  "p90": 87,  "p99": 94,  "unit": "0-100"},
+    "open_critical":              {"p25": 2,   "p50": 6,   "p75": 14,  "p90": 32,  "p99": 78,  "unit": "count"},
+    "open_high":                  {"p25": 10,  "p50": 24,  "p75": 49,  "p90": 95,  "p99": 210, "unit": "count"},
+    "drift_events_per_week":      {"p25": 0.3, "p50": 1.1, "p75": 3,   "p90": 7,   "p99": 18,  "unit": "events/week"},
+    "mean_time_to_remediate_days":{"p25": 11,  "p50": 31,  "p75": 71,  "p90": 130, "p99": 240, "unit": "days"},
+    "mfa_coverage_pct":           {"p25": 48,  "p50": 71,  "p75": 86,  "p90": 94,  "p99": 99,  "unit": "%"},
+    "stale_account_pct":          {"p25": 2,   "p50": 6,   "p75": 13,  "p90": 23,  "p99": 38,  "unit": "%"},
+    "patch_lag_days":             {"p25": 14,  "p50": 41,  "p75": 88,  "p90": 160, "p99": 305, "unit": "days"},
+    "nhi_growth_rate_pct":        {"p25": 1.5, "p50": 4.5, "p75": 11,  "p90": 22,  "p99": 41,  "unit": "%/quarter"}
+  },
+  "citations": {
+    "safe_score":                 "HHS OCR breach portal 2024-2025 + IBM Cost of a Data Breach Report 2025, healthcare section ($10.93M avg breach cost — highest of any vertical).",
+    "open_critical":              "NVD CVE distribution intersected with common healthcare vendor list (Epic, Cerner, Philips, GE Healthcare). CISA KEV catalog filtered to medical devices.",
+    "open_high":                  "Same NVD/KEV intersection at HIGH severity.",
+    "drift_events_per_week":      "Mandiant M-Trends 2025, healthcare section; lower than finance due to slower change cadence.",
+    "mean_time_to_remediate_days":"IBM Cost of a Data Breach 2025 healthcare section: 277-day average breach lifecycle.",
+    "mfa_coverage_pct":           "Microsoft Digital Defense Report 2025 + HIMSS Cybersecurity Survey 2024.",
+    "stale_account_pct":          "Verizon DBIR 2025 healthcare section.",
+    "patch_lag_days":             "Qualys TruRisk Research 2025 + HHS 405(d) Task Group guidance on legacy device patching.",
+    "nhi_growth_rate_pct":        "CyberArk Identity Security Threat Report 2025; healthcare NHI growth trails general industry."
+  }
+}

@@ -1,5 +1,143 @@
 # Changelog
 
+## [12.0.0a3] — 2026-05-25 — Intelligence layer
+
+Adds the v14 intelligence layer that produces honest, useful AI-driven
+output without requiring any global training corpus. Every output
+carries a `data_source_breakdown` field so the customer and any
+auditor see exactly what fed the answer.
+
+**`safecadence.intelligence.corpus`**
+- `ReferenceCorpus(vertical, local_store=None)` — blends the customer's
+  own local history with per-vertical published industry baselines.
+- Six verticals (healthcare / finance / msp-smb / retail / defense /
+  generic) with citations to NVD, CISA KEV, Verizon DBIR 2025, IBM
+  Cost of a Data Breach 2025, Mandiant M-Trends 2025, Microsoft
+  Digital Defense Report 2025, CyberArk Identity Security Threat
+  Report 2025, Qualys TruRisk 2025.
+- Nine metrics per vertical: safe_score, open_critical, open_high,
+  drift_events_per_week, mean_time_to_remediate_days, mfa_coverage_pct,
+  stale_account_pct, patch_lag_days, nhi_growth_rate_pct.
+- Blending rule: 0–7 days = 100% baseline; 7–90 days = linear blend;
+  90+ days = 100% local.
+
+**`safecadence.intelligence.forecasting`**
+- OLS regression on the customer's own series with honest 90% PI bands
+  that widen with horizon. Stdlib-only.
+- `forecast_metric()` returns trajectory ("improving"/"worsening"/
+  "stable"), interpretation, and the data-source breakdown.
+- Higher-is-better metrics (safe_score, mfa_coverage_pct) interpret
+  positive slope as "improving"; lower-is-better metrics
+  (open_critical, patch_lag_days) interpret positive slope as
+  "worsening" — never mis-reports the direction.
+
+**`safecadence.intelligence.anomaly`**
+- EWMA + z-score per entity, with `min_n` threshold to prevent thin-
+  sample false positives.
+- `corpus_seed` parameter for cold-start scoring against the right
+  baseline.
+- `batch_detect_per_entity()` for per-host fleet-wide detection.
+
+**`safecadence.intelligence.assistant`**
+- NL question router → MCP tools (compliance / posture / topology /
+  findings / identity / report).
+- Calls v12 MCP tools, summarizes via BYO-AI client (OpenAI / Anthropic
+  / Gemini / etc.); deterministic structured fallback when no key
+  configured. Returns the full call trail for audit.
+
+**`safecadence.intelligence.remediation_pr`**
+- Known recipes for (cisco_ios + ssh_open), (cisco_ios +
+  snmp_default_community), (fortigate + ssh_open),
+  (okta + user_missing_mfa). LLM fallback for other vendor + family
+  combinations. Refuses to hallucinate when neither produces a
+  result — returns `needs_operator_input` instead.
+- Always pre-attaches the inverse rollback so the PR description is
+  safety-net complete.
+
+**Testing**
+- 38 new tests in `tests/test_v14_1_intelligence.py`.
+- All v12 + v13 + v14 + v14.1 tests passing.
+
+## [12.0.0a2] — 2026-05-25 — v13/v14 skeletons
+
+Promotes the v13 + v14 scaffolds from "raise NotImplementedError"
+placeholders to real, working alpha skeletons. No breaking changes.
+
+**v13 — Security Knowledge Graph (`safecadence.graph`)**
+- `schema.py` — 11 node types, 11 edge types, schema-validated `Node`/`Edge` dataclasses.
+- `store.py` — SQLite-backed `GraphStore` with `add_node`/`add_edge`/`get_node`/`neighbors`/`count`/`clear`.
+- `build.py` — `build_graph_from_assets()` populates from existing v11.x sqlite_store; `rebuild()` reads + wipes + repopulates.
+- `query.py` — high-level wrappers: `what_touches`, `assets_exposing_finding`, `frameworks_affected`, `violations_for_framework`, `crown_jewel_reachers`.
+- `traverse.py` — BFS `shortest_path` + bounded `walk` with optional edge_filter.
+
+**v14 — AI & Machine Identity Governance (`safecadence.ai_governance`)**
+- `agents.py` — AI agent registry: register / list / deprecate, status transitions, per-org isolation, invocation logging for cross-tool attribution.
+- `api_keys.py` — API key inventory tracking last-four-only (never the secret), with age, rotation timestamps, last-seen tracking, deprecation flag.
+- `trust_score.py` — 0–100 trust score per key + per agent across age, rotation cadence, scope breadth, active use, owner attribution; with per-factor breakdown + recommendation.
+
+**Testing**
+- 24 new tests in `tests/test_v13_0_graph.py`.
+- 21 new tests in `tests/test_v14_0_ai_governance.py`.
+- All passing; full v11.x + v12 regression suite still passing.
+
+## [12.0.0a1] — 2026-05-25 — Alpha
+
+First v12 alpha. Four shipping themes plus OSS-health polish. No
+breaking changes versus v11.6.0 — every v11.x integration keeps working.
+
+**Theme 5: MCP Server (`safecadence mcp-server`)**
+- Anthropic Model Context Protocol implementation over stdio.
+- JSON-RPC 2.0, protocol version `2024-11-05`.
+- Seven tools: `query_topology`, `retrieve_findings`, `query_compliance`,
+  `fetch_evidence`, `inspect_identities`, `generate_report`, `evaluate_posture`.
+- RBAC via `SC_MCP_ORG_ID` / `SC_MCP_USER` env vars (defaults: `local` / `mcp-stdio`).
+- Best-effort audit-log integration via the v11.3 hash-chained log.
+- Defensive: every tool degrades to empty + note rather than raising,
+  so a fresh install never crashes a connected MCP client.
+
+**Theme 6: Multi-dimensional Safe Score (`safecadence.scores.multi_dim_score`)**
+- Six dimensions: Compliance Health, Identity Health, Drift Stability,
+  Patch Freshness, Attack Path Risk, AI Governance Readiness.
+- Each dimension reports `value`, `trend_7d`, `confidence_band`, `top_factors`.
+- Weighted-mean overall score (compliance + attack-path each 1.5,
+  patch 1.3, identity 1.2, drift 1.0, ai-gov 0.5 placeholder).
+- `compute_safe_score_flat()` returns a single number for any v11.x
+  callsite that hasn't been updated to consume the dict.
+
+**Theme 7: Risk Economics (`safecadence.reports.risk_economics`)**
+- Translates findings into business-language metrics:
+  - Estimated audit-failure exposure (USD, per-framework + SOC 2 deal-block).
+  - Estimated remediation cost (USD + engineer-hours, by severity).
+  - Risk-reduction ROI ranking (top N actions by points-removed / hours).
+  - Technical debt score (cumulative weight of stale findings > 90/180d).
+  - Operational risk velocity (4-week trailing rolling rate).
+  - Compliance burn-down (weeks to 95% compliance at current rate).
+- Every output includes a `disclaimer` field noting the figures are
+  order-of-magnitude estimates from public IBM / Verizon / regulator data.
+
+**Theme 8: Executive Risk Brief preset**
+- New v12 flagship preset at index 0: 5-minute board-ready report.
+- Composes KPI summary, executive narrative, multi-dim Safe Score radar,
+  weakest-link analysis, attack-path summary, compliance roll-up,
+  risk economics ($), top-5 executive actions, and remediation roadmap.
+- Legacy `exec_brief` preset preserved for backwards compatibility.
+
+**OSS-health polish**
+- README badges for license, Python version, PyPI, test count,
+  local-first commitment, no-telemetry, MCP protocol, and CoC.
+- GitHub issue templates (bug, feature) + PR template + issue config
+  routing security reports to private advisories.
+- `multitenant.py` org-schema scaffold, Stripe products scaffold,
+  Postmark notify scaffold, SOC 2 evidence pack scaffold, customer
+  portal UI scaffold (all opt-in, no behavior change for existing users).
+- Scaffolded `safecadence/graph/` (v13 Security Knowledge Graph) and
+  `safecadence/ai_governance/` (v14 AI & Machine Identity Governance)
+  as architectural placeholders.
+
+**Testing**
+- 36 new tests in `tests/test_v12_0_mcp_and_polish.py`, all green.
+- Full v11.x regression suite re-run: 1749 tests passing, zero failures.
+
 ## [11.6.0] — 2026-05-25
 
 ### Five more LLM providers — Cloudflare, DeepSeek, GitHub Models, Mistral, Cohere

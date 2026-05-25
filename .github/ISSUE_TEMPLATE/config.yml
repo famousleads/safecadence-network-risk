@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security issue (do not use public issues)
+    url: https://github.com/famousleads/safecadence-network-risk/security/advisories/new
+    about: Please report vulnerabilities via private security advisory, not public issues.
+  - name: Question / discussion
+    url: https://github.com/famousleads/safecadence-network-risk/discussions
+    about: For usage questions, design discussion, or just saying hi.

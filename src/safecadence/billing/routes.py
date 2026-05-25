@@ -42,6 +42,17 @@ def _make_router():
         from safecadence.billing.plans import list_plans
         return {"plans": [p.to_dict() for p in list_plans()]}
 
+    @router.get("/api/v1/billing/tiers")
+    def list_tiers_route():
+        """v12 — Stripe product/price-id-aware tier catalog.
+
+        Returns the same four tiers as ``/api/v1/billing/plans`` but
+        with live Stripe price ids attached (or None where unconfigured).
+        Operators can hide the buy button when ``is_purchasable`` is false.
+        """
+        from safecadence.billing.stripe_products import list_tiers
+        return {"tiers": list_tiers()}
+
     @router.get("/api/v1/billing/plan")
     def current_plan_route(request: Request):
         from safecadence.billing.plans import (

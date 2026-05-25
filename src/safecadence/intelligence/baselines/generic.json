@@ -1,0 +1,26 @@
+{
+  "vertical": "generic",
+  "description": "Cross-vertical baseline — used when the customer's vertical isn't specified. Distributions are weighted-medians across the per-vertical baselines below.",
+  "metrics": {
+    "safe_score":                 {"p25": 58,  "p50": 72,  "p75": 84,  "p90": 91,  "p99": 96,  "unit": "0-100"},
+    "open_critical":              {"p25": 1,   "p50": 4,   "p75": 11,  "p90": 24,  "p99": 60,  "unit": "count"},
+    "open_high":                  {"p25": 6,   "p50": 18,  "p75": 38,  "p90": 72,  "p99": 160, "unit": "count"},
+    "drift_events_per_week":      {"p25": 0.4, "p50": 1.5, "p75": 4,   "p90": 9,   "p99": 22,  "unit": "events/week"},
+    "mean_time_to_remediate_days":{"p25": 7,   "p50": 21,  "p75": 51,  "p90": 92,  "p99": 180, "unit": "days"},
+    "mfa_coverage_pct":           {"p25": 62,  "p50": 81,  "p75": 92,  "p90": 97,  "p99": 99.5,"unit": "%"},
+    "stale_account_pct":          {"p25": 1.5, "p50": 4.2, "p75": 9,   "p90": 17,  "p99": 31,  "unit": "%"},
+    "patch_lag_days":             {"p25": 9,   "p50": 27,  "p75": 58,  "p90": 110, "p99": 215, "unit": "days"},
+    "nhi_growth_rate_pct":        {"p25": 2,   "p50": 6,   "p75": 14,  "p90": 26,  "p99": 48,  "unit": "%/quarter"}
+  },
+  "citations": {
+    "safe_score":                 "Derived from blended posture scores across Verizon DBIR 2025 + IBM Cost of a Data Breach Report 2025.",
+    "open_critical":              "NVD CVE distribution (2024-2025) + CISA KEV catalog active count per representative SMB fleet.",
+    "open_high":                  "NVD CVE distribution (2024-2025), severity = HIGH (CVSS 7.0-8.9).",
+    "drift_events_per_week":      "Mandiant M-Trends 2025, config drift section.",
+    "mean_time_to_remediate_days":"IBM Cost of a Data Breach Report 2025, MTTR by severity.",
+    "mfa_coverage_pct":           "Microsoft Digital Defense Report 2025, identity attacks section.",
+    "stale_account_pct":          "Microsoft Digital Defense Report 2025 + CyberArk Identity Security Threat Report 2025.",
+    "patch_lag_days":             "Qualys TruRisk Research 2025, mean patch lag across customer base.",
+    "nhi_growth_rate_pct":        "CyberArk Identity Security Threat Report 2025, NHI growth metric."
+  }
+}

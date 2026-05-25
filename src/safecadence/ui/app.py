@@ -134,6 +134,14 @@ def create_app(*, password: str | None = None):
     except Exception:                                # pragma: no cover
         pass
 
+    # v12 — read-only customer portal (GET /customer/{posture,reports,help}).
+    try:
+        from safecadence.portal.customer_routes import router as _cust_router
+        if _cust_router is not None:
+            app.include_router(_cust_router)
+    except Exception:                                # pragma: no cover
+        pass
+
     # v10.9 — API usage metering middleware. Records one usage event per
     # /api/v1/* hit (excluding billing/* + plans + /api/v1/me) so quota
     # enforcement can compare against the org's plan.
