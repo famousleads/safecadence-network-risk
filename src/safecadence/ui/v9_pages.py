@@ -8816,6 +8816,9 @@ uxLoad();
 # their own Ollama URL is reachable before installing locally.
 
 _LLM_SETTINGS_BODY = """
+<p style="margin:0 0 8px 0">
+  <a href="/settings" style="color:#7aa6ff;text-decoration:none">&larr; Back to Settings</a>
+</p>
 <h1>AI / LLM Settings</h1>
 <p class="muted">Configure the LLM the reports module uses for executive
 summaries, plain-language CVE explanations, and stakeholder narratives.
@@ -9078,6 +9081,9 @@ account).</p>
   <button class="alt" id="st-tab-sso"        onclick="stShow('sso')"
           style="padding:6px 14px;border-radius:6px 6px 0 0;width:auto">
     SSO (OIDC)</button>
+  <a href="/settings/llm" class="alt"
+     style="padding:6px 14px;border-radius:6px 6px 0 0;width:auto;display:inline-block;text-decoration:none;line-height:1.5">
+    AI / LLM &rarr;</a>
 </div>
 
 <!-- Email tab -->
