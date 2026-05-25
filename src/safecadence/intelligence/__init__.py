@@ -69,8 +69,22 @@ from safecadence.intelligence.corpus import (
 )
 from safecadence.intelligence.forecasting import forecast_many, forecast_metric
 from safecadence.intelligence.remediation_pr import draft_remediation_pr
+# v14.0 — full release additions
+from safecadence.intelligence.multi_turn import Conversation, Turn
+from safecadence.intelligence.dismissal_learning import (
+    VALID_DECISIONS as DISMISSAL_DECISIONS,
+    annotate_findings,
+    ensure_dismissal_schema,
+    find_matching_dismissals,
+    list_dismissals,
+    record_dismissal,
+)
+from safecadence.intelligence.remediation_executor import (
+    preview_remediation,
+    queue_remediation,
+)
 
-__version__ = "0.1.0-alpha"
+__version__ = "1.0.0"
 
 __all__ = [
     # corpus
@@ -85,4 +99,11 @@ __all__ = [
     "ask", "plan",
     # remediation
     "draft_remediation_pr",
+    # v14.0 multi-turn
+    "Conversation", "Turn",
+    # v14.0 dismissal learning
+    "DISMISSAL_DECISIONS", "ensure_dismissal_schema", "record_dismissal",
+    "find_matching_dismissals", "annotate_findings", "list_dismissals",
+    # v14.0 remediation executor
+    "preview_remediation", "queue_remediation",
 ]

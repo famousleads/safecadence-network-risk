@@ -151,6 +151,21 @@ def create_app(*, password: str | None = None):
     except Exception:                                # pragma: no cover
         pass
 
+    # v13.0 — Server-Sent Events live dashboard stream.
+    try:
+        from safecadence.dashboards.sse import register_routes as _sse_register
+        _sse_register(app)
+    except Exception:                                # pragma: no cover
+        pass
+
+    # v13.0 — /help/topics directory page.
+    try:
+        from safecadence.ui.help_v13 import router as _help_router
+        if _help_router is not None:
+            app.include_router(_help_router)
+    except Exception:                                # pragma: no cover
+        pass
+
     # v10.9 — API usage metering middleware. Records one usage event per
     # /api/v1/* hit (excluding billing/* + plans + /api/v1/me) so quota
     # enforcement can compare against the org's plan.

@@ -1,5 +1,141 @@
 # Changelog
 
+## [15.0.0] — 2026-05-25 — Ecosystem foundations
+
+The third v12→v15 release lands the ecosystem layer the roadmap
+called for. Two real modules + a theming guide; no breaking changes
+to v12, v13, or v14 surfaces.
+
+**Plugin loader (`safecadence.plugins.loader`)**
+- Entry-point-based discovery via the `safecadence.plugins` group.
+- HMAC-SHA256 signature verification using `SC_PLUGIN_SIGNING_SECRET`.
+- `SC_PLUGIN_REQUIRE_SIGNED=1` env flag for operators who only
+  accept signed plugins.
+- Capability gating via `SC_PLUGIN_CAPABILITIES` allowlist.
+- Plugins are MIT-licensed alongside core; no marketplace required
+  to publish or install.
+
+**Community rule pack registry (`safecadence.plugins.rule_packs`)**
+- Manifest format (`manifest.json`) with name, version, frameworks,
+  rules list, signature.
+- `add_rule_pack(source)` accepts a tarball path, a directory, or
+  an HTTPS URL.
+- Path-traversal protection on tarball extraction.
+- Same signing scheme as the plugin loader.
+- Installs into `~/.safecadence/rule_packs/<name>-<version>/`.
+
+**White-label theming (`docs/WHITE_LABEL.md`)**
+- 15-minute quick-start for MSPs / VARs rebranding the operator UI
+  for their customers.
+- Documents the four `SC_BRAND_*` env vars + per-org brand color
+  flowing through the existing v10.9 customer portal.
+- Explicit non-goals: CLI binary stays, package name stays, MIT
+  license stays.
+
+**Honest non-goals for v15:**
+- eBPF kernel-level runtime monitoring — punted to v16+ pending
+  customer demand; we deliberately do not ship kernel code without
+  the demand to drive it.
+- Hosted marketplace — the plugin SDK itself is free + open; a
+  marketplace is a separate revenue-share layer that would launch
+  with v16+ if v13-v15 customer base validates it.
+
+**Tests:**
+- `tests/test_v15_0_ecosystem.py` — 11 new tests covering plugin
+  loader (signature happy + tamper rejection) and rule packs
+  (install from dir, install from tarball, require-signed enforcement,
+  path-traversal protection).
+
+Version bump 14.0.0 → 15.0.0. No breaking changes.
+
+## [14.0.0] — 2026-05-25 — Intelligence layer matures
+
+Promotes the v14.1 alpha intelligence layer into a real v14.0 release
+by adding the three capabilities the roadmap called for. Honest
+non-goal: no ML training on real customer telemetry (we don't have
+it and the local-first promise says we never will). What we ship is
+real, useful, and works on the customer's own data.
+
+**Multi-turn conversational assistant (`intelligence.multi_turn`)**
+- `Conversation` stateful object; chain tool calls across turns.
+- Bounded by `max_turns` (default 8) so it can't loop forever.
+- Each `send()` returns the same envelope as `assistant.ask()` plus
+  a `turn` index.
+
+**Per-customer dismissal learning (`intelligence.dismissal_learning`)**
+- Operators dismiss findings as `false_positive` or `exception`;
+  matching future findings get auto-tagged with the prior decision.
+- Per-customer storage — no global training corpus required.
+- Optional TTL so a dismissal expires after N days.
+- `annotate_findings()` decorates without removing — the UI decides
+  whether to hide.
+
+**Remediation executor bridge (`intelligence.remediation_executor`)**
+- Glues `remediation_pr.draft_remediation_pr()` into the v9.x Tier-3
+  SSH execution pipeline.
+- **Does not weaken the existing triple-gate** — env flag +
+  capability + acknowledge+TOTP still required for execution.
+- Degrades cleanly when v9.x execution module isn't reachable:
+  returns the draft as "ready but not queued" instead of crashing.
+
+**Tests:**
+- `tests/test_v14_0_intelligence_mature.py` — 14 new tests.
+
+Version bump 13.0.0 → 14.0.0. No breaking changes.
+
+## [13.0.0] — 2026-05-25 — Operational excellence
+
+Promotes the v12.0.0a3 v13-scaffold modules (Knowledge Graph + AI
+Governance + Intelligence layer) into a real v13.0 release by adding
+the five operational-excellence features the roadmap called for.
+Single-node behavior preserved; v13 features are env-gated / opt-in.
+
+**Continuous drift monitoring (`safecadence.monitoring`)**
+- `drift_daemon.DriftDaemon` — scheduled-polling drift monitor with
+  `compute_delta()` (pure, testable), severity threshold gating,
+  and maintenance-window suppression.
+- `is_in_maintenance_window()` supports both one-shot
+  ISO-timestamp windows and recurring weekday+hour windows.
+- Honors v12.1 `@active_only` guards so standby never double-fires.
+
+**Bidirectional ITSM ticketing (`safecadence.reports.ticketing_bidirectional`)**
+- Status flows from Jira / ServiceNow / GitHub / Linear back into
+  SafeCadence; linked findings auto-update to `in_progress` /
+  `resolved` / `wont_fix`.
+- HMAC signature verification per provider (`SC_*_WEBHOOK_SECRET`
+  env vars).
+- Idempotent dedupe on the upstream event id so webhook replays are safe.
+- `link_ticket()` / `apply_webhook()` / `find_link_by_external_id()`
+  public API.
+
+**Approval workflow v2 (`safecadence.execution.approval_v2`)**
+- Multi-approver chains with N-of-M quorums.
+- Delegation rules (`when X is OOO, approvals route to Y`).
+- Per-asset-class policies (firewall vs. switch vs. identity) with
+  wildcard fallback.
+- Time-bound approval validity (`ttl_hours`, default 24h).
+- Pure `decide()` function; storage + audit logging are the caller's job.
+
+**Live SSE dashboards (`safecadence.dashboards.sse`)**
+- In-process `EventBus` pub/sub; subscribers get a bounded queue.
+- Server-Sent Events endpoint at `GET /api/v1/events/stream`
+  (text/event-stream).
+- 20s heartbeat + 0.25s poll interval = responsive without melting
+  the network.
+- Stdlib-only — no WebSocket library dependency.
+
+**In-app help surfacing (`safecadence.ui.help_v13`)**
+- 15 new entries covering every v12/v13/v14 feature merged into the
+  v9.1 help registry on import.
+- `GET /help/topics` directory page renders all 100+ help topics
+  with a live filter input.
+
+**Tests:**
+- `tests/test_v13_0_operations.py` — 22 new tests covering all five
+  modules.
+
+Version bump 12.0.0a6 → 13.0.0. No breaking changes.
+
 ## [12.0.0a6] — 2026-05-25 — Discoverability + audit fixes
 
 Polishes the v12 release so every new capability is reachable from the
