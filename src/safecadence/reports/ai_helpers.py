@@ -169,9 +169,17 @@ def _http_post_json(url: str, payload: dict, headers: dict,
 
 
 def _call_openai(prompt: str, *, system: str | None = None,
-                 max_tokens: int = 400) -> str | None:
-    """Single Chat-Completions call. Returns assistant text or ``None``."""
-    key = os.environ.get("OPENAI_API_KEY")
+                 max_tokens: int = 400,
+                 api_key: str | None = None,
+                 base_url: str | None = None,
+                 model: str | None = None) -> str | None:
+    """Single Chat-Completions call. Returns assistant text or ``None``.
+
+    All three of ``api_key`` / ``base_url`` / ``model`` are optional —
+    when ``None`` we read the same env vars the module always has. The
+    UI Settings panel passes resolved values to bypass env detection.
+    """
+    key = api_key or os.environ.get("OPENAI_API_KEY")
     if not key:
         return None
     msgs: list[dict] = []
@@ -179,7 +187,7 @@ def _call_openai(prompt: str, *, system: str | None = None,
         msgs.append({"role": "system", "content": system})
     msgs.append({"role": "user", "content": prompt})
     payload = {
-        "model": OPENAI_MODEL,
+        "model": model or OPENAI_MODEL,
         "messages": msgs,
         "max_tokens": max_tokens,
         "temperature": 0.3,
@@ -187,7 +195,8 @@ def _call_openai(prompt: str, *, system: str | None = None,
     # Honor SAFECADENCE_AI_BASE_URL — lets a local LM Studio / vLLM / TGI
     # endpoint (or any HF-model runner that speaks the OpenAI shape) handle
     # the request instead of OpenAI's cloud. Air-gap friendly.
-    url = f"{OPENAI_BASE_URL}/v1/chat/completions"
+    base = (base_url or OPENAI_BASE_URL).rstrip("/")
+    url = f"{base}/v1/chat/completions"
     resp = _http_post_json(
         url,
         payload,
@@ -205,13 +214,19 @@ def _call_openai(prompt: str, *, system: str | None = None,
 
 
 def _call_anthropic(prompt: str, *, system: str | None = None,
-                    max_tokens: int = 400) -> str | None:
-    """Single Messages-API call. Returns assistant text or ``None``."""
-    key = os.environ.get("ANTHROPIC_API_KEY")
+                    max_tokens: int = 400,
+                    api_key: str | None = None,
+                    model: str | None = None) -> str | None:
+    """Single Messages-API call. Returns assistant text or ``None``.
+
+    ``api_key`` and ``model`` are optional; ``None`` falls back to env
+    vars (same as before v11.4.0).
+    """
+    key = api_key or os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         return None
     payload: dict[str, Any] = {
-        "model": ANTHROPIC_MODEL,
+        "model": model or ANTHROPIC_MODEL,
         "max_tokens": max_tokens,
         "messages": [{"role": "user", "content": prompt}],
     }
@@ -241,17 +256,20 @@ def _call_anthropic(prompt: str, *, system: str | None = None,
 
 
 def _call_ollama(prompt: str, *, system: str | None = None,
-                 max_tokens: int = 400) -> str | None:
+                 max_tokens: int = 400,
+                 host: str | None = None,
+                 model: str | None = None) -> str | None:
     """Single Ollama /api/chat call. Returns assistant text or ``None``.
 
-    Hits the local Ollama daemon at ``OLLAMA_HOST`` (default
-    ``http://127.0.0.1:11434``). Uses the model named in
-    ``SAFECADENCE_LOCAL_LLM`` or falls back to ``llama3.1``. Air-gap
-    friendly — no outbound calls to anyone.
+    Hits ``OLLAMA_HOST`` (default ``http://127.0.0.1:11434``) with the
+    model from ``SAFECADENCE_LOCAL_LLM`` (default ``llama3.1``). Air-gap
+    friendly — no outbound calls. ``host`` / ``model`` kwargs override
+    the env vars (v11.4.0 UI passes resolved values).
     """
-    host = os.environ.get("OLLAMA_HOST", OLLAMA_HOST_DEFAULT).rstrip("/")
+    host = (host or os.environ.get("OLLAMA_HOST", OLLAMA_HOST_DEFAULT)).rstrip("/")
     model = (
-        os.environ.get("SAFECADENCE_LOCAL_LLM")
+        model
+        or os.environ.get("SAFECADENCE_LOCAL_LLM")
         or OLLAMA_MODEL_DEFAULT
     )
     msgs: list[dict] = []
@@ -284,25 +302,22 @@ def _call_ollama(prompt: str, *, system: str | None = None,
 
 
 def _call_huggingface(prompt: str, *, system: str | None = None,
-                      max_tokens: int = 400) -> str | None:
+                      max_tokens: int = 400,
+                      token: str | None = None,
+                      base_url: str | None = None,
+                      model: str | None = None) -> str | None:
     """Single Hugging Face Inference call. Returns assistant text or ``None``.
 
     Routes through HF's OpenAI-compatible Chat Completions endpoint
-    (``/v1/chat/completions``) which works for any chat-capable model
-    on HF Serverless or HF Inference Endpoints. The model name is
-    whatever HF model id you've configured (default
-    ``meta-llama/Meta-Llama-3.1-8B-Instruct``).
-
-    Auth: HF token from ``HF_TOKEN`` or ``HUGGINGFACE_API_TOKEN``.
-    Endpoint: override with ``SAFECADENCE_HF_BASE_URL`` (default
-    ``https://api-inference.huggingface.co/v1``). Model: override with
-    ``SAFECADENCE_HF_MODEL``.
+    (``/v1/chat/completions``) for chat-capable models. ``token`` /
+    ``base_url`` / ``model`` kwargs override the env vars; v11.4.0
+    UI passes resolved values from the encrypted config store.
     """
-    token = _hf_token()
-    if not token:
+    tok = token or _hf_token()
+    if not tok:
         return None
-    base = os.environ.get("SAFECADENCE_HF_BASE_URL", HF_BASE_URL_DEFAULT).rstrip("/")
-    model = os.environ.get("SAFECADENCE_HF_MODEL") or HF_MODEL_DEFAULT
+    base = (base_url or os.environ.get("SAFECADENCE_HF_BASE_URL", HF_BASE_URL_DEFAULT)).rstrip("/")
+    model = model or os.environ.get("SAFECADENCE_HF_MODEL") or HF_MODEL_DEFAULT
     msgs: list[dict] = []
     if system:
         msgs.append({"role": "system", "content": system})
@@ -317,7 +332,7 @@ def _call_huggingface(prompt: str, *, system: str | None = None,
     resp = _http_post_json(
         f"{base}/chat/completions",
         payload,
-        {"Authorization": f"Bearer {token}"},
+        {"Authorization": f"Bearer {tok}"},
     )
     if not isinstance(resp, dict):
         return None
@@ -334,12 +349,45 @@ def _try_ai(prompt: str, *, system: str | None = None,
             max_tokens: int = 400) -> str | None:
     """Attempt a real LLM call honoring the auto-detected provider.
 
-    Precedence: Ollama → Hugging Face → OpenAI (or any OpenAI-compatible
-    endpoint via ``SAFECADENCE_AI_BASE_URL``) → Anthropic. Returns
-    ``None`` when no provider is configured, on network failure, or
-    on an empty response. Never raises — failures degrade to the
-    caller's deterministic fallback.
+    v11.4.0 — checks the UI Settings store first. If the operator
+    saved a provider via /settings, those credentials are used and
+    we don't fall through to env vars (they made an explicit choice).
+    If the store is set to "env" (default) or empty, falls back to
+    the v11.3.x env-var auto-detection: Ollama → Hugging Face →
+    OpenAI → Anthropic. Returns ``None`` when no provider is
+    configured, on network failure, or on an empty response. Never
+    raises — failures degrade to the caller's deterministic fallback.
     """
+    # ---- UI store path (v11.4.0) ----
+    try:
+        from safecadence.reports import llm_config as _ui_cfg
+        ui_provider = _ui_cfg.get_active_provider()
+    except Exception:
+        ui_provider = None
+
+    if ui_provider == "none":
+        # UI explicitly disabled AI — use the deterministic stub.
+        return None
+
+    if ui_provider:
+        # UI explicitly selected — honor it, don't fall through to env.
+        s = _ui_cfg.get_provider_settings(ui_provider)
+        if ui_provider == "ollama":
+            return _call_ollama(prompt, system=system, max_tokens=max_tokens,
+                                host=s.get("host"), model=s.get("model"))
+        if ui_provider == "huggingface":
+            return _call_huggingface(prompt, system=system, max_tokens=max_tokens,
+                                     token=s.get("token"), base_url=s.get("base_url"),
+                                     model=s.get("model"))
+        if ui_provider == "openai":
+            return _call_openai(prompt, system=system, max_tokens=max_tokens,
+                                api_key=s.get("api_key"), base_url=s.get("base_url"),
+                                model=s.get("model"))
+        if ui_provider == "anthropic":
+            return _call_anthropic(prompt, system=system, max_tokens=max_tokens,
+                                   api_key=s.get("api_key"), model=s.get("model"))
+
+    # ---- Env-var path (v11.3.x — unchanged behavior) ----
     provider = _active_provider()
     if provider == "ollama":
         out = _call_ollama(prompt, system=system, max_tokens=max_tokens)
@@ -372,11 +420,35 @@ def llm_status() -> dict:
     API at http://localhost:1234" instead of misleadingly claiming
     OpenAI cloud.
     """
+    # v11.4.0 — UI-saved config wins.
+    try:
+        from safecadence.reports import llm_config as _ui_cfg
+        ui_provider = _ui_cfg.get_active_provider()
+        if ui_provider == "none":
+            return {"provider": "none", "model": None, "source": "ui"}
+        if ui_provider:
+            s = _ui_cfg.get_provider_settings(ui_provider)
+            out: dict = {"provider": ui_provider, "source": "ui"}
+            if ui_provider == "ollama":
+                out["model"] = s.get("model") or OLLAMA_MODEL_DEFAULT
+                out["endpoint"] = s.get("host") or OLLAMA_HOST_DEFAULT
+            elif ui_provider == "huggingface":
+                out["model"] = s.get("model") or HF_MODEL_DEFAULT
+                out["endpoint"] = s.get("base_url") or HF_BASE_URL_DEFAULT
+            elif ui_provider == "openai":
+                out["model"] = s.get("model") or OPENAI_MODEL
+                out["endpoint"] = s.get("base_url") or "https://api.openai.com"
+            elif ui_provider == "anthropic":
+                out["model"] = s.get("model") or ANTHROPIC_MODEL
+            return out
+    except Exception:
+        pass
+    # Env-var path (v11.3.x — unchanged)
     p = _active_provider()
     if p == "ollama":
         host = os.environ.get("OLLAMA_HOST", OLLAMA_HOST_DEFAULT)
         model = os.environ.get("SAFECADENCE_LOCAL_LLM") or OLLAMA_MODEL_DEFAULT
-        return {"provider": "ollama", "model": model, "endpoint": host}
+        return {"provider": "ollama", "model": model, "endpoint": host, "source": "env"}
     if p == "huggingface":
         base = os.environ.get("SAFECADENCE_HF_BASE_URL", HF_BASE_URL_DEFAULT)
         model = os.environ.get("SAFECADENCE_HF_MODEL") or HF_MODEL_DEFAULT

@@ -8804,6 +8804,255 @@ async function uxCapsAction(name, capability, action) {
 uxLoad();
 """
 
+# --------------------------- /settings/llm (v11.4.0) ---------------------------
+#
+# Standalone LLM provider config page. Talks to /api/settings/llm[/test].
+# Lets the operator pick a provider (Ollama / Hugging Face / OpenAI /
+# Anthropic / None / Use env vars), paste credentials, hit "Test
+# Connection" to validate, then "Save" to persist (encrypted on disk).
+#
+# In demo mode (SC_READONLY=1) the Save button returns 403 with a
+# clear message; the Test button still works so visitors can validate
+# their own Ollama URL is reachable before installing locally.
+
+_LLM_SETTINGS_BODY = """
+<h1>AI / LLM Settings</h1>
+<p class="muted">Configure the LLM the reports module uses for executive
+summaries, plain-language CVE explanations, and stakeholder narratives.
+Saved settings override environment variables. API keys are encrypted
+on disk.</p>
+
+<div class="card" style="margin-top:14px">
+  <div style="display:grid;grid-template-columns:200px 1fr;gap:10px;font-size:13px">
+
+    <label><strong>Provider</strong></label>
+    <select id="llm-provider" onchange="llmShowProvider()" style="padding:6px">
+      <option value="env">Use environment variables (default)</option>
+      <option value="none">None — disable AI, use deterministic stub</option>
+      <option value="ollama">Ollama (local)</option>
+      <option value="huggingface">Hugging Face Serverless Inference</option>
+      <option value="openai">OpenAI (or OpenAI-compatible local: LM Studio / vLLM / TGI)</option>
+      <option value="anthropic">Anthropic</option>
+    </select>
+
+    <!-- Ollama section -->
+    <div id="llm-ollama-label" class="llm-section" style="display:none"><strong>Ollama host</strong></div>
+    <input id="llm-ollama-host" class="llm-section" style="display:none;padding:6px"
+           placeholder="http://127.0.0.1:11434" />
+    <div id="llm-ollama-model-label" class="llm-section" style="display:none"><strong>Model</strong></div>
+    <input id="llm-ollama-model" class="llm-section" style="display:none;padding:6px"
+           placeholder="llama3.1" />
+
+    <!-- Hugging Face section -->
+    <div id="llm-hf-token-label" class="llm-hf" style="display:none"><strong>HF token</strong></div>
+    <input id="llm-hf-token" type="password" class="llm-hf" style="display:none;padding:6px"
+           placeholder="hf_xxxxxxxxxxxx (leave blank to keep current)" />
+    <div id="llm-hf-model-label" class="llm-hf" style="display:none"><strong>Model</strong></div>
+    <input id="llm-hf-model" class="llm-hf" style="display:none;padding:6px"
+           placeholder="meta-llama/Meta-Llama-3.1-8B-Instruct" />
+    <div id="llm-hf-base-label" class="llm-hf" style="display:none"><strong>Base URL</strong></div>
+    <input id="llm-hf-base" class="llm-hf" style="display:none;padding:6px"
+           placeholder="https://api-inference.huggingface.co/v1" />
+
+    <!-- OpenAI section -->
+    <div id="llm-oa-key-label" class="llm-openai" style="display:none"><strong>API key</strong></div>
+    <input id="llm-oa-key" type="password" class="llm-openai" style="display:none;padding:6px"
+           placeholder="sk-... (leave blank to keep current)" />
+    <div id="llm-oa-base-label" class="llm-openai" style="display:none"><strong>Base URL</strong></div>
+    <input id="llm-oa-base" class="llm-openai" style="display:none;padding:6px"
+           placeholder="https://api.openai.com (or http://localhost:1234 for LM Studio)" />
+    <div id="llm-oa-model-label" class="llm-openai" style="display:none"><strong>Model</strong></div>
+    <input id="llm-oa-model" class="llm-openai" style="display:none;padding:6px"
+           placeholder="gpt-4o-mini" />
+
+    <!-- Anthropic section -->
+    <div id="llm-an-key-label" class="llm-anthropic" style="display:none"><strong>API key</strong></div>
+    <input id="llm-an-key" type="password" class="llm-anthropic" style="display:none;padding:6px"
+           placeholder="sk-ant-... (leave blank to keep current)" />
+    <div id="llm-an-model-label" class="llm-anthropic" style="display:none"><strong>Model</strong></div>
+    <input id="llm-an-model" class="llm-anthropic" style="display:none;padding:6px"
+           placeholder="claude-haiku-4-5-20251001" />
+  </div>
+
+  <p class="muted" style="font-size:11px;margin-top:14px">
+    <span id="llm-state">Loading current config…</span>
+  </p>
+
+  <div style="display:flex;gap:8px;margin-top:14px">
+    <button onclick="llmTest()">Test Connection</button>
+    <button onclick="llmSave()">Save</button>
+    <button class="alt" onclick="llmReset()">Reset to env mode</button>
+  </div>
+  <div id="llm-result" style="margin-top:12px;padding:10px;border-radius:6px;display:none"></div>
+</div>
+
+<div class="card" style="margin-top:14px">
+  <h3>What gets saved where</h3>
+  <ul style="font-size:13px;line-height:1.6">
+    <li>Config file: <code>~/.safecadence/llm_config.json</code> (chmod 600)</li>
+    <li>API keys: Fernet-encrypted (if <code>cryptography</code> installed via
+        <code>[vault]</code> extra) or base64-obfuscated otherwise</li>
+    <li>Encryption key: <code>~/.safecadence/.llm_vault.key</code> (chmod 600,
+        auto-bootstrapped on first save)</li>
+    <li>The <strong>reports module</strong> reads this config on every call;
+        no service restart needed when you change provider</li>
+    <li>Choosing <strong>"Use environment variables"</strong> keeps the
+        v11.3.x behavior intact — useful for container deploys with
+        env-var-only config</li>
+  </ul>
+  <p class="muted" style="font-size:12px;margin-top:10px">
+    Full local-LLM setup guide:
+    <a href="https://github.com/famousleads/safecadence-network-risk/blob/main/docs/LOCAL-LLM.md"
+       target="_blank" rel="noopener">docs/LOCAL-LLM.md</a>
+  </p>
+</div>
+"""
+
+_LLM_SETTINGS_SCRIPT = """
+function llmShowProvider() {
+  const p = document.getElementById('llm-provider').value;
+  document.querySelectorAll('.llm-section, .llm-hf, .llm-openai, .llm-anthropic')
+          .forEach(el => el.style.display = 'none');
+  const show = (cls) => document.querySelectorAll('.' + cls)
+                                .forEach(el => el.style.display = '');
+  if (p === 'ollama') show('llm-section');
+  if (p === 'huggingface') show('llm-hf');
+  if (p === 'openai') show('llm-openai');
+  if (p === 'anthropic') show('llm-anthropic');
+}
+
+async function llmLoad() {
+  try {
+    const r = await fetch('/api/settings/llm', {credentials:'include'});
+    if (!r.ok) {
+      document.getElementById('llm-state').textContent =
+        'Could not load current config (' + r.status + ').';
+      return;
+    }
+    const data = await r.json();
+    const cfg = data.config || {};
+    const status = data.current_status || {};
+    document.getElementById('llm-provider').value = cfg.provider || 'env';
+    const p = cfg.providers || {};
+    if (p.ollama) {
+      document.getElementById('llm-ollama-host').value = p.ollama.host || '';
+      document.getElementById('llm-ollama-model').value = p.ollama.model || '';
+    }
+    if (p.huggingface) {
+      document.getElementById('llm-hf-model').value = p.huggingface.model || '';
+      document.getElementById('llm-hf-base').value = p.huggingface.base_url || '';
+    }
+    if (p.openai) {
+      document.getElementById('llm-oa-base').value = p.openai.base_url || '';
+      document.getElementById('llm-oa-model').value = p.openai.model || '';
+    }
+    if (p.anthropic) {
+      document.getElementById('llm-an-model').value = p.anthropic.model || '';
+    }
+    let msg = 'Current: ' + (status.provider || 'none') +
+              (status.model ? ' / ' + status.model : '') +
+              (status.endpoint ? ' @ ' + status.endpoint : '') +
+              (status.source ? ' [source: ' + status.source + ']' : '');
+    document.getElementById('llm-state').textContent = msg;
+    llmShowProvider();
+  } catch (e) {
+    document.getElementById('llm-state').textContent = 'Load error: ' + e;
+  }
+}
+
+function llmReadForm() {
+  const p = document.getElementById('llm-provider').value;
+  const body = {provider: p};
+  if (p === 'ollama') body.ollama = {
+    host: document.getElementById('llm-ollama-host').value || '',
+    model: document.getElementById('llm-ollama-model').value || '',
+  };
+  if (p === 'huggingface') body.huggingface = {
+    token: document.getElementById('llm-hf-token').value || '',
+    model: document.getElementById('llm-hf-model').value || '',
+    base_url: document.getElementById('llm-hf-base').value || '',
+  };
+  if (p === 'openai') body.openai = {
+    api_key: document.getElementById('llm-oa-key').value || '',
+    base_url: document.getElementById('llm-oa-base').value || '',
+    model: document.getElementById('llm-oa-model').value || '',
+  };
+  if (p === 'anthropic') body.anthropic = {
+    api_key: document.getElementById('llm-an-key').value || '',
+    model: document.getElementById('llm-an-model').value || '',
+  };
+  return body;
+}
+
+function llmShowResult(ok, msg) {
+  const el = document.getElementById('llm-result');
+  el.style.display = '';
+  el.style.background = ok ? '#1a3a1a' : '#3a1a1a';
+  el.style.color = ok ? '#9ae6a4' : '#ff9b9b';
+  el.style.border = '1px solid ' + (ok ? '#2d6a2d' : '#6a2d2d');
+  el.textContent = msg;
+}
+
+async function llmTest() {
+  llmShowResult(true, 'Testing…');
+  try {
+    const r = await fetch('/api/settings/llm/test', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(llmReadForm()),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      llmShowResult(true, 'OK — provider responded: "' +
+                          (data.sample_response || '(empty)') + '"');
+    } else {
+      llmShowResult(false, 'Failed: ' + (data.error || 'unknown error'));
+    }
+  } catch (e) {
+    llmShowResult(false, 'Network error: ' + e);
+  }
+}
+
+async function llmSave() {
+  llmShowResult(true, 'Saving…');
+  try {
+    const r = await fetch('/api/settings/llm', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(llmReadForm()),
+    });
+    if (r.status === 403) {
+      const d = await r.json();
+      const detail = d.detail || {};
+      llmShowResult(false,
+        (detail.message || 'Read-only demo: install locally to save.'));
+      return;
+    }
+    if (!r.ok) {
+      llmShowResult(false, 'Save failed: HTTP ' + r.status);
+      return;
+    }
+    await r.json();
+    llmShowResult(true, 'Saved. The reports module will use this config on the next call.');
+    // Refresh the form so the masked previews update
+    setTimeout(llmLoad, 500);
+  } catch (e) {
+    llmShowResult(false, 'Network error: ' + e);
+  }
+}
+
+async function llmReset() {
+  document.getElementById('llm-provider').value = 'env';
+  llmShowProvider();
+  await llmSave();
+}
+
+llmLoad();
+"""
+
+
 # --------------------------- /settings hub ---------------------------
 
 _SETTINGS_BODY = """
@@ -10341,6 +10590,15 @@ def register(app):
     def settings_page():
         return HTMLResponse(wrap("Settings",
                                   _SETTINGS_BODY, _SETTINGS_SCRIPT))
+
+    # v11.4.0 — dedicated LLM provider configuration page. Separate
+    # from /settings (which is its own complex hub) so the form is
+    # self-contained and shippable in a patch release without
+    # refactoring the giant settings template.
+    @app.get("/settings/llm", response_class=HTMLResponse)
+    def settings_llm_page():
+        return HTMLResponse(wrap("AI / LLM Settings",
+                                  _LLM_SETTINGS_BODY, _LLM_SETTINGS_SCRIPT))
 
     # v9.47 — activity log (who did what, when?). The middleware
     # writes one JSONL row per authenticated mutation; this page +

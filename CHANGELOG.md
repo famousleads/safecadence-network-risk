@@ -1,5 +1,107 @@
 # Changelog
 
+## [11.4.0] — 2026-05-25
+
+### UI Settings panel for LLM provider configuration
+
+Closes the "must I edit env vars and restart the service?" UX gap from
+v11.3.x. Operators can now point the reports module at Ollama,
+Hugging Face, OpenAI, an OpenAI-compatible local endpoint (LM Studio /
+vLLM / TGI), or Anthropic from a web form — no shell, no restart,
+no env-var fiddling. Provider switch takes effect on the next report
+generation call.
+
+**1. Encrypted config store (`reports/llm_config.py`)**
+
+- Persists to `~/.safecadence/llm_config.json` (chmod 600).
+- API keys and HF tokens are Fernet-encrypted (AES-128 + HMAC-SHA256)
+  via a master key auto-bootstrapped to `~/.safecadence/.llm_vault.key`
+  on first save.
+- Falls back to base64 obfuscation when the `cryptography` package
+  isn't installed — operators wanting real encryption should
+  `pip install safecadence-netrisk[vault]`.
+- `public_view()` returns a UI-safe dict with secrets replaced by
+  `has_token`/`has_api_key` booleans and 4-character suffix previews.
+
+**2. Three new API endpoints (`server/platform_api.py`)**
+
+- `GET  /api/settings/llm` — current config + live `llm_status()`
+- `POST /api/settings/llm` — save provider + per-provider fields
+  (capability-gated, requires `MANAGE_SETTINGS`)
+- `POST /api/settings/llm/test` — send a tiny test prompt to the
+  active or body-supplied config; returns
+  `{ok, sample_response, error?}`. Works on the read-only demo too
+  (it doesn't persist anything — just probes the chosen endpoint).
+
+**3. Read-only demo guard**
+
+- `POST /api/settings/llm` returns 403 with structured JSON
+  `{error: "read_only_demo", message: "..."}` when `SC_READONLY=1`.
+- `POST /api/settings/llm/test` stays open in demo mode so visitors
+  can validate their own Ollama URL or HF model reachability before
+  committing to a local install.
+
+**4. Dedicated `/settings/llm` page**
+
+- Self-contained HTML form with provider dropdown (None / Use env /
+  Ollama / Hugging Face / OpenAI / Anthropic), per-provider fields
+  that show/hide on selection, "Test Connection" button (shows the
+  sample response inline), and "Save" button.
+- Linked to from the existing /settings hub.
+- Live status line shows the currently-active provider, model,
+  endpoint, and whether it came from the UI store or env vars.
+
+**5. Resolver integration in `reports/ai_helpers.py`**
+
+- `_try_ai` consults `llm_config.get_active_provider()` first; when
+  the UI explicitly selected a provider, those credentials win and
+  the env-var fallback is skipped (operator made an explicit choice
+  — honor it).
+- When the store is set to `"env"` (default), behavior is identical
+  to v11.3.x — env-var auto-detection with full Ollama → HF → OpenAI
+  → Anthropic precedence.
+- `llm_status()` now returns `source: "ui"` or `source: "env"` so
+  the UI can show where the active config came from.
+
+**6. Non-breaking refactor of `_call_*` functions**
+
+- Each call function now accepts optional kwargs (`host`, `model`,
+  `api_key`, `token`, `base_url`) that override env-var detection.
+  When kwargs are `None`, behavior is unchanged.
+- This is what lets the UI store pass resolved credentials through
+  without monkey-patching environment variables at runtime
+  (cleaner, thread-safer).
+
+### Tests
+
+- New `tests/test_v11_4_0_llm_config.py` — 20 tests covering store
+  round-trip, encryption round-trip (Fernet + base64 fallback),
+  blank-field preservation (UI convention: blank = unchanged),
+  double-encryption prevention, `public_view()` masking, resolver
+  precedence (store > env), `none` mode short-circuit, `_try_ai`
+  routing through stored credentials, and `llm_status()` source
+  tagging. All 20 pass.
+- Full reports + v11.3.1 + v11.4.0 suite: **167 / 167 green.**
+
+### Migration notes
+
+Fully additive. v11.3.x users see no behavior change until they visit
+`/settings/llm` and save a provider. The default config is
+`{provider: "env"}` which means "consult env vars exactly like
+v11.3.x." Container deployments using env vars for config don't need
+to do anything.
+
+### What v11.4.0 does NOT include (slated for later)
+
+- Multi-tenant per-org config (current store is process-wide).
+- API key rotation reminders.
+- Per-section LLM config (different model for exec summary vs CVE
+  explainer).
+- "Add custom provider" for arbitrary REST endpoints beyond the
+  four supported.
+
+---
+
 ## [11.3.2] — 2026-05-24
 
 ### Hugging Face Serverless Inference completes the v11.3.1 BYO-AI story

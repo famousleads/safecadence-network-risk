@@ -703,6 +703,129 @@ def register(app, get_current_user, require_writer):
         return {"defaults": save_tenant_defaults(
             body.get("defaults") or body)}
 
+    # ------------------------------------------------------------------
+    # v11.4.0 — LLM provider settings (UI panel for Ollama / HF /
+    # OpenAI / Anthropic). Replaces the env-var-only story.
+    # ------------------------------------------------------------------
+
+    @app.get("/api/settings/llm")
+    def settings_llm_get(user=Depends(get_current_user)):
+        """Return current LLM config. Secret fields (api_key, token)
+        are NEVER returned — only ``has_*`` booleans and a 4-char
+        suffix preview."""
+        from safecadence.reports import llm_config as _llm
+        from safecadence.reports.ai_helpers import llm_status
+        return {
+            "config": _llm.public_view(),
+            "current_status": llm_status(),
+        }
+
+    @app.post("/api/settings/llm")
+    async def settings_llm_set(req: Request,
+                                 user=Depends(get_current_user)):
+        """Persist LLM config. API keys / HF token are Fernet-encrypted
+        on disk (or base64-obfuscated if cryptography isn't installed
+        — operator should pip install [vault] for real encryption).
+
+        Read-only demo (SC_READONLY=1) refuses with 403. Operators
+        configuring their local install have full access."""
+        from fastapi import HTTPException
+        if os.environ.get("SC_READONLY") == "1":
+            raise HTTPException(403, detail={
+                "error": "read_only_demo",
+                "message": ("Read-only demo cannot save LLM config. "
+                            "Install locally (pip install safecadence-netrisk) "
+                            "to configure your own LLM."),
+            })
+        from safecadence.capabilities import has_capability, Capability
+        if not has_capability(username=user.username,
+                                roles=list(user.roles or []),
+                                capability=Capability.MANAGE_SETTINGS,
+                                tenant=getattr(user, "tenant", "local")):
+            raise HTTPException(403,
+                f"Missing capability: {Capability.MANAGE_SETTINGS}")
+        body = await req.json()
+        from safecadence.reports import llm_config as _llm
+        _llm.save_config(body)
+        return {"saved": True, "config": _llm.public_view()}
+
+    @app.post("/api/settings/llm/test")
+    async def settings_llm_test(req: Request,
+                                  user=Depends(get_current_user)):
+        """Test connection: send a tiny prompt to the active or
+        body-supplied provider config. Returns
+        ``{ok, sample_response, error?}``. Doesn't persist anything.
+
+        Body may include override fields (``provider``, ``ollama: {...}``,
+        ``huggingface: {...}``, etc.) to test a config before saving it.
+        Useful for the "Test Connection" button before "Save".
+
+        Demo mode: allowed (it doesn't persist, just probes the chosen
+        endpoint), so demo visitors can validate their own Ollama/HF
+        URL is reachable before they commit to installing locally."""
+        from fastapi import HTTPException
+        try:
+            body = await req.json()
+        except Exception:
+            body = {}
+        from safecadence.reports import llm_config as _llm
+        from safecadence.reports.ai_helpers import (
+            _call_ollama, _call_huggingface, _call_openai, _call_anthropic,
+        )
+
+        # Resolve provider + settings: body overrides win; else use store.
+        if isinstance(body, dict) and body.get("provider"):
+            provider = body.get("provider")
+            sub = body.get(provider) or {}
+            # Decrypt any "enc:"/"b64:" tokens the caller might round-trip
+            if provider == "huggingface" and "token" in sub:
+                tok_in = sub.get("token") or ""
+                if tok_in.startswith(("enc:", "b64:")):
+                    sub["token"] = _llm.decrypt_secret(tok_in)
+            for k in ("api_key",):
+                if k in sub:
+                    val = sub.get(k) or ""
+                    if val.startswith(("enc:", "b64:")):
+                        sub[k] = _llm.decrypt_secret(val)
+        else:
+            provider = _llm.get_active_provider()
+            if not provider or provider == "none":
+                return {"ok": False, "error":
+                        "No provider configured. Pick one in the form and try again."}
+            sub = _llm.get_provider_settings(provider)
+
+        prompt = "Reply with exactly the word OK (no punctuation, no other text)."
+        out: str | None = None
+        err: str | None = None
+        try:
+            if provider == "ollama":
+                out = _call_ollama(prompt, max_tokens=10,
+                                   host=sub.get("host"), model=sub.get("model"))
+            elif provider == "huggingface":
+                out = _call_huggingface(prompt, max_tokens=10,
+                                        token=sub.get("token"),
+                                        base_url=sub.get("base_url"),
+                                        model=sub.get("model"))
+            elif provider == "openai":
+                out = _call_openai(prompt, max_tokens=10,
+                                   api_key=sub.get("api_key"),
+                                   base_url=sub.get("base_url"),
+                                   model=sub.get("model"))
+            elif provider == "anthropic":
+                out = _call_anthropic(prompt, max_tokens=10,
+                                      api_key=sub.get("api_key"),
+                                      model=sub.get("model"))
+            else:
+                err = f"Unknown provider: {provider}"
+        except Exception as e:                                  # pragma: no cover
+            err = f"{type(e).__name__}: {e}"
+
+        if out and not err:
+            return {"ok": True, "sample_response": out, "provider": provider}
+        return {"ok": False, "error":
+                err or ("No response from provider. Check endpoint reachability and credentials."),
+                "provider": provider}
+
     @app.get("/api/users/me/notify-prefs")
     def me_notify_prefs_get(user=Depends(get_current_user)):
         """Self-service: return the caller's effective prefs +
