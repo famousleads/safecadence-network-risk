@@ -154,6 +154,8 @@ SUPPORTED_PROVIDERS = (
     "none", "env",
     "ollama", "huggingface",
     "gemini", "groq", "openrouter",      # v11.5.0 free-tier additions
+    "cloudflare", "deepseek", "github",  # v11.6.0 — five more
+    "mistral", "cohere",
     "openai", "anthropic",
 )
 
@@ -185,6 +187,33 @@ def empty_config() -> dict:
             "api_key": "",      # encrypted on save
             "model": "meta-llama/llama-3.1-8b-instruct:free",
             "base_url": "https://openrouter.ai/api/v1",
+        },
+        # v11.6.0 — five more free-tier providers
+        "cloudflare": {
+            "api_key": "",      # encrypted on save
+            "account_id": "",   # required, plain (not a secret per CF docs)
+            "model": "@cf/meta/llama-3.1-8b-instruct",
+            "base_url": "",     # auto-generated from account_id when empty
+        },
+        "deepseek": {
+            "api_key": "",      # encrypted on save
+            "model": "deepseek-chat",
+            "base_url": "https://api.deepseek.com/v1",
+        },
+        "github": {
+            "api_key": "",      # encrypted on save (your GitHub token)
+            "model": "gpt-4o-mini",
+            "base_url": "https://models.inference.ai.azure.com",
+        },
+        "mistral": {
+            "api_key": "",      # encrypted on save
+            "model": "mistral-small-latest",
+            "base_url": "https://api.mistral.ai/v1",
+        },
+        "cohere": {
+            "api_key": "",      # encrypted on save
+            "model": "command-r",
+            "base_url": "https://api.cohere.ai/v1",
         },
         "openai": {
             "api_key": "",      # encrypted on save
@@ -221,6 +250,7 @@ def load_config() -> dict:
     if raw.get("provider") in SUPPORTED_PROVIDERS:
         out["provider"] = raw["provider"]
     for prov in ("ollama", "huggingface", "gemini", "groq", "openrouter",
+                 "cloudflare", "deepseek", "github", "mistral", "cohere",
                  "openai", "anthropic"):
         sub = raw.get(prov) or {}
         if isinstance(sub, dict):
@@ -246,6 +276,11 @@ def save_config(new_cfg: dict) -> dict:
                 ("gemini", ("api_key",)),
                 ("groq", ("api_key",)),
                 ("openrouter", ("api_key",)),
+                ("cloudflare", ("api_key",)),       # account_id is not secret
+                ("deepseek", ("api_key",)),
+                ("github", ("api_key",)),
+                ("mistral", ("api_key",)),
+                ("cohere", ("api_key",)),
                 ("openai", ("api_key",)),
                 ("anthropic", ("api_key",)),
             ):
@@ -329,7 +364,9 @@ def public_view() -> dict:
     """
     cfg = load_config()
     out: dict = {"provider": cfg.get("provider", "env"), "providers": {}}
-    for prov in ("ollama", "huggingface", "gemini", "groq", "openrouter", "openai", "anthropic"):
+    for prov in ("ollama", "huggingface", "gemini", "groq", "openrouter",
+                 "cloudflare", "deepseek", "github", "mistral", "cohere",
+                 "openai", "anthropic"):
         sub = dict(cfg.get(prov) or {})
         for secret in ("token", "api_key"):
             if secret in sub:

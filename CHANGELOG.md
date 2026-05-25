@@ -1,5 +1,105 @@
 # Changelog
 
+## [11.6.0] — 2026-05-25
+
+### Five more LLM providers — Cloudflare, DeepSeek, GitHub Models, Mistral, Cohere
+
+Companion to v11.5.0. Closes the BYO-AI provider list at twelve options
+across local, free cloud, and paid. The Settings dropdown now reads
+like a "what LLM do you use?" survey.
+
+**1. Cloudflare Workers AI — 10,000 neurons/day free**
+
+- `_call_cloudflare()` via the OpenAI-compatible endpoint at
+  `api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai/v1`.
+- Requires BOTH `CLOUDFLARE_API_TOKEN` AND `CLOUDFLARE_ACCOUNT_ID`
+  (account ID embeds in the URL).
+- Default model `@cf/meta/llama-3.1-8b-instruct`.
+- UI form has an extra "Account ID" field for this provider.
+
+**2. DeepSeek — strong reasoning, generous free tier**
+
+- `_call_deepseek()` via `api.deepseek.com/v1` (OpenAI-compatible).
+- Activates via `DEEPSEEK_API_KEY`.
+- Default model `deepseek-chat`; switch to `deepseek-reasoner` for
+  thinking-class outputs.
+
+**3. GitHub Models — free with any GitHub token**
+
+- `_call_github_models()` via `models.inference.ai.azure.com`
+  (Microsoft hosts the inference under Azure).
+- Activates via `GITHUB_TOKEN` OR `GH_TOKEN` (gh CLI vs PAT
+  convention; both honored).
+- Default model `gpt-4o-mini`; full catalog includes Phi-3.5,
+  Mistral, Llama, and others.
+- **The politically interesting one** — every developer already has
+  a GitHub token in their environment, so this is zero-friction
+  signup.
+
+**4. Mistral La Plateforme — free credits + OpenAI-compatible**
+
+- `_call_mistral()` via `api.mistral.ai/v1`.
+- Activates via `MISTRAL_API_KEY`.
+- Default model `mistral-small-latest`.
+
+**5. Cohere — 1,000 calls/month free (non-OpenAI shape)**
+
+- `_call_cohere()` — the only v11.6 provider that's NOT
+  OpenAI-compatible. Cohere posts to `/v1/chat` with `{message,
+  preamble, max_tokens}` and reads top-level `text` from the
+  response.
+- Activates via `COHERE_API_KEY`.
+- Default model `command-r`.
+- Adds the first real diversity to the provider implementation
+  pattern, which keeps the abstraction honest.
+
+**6. Updated precedence + UI dropdown**
+
+Full chain: **Ollama > HF > Gemini > Groq > OpenRouter > Cloudflare
+> DeepSeek > GitHub > Mistral > Cohere > OpenAI > Anthropic**. UI
+dropdown's "Free cloud tier" optgroup now lists nine free providers
+above the "Paid cloud" group with OpenAI / Anthropic.
+
+**7. Schema, API endpoint, and form updates**
+
+- `llm_config.py` schema includes five new provider blocks. All
+  API keys encrypted on save; Cloudflare `account_id` stays plain
+  (per Cloudflare's docs, account IDs are not secret).
+- `/api/settings/llm/test` routes to all five new providers.
+- `/settings/llm` form has per-provider field groups with show/hide
+  JS — total of twelve providers selectable from one dropdown.
+
+### Tests
+
+- New `tests/test_v11_6_0_more_providers.py` — 19 tests covering
+  detection (Cloudflare needs both env vars, GitHub honors both
+  `GITHUB_TOKEN` and `GH_TOKEN`), call shape for each (verifying
+  URLs, auth headers, and Cohere's non-OpenAI request/response
+  format), full 12-provider precedence chain, store schema
+  integration with encrypted-vs-plain field handling, and
+  `_try_ai` routing through stored credentials.
+- All 19 pass. Full suite: **269 / 269 green** across all
+  v11.3/v11.4/v11.5/v11.6 + reports + compliance + v10.6.
+
+### Migration notes
+
+Fully additive. Existing users see no behavior change. Twelve new
+env vars opt-in (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
+`DEEPSEEK_API_KEY`, `GITHUB_TOKEN`/`GH_TOKEN`, `MISTRAL_API_KEY`,
+`COHERE_API_KEY`, plus five `SAFECADENCE_*_MODEL` / `_BASE_URL`
+overrides).
+
+### Architecture note
+
+This release fills out the provider catalog without adding any new
+abstraction beyond what v11.5 already introduced. Four of the five
+new providers (Cloudflare, DeepSeek, GitHub Models, Mistral) are
+thin wrappers around the existing `_call_openai_compatible` helper.
+Cohere is the only one with its own implementation. Adding a 13th
+provider is now a sub-30-minute task.
+
+---
+
 ## [11.5.0] — 2026-05-25
 
 ### Three free-tier LLM providers as first-class options

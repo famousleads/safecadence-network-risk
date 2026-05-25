@@ -772,6 +772,8 @@ def register(app, get_current_user, require_writer):
         from safecadence.reports.ai_helpers import (
             _call_ollama, _call_huggingface,
             _call_gemini, _call_groq, _call_openrouter,
+            _call_cloudflare, _call_deepseek, _call_github_models,
+            _call_mistral, _call_cohere,
             _call_openai, _call_anthropic,
         )
 
@@ -823,6 +825,32 @@ def register(app, get_current_user, require_writer):
                                        api_key=sub.get("api_key"),
                                        base_url=sub.get("base_url"),
                                        model=sub.get("model"))
+            elif provider == "cloudflare":
+                out = _call_cloudflare(prompt, max_tokens=10,
+                                       api_key=sub.get("api_key"),
+                                       account_id=sub.get("account_id"),
+                                       base_url=sub.get("base_url"),
+                                       model=sub.get("model"))
+            elif provider == "deepseek":
+                out = _call_deepseek(prompt, max_tokens=10,
+                                     api_key=sub.get("api_key"),
+                                     base_url=sub.get("base_url"),
+                                     model=sub.get("model"))
+            elif provider == "github":
+                out = _call_github_models(prompt, max_tokens=10,
+                                          api_key=sub.get("api_key"),
+                                          base_url=sub.get("base_url"),
+                                          model=sub.get("model"))
+            elif provider == "mistral":
+                out = _call_mistral(prompt, max_tokens=10,
+                                    api_key=sub.get("api_key"),
+                                    base_url=sub.get("base_url"),
+                                    model=sub.get("model"))
+            elif provider == "cohere":
+                out = _call_cohere(prompt, max_tokens=10,
+                                   api_key=sub.get("api_key"),
+                                   base_url=sub.get("base_url"),
+                                   model=sub.get("model"))
             elif provider == "openai":
                 out = _call_openai(prompt, max_tokens=10,
                                    api_key=sub.get("api_key"),

@@ -126,6 +126,60 @@ def _openrouter_token() -> str | None:
     return os.environ.get("OPENROUTER_API_KEY") or None
 
 
+# --------------------------------------------------------------------------
+# v11.6.0 — Five more free-tier providers
+#
+#   Cloudflare Workers AI — 10,000 neurons/day free
+#   DeepSeek               — generous free tier with strong reasoning models
+#   GitHub Models          — free with any GitHub token (PAT or fine-grained)
+#   Mistral La Plateforme  — free credits + OpenAI-compatible endpoint
+#   Cohere                 — 1,000 calls/month free (non-OpenAI shape)
+# --------------------------------------------------------------------------
+
+# Cloudflare's URL is templated on account ID — substituted at call time.
+CLOUDFLARE_BASE_URL_TEMPLATE = "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1"
+CLOUDFLARE_MODEL_DEFAULT = "@cf/meta/llama-3.1-8b-instruct"
+
+DEEPSEEK_BASE_URL_DEFAULT = "https://api.deepseek.com/v1"
+DEEPSEEK_MODEL_DEFAULT = "deepseek-chat"
+
+# GitHub Models — Microsoft hosts the inference endpoint under Azure.
+GITHUB_MODELS_BASE_URL_DEFAULT = "https://models.inference.ai.azure.com"
+GITHUB_MODELS_MODEL_DEFAULT = "gpt-4o-mini"
+
+MISTRAL_BASE_URL_DEFAULT = "https://api.mistral.ai/v1"
+MISTRAL_MODEL_DEFAULT = "mistral-small-latest"
+
+# Cohere has its own non-OpenAI request/response shape — handled separately.
+COHERE_BASE_URL_DEFAULT = "https://api.cohere.ai/v1"
+COHERE_MODEL_DEFAULT = "command-r"
+
+
+def _cloudflare_token() -> str | None:
+    return os.environ.get("CLOUDFLARE_API_TOKEN") or None
+
+
+def _cloudflare_account_id() -> str | None:
+    return os.environ.get("CLOUDFLARE_ACCOUNT_ID") or None
+
+
+def _deepseek_token() -> str | None:
+    return os.environ.get("DEEPSEEK_API_KEY") or None
+
+
+def _github_models_token() -> str | None:
+    """GitHub Models uses any GitHub token — PAT or fine-grained."""
+    return os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or None
+
+
+def _mistral_token() -> str | None:
+    return os.environ.get("MISTRAL_API_KEY") or None
+
+
+def _cohere_token() -> str | None:
+    return os.environ.get("COHERE_API_KEY") or None
+
+
 def _hf_token() -> str | None:
     """HF's docs use both names interchangeably; honor both."""
     return (
@@ -154,7 +208,8 @@ def _active_provider() -> str | None:
     if the operator set up the free key, they probably want it used.
     """
     valid = {"ollama", "openai", "anthropic", "huggingface", "hf",
-             "gemini", "groq", "openrouter"}
+             "gemini", "groq", "openrouter",
+             "cloudflare", "deepseek", "github", "mistral", "cohere"}
     forced = (os.environ.get("SC_AI_PROVIDER") or "").strip().lower()
     if forced in valid:
         return "huggingface" if forced == "hf" else forced
@@ -168,6 +223,16 @@ def _active_provider() -> str | None:
         return "groq"
     if _openrouter_token():
         return "openrouter"
+    if _cloudflare_token() and _cloudflare_account_id():
+        return "cloudflare"
+    if _deepseek_token():
+        return "deepseek"
+    if _github_models_token():
+        return "github"
+    if _mistral_token():
+        return "mistral"
+    if _cohere_token():
+        return "cohere"
     if os.environ.get("OPENAI_API_KEY"):
         return "openai"
     if os.environ.get("ANTHROPIC_API_KEY"):
@@ -500,6 +565,113 @@ def _call_openrouter(prompt: str, *, system: str | None = None,
     )
 
 
+def _call_cloudflare(prompt: str, *, system: str | None = None,
+                     max_tokens: int = 400,
+                     api_key: str | None = None,
+                     account_id: str | None = None,
+                     base_url: str | None = None,
+                     model: str | None = None) -> str | None:
+    """Cloudflare Workers AI via its OpenAI-compatible endpoint.
+
+    The URL embeds the account ID, so we need both the API token
+    AND the account ID. If ``base_url`` is provided directly it
+    overrides the template path.
+    """
+    tok = api_key or _cloudflare_token() or ""
+    acct = account_id or _cloudflare_account_id() or ""
+    if not tok or (not base_url and not acct):
+        return None
+    base = base_url or CLOUDFLARE_BASE_URL_TEMPLATE.format(account_id=acct)
+    return _call_openai_compatible(
+        prompt, system=system, max_tokens=max_tokens,
+        api_key=tok,
+        base_url=base,
+        model=model or os.environ.get("SAFECADENCE_CLOUDFLARE_MODEL") or CLOUDFLARE_MODEL_DEFAULT,
+    )
+
+
+def _call_deepseek(prompt: str, *, system: str | None = None,
+                   max_tokens: int = 400,
+                   api_key: str | None = None,
+                   base_url: str | None = None,
+                   model: str | None = None) -> str | None:
+    """DeepSeek — OpenAI-compatible, strong reasoning models."""
+    return _call_openai_compatible(
+        prompt, system=system, max_tokens=max_tokens,
+        api_key=api_key or _deepseek_token() or "",
+        base_url=base_url or os.environ.get("SAFECADENCE_DEEPSEEK_BASE_URL", DEEPSEEK_BASE_URL_DEFAULT),
+        model=model or os.environ.get("SAFECADENCE_DEEPSEEK_MODEL") or DEEPSEEK_MODEL_DEFAULT,
+    )
+
+
+def _call_github_models(prompt: str, *, system: str | None = None,
+                        max_tokens: int = 400,
+                        api_key: str | None = None,
+                        base_url: str | None = None,
+                        model: str | None = None) -> str | None:
+    """GitHub Models — Microsoft hosts inference under Azure. Uses any
+    GitHub token (PAT, fine-grained, or workflow ``${{ secrets.GITHUB_TOKEN }}``).
+    """
+    return _call_openai_compatible(
+        prompt, system=system, max_tokens=max_tokens,
+        api_key=api_key or _github_models_token() or "",
+        base_url=base_url or os.environ.get("SAFECADENCE_GITHUB_MODELS_BASE_URL", GITHUB_MODELS_BASE_URL_DEFAULT),
+        model=model or os.environ.get("SAFECADENCE_GITHUB_MODELS_MODEL") or GITHUB_MODELS_MODEL_DEFAULT,
+    )
+
+
+def _call_mistral(prompt: str, *, system: str | None = None,
+                  max_tokens: int = 400,
+                  api_key: str | None = None,
+                  base_url: str | None = None,
+                  model: str | None = None) -> str | None:
+    """Mistral La Plateforme — OpenAI-compatible at /v1."""
+    return _call_openai_compatible(
+        prompt, system=system, max_tokens=max_tokens,
+        api_key=api_key or _mistral_token() or "",
+        base_url=base_url or os.environ.get("SAFECADENCE_MISTRAL_BASE_URL", MISTRAL_BASE_URL_DEFAULT),
+        model=model or os.environ.get("SAFECADENCE_MISTRAL_MODEL") or MISTRAL_MODEL_DEFAULT,
+    )
+
+
+def _call_cohere(prompt: str, *, system: str | None = None,
+                 max_tokens: int = 400,
+                 api_key: str | None = None,
+                 base_url: str | None = None,
+                 model: str | None = None) -> str | None:
+    """Cohere — non-OpenAI shape. Posts to ``/v1/chat`` with
+    ``{message, model, preamble?, max_tokens}`` and reads the response
+    from a top-level ``text`` field.
+    """
+    key = api_key or _cohere_token()
+    if not key:
+        return None
+    base = (base_url or os.environ.get("SAFECADENCE_COHERE_BASE_URL", COHERE_BASE_URL_DEFAULT)).rstrip("/")
+    use_model = model or os.environ.get("SAFECADENCE_COHERE_MODEL") or COHERE_MODEL_DEFAULT
+    payload: dict[str, Any] = {
+        "model": use_model,
+        "message": prompt,
+        "max_tokens": max_tokens,
+        "temperature": 0.3,
+    }
+    if system:
+        payload["preamble"] = system
+    resp = _http_post_json(
+        f"{base}/chat",
+        payload,
+        {"Authorization": f"Bearer {key}"},
+    )
+    if not isinstance(resp, dict):
+        return None
+    try:
+        text = resp.get("text")
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+    except Exception:
+        return None
+    return None
+
+
 def _try_ai(prompt: str, *, system: str | None = None,
             max_tokens: int = 400) -> str | None:
     """Attempt a real LLM call honoring the auto-detected provider.
@@ -546,6 +718,28 @@ def _try_ai(prompt: str, *, system: str | None = None,
             return _call_openrouter(prompt, system=system, max_tokens=max_tokens,
                                     api_key=s.get("api_key"), base_url=s.get("base_url"),
                                     model=s.get("model"))
+        if ui_provider == "cloudflare":
+            return _call_cloudflare(prompt, system=system, max_tokens=max_tokens,
+                                    api_key=s.get("api_key"),
+                                    account_id=s.get("account_id"),
+                                    base_url=s.get("base_url"),
+                                    model=s.get("model"))
+        if ui_provider == "deepseek":
+            return _call_deepseek(prompt, system=system, max_tokens=max_tokens,
+                                  api_key=s.get("api_key"), base_url=s.get("base_url"),
+                                  model=s.get("model"))
+        if ui_provider == "github":
+            return _call_github_models(prompt, system=system, max_tokens=max_tokens,
+                                       api_key=s.get("api_key"), base_url=s.get("base_url"),
+                                       model=s.get("model"))
+        if ui_provider == "mistral":
+            return _call_mistral(prompt, system=system, max_tokens=max_tokens,
+                                 api_key=s.get("api_key"), base_url=s.get("base_url"),
+                                 model=s.get("model"))
+        if ui_provider == "cohere":
+            return _call_cohere(prompt, system=system, max_tokens=max_tokens,
+                                api_key=s.get("api_key"), base_url=s.get("base_url"),
+                                model=s.get("model"))
         if ui_provider == "openai":
             return _call_openai(prompt, system=system, max_tokens=max_tokens,
                                 api_key=s.get("api_key"), base_url=s.get("base_url"),
@@ -579,11 +773,41 @@ def _try_ai(prompt: str, *, system: str | None = None,
         out = _call_openrouter(prompt, system=system, max_tokens=max_tokens)
         if out:
             return out
-    if provider in ("ollama", "huggingface", "gemini", "groq", "openrouter", "openai") and os.environ.get("OPENAI_API_KEY"):
+    # v11.6.0 — extended free-cloud chain
+    if provider in ("ollama", "huggingface", "gemini", "groq", "openrouter",
+                    "cloudflare") and _cloudflare_token() and _cloudflare_account_id():
+        out = _call_cloudflare(prompt, system=system, max_tokens=max_tokens)
+        if out:
+            return out
+    if provider in ("ollama", "huggingface", "gemini", "groq", "openrouter",
+                    "cloudflare", "deepseek") and _deepseek_token():
+        out = _call_deepseek(prompt, system=system, max_tokens=max_tokens)
+        if out:
+            return out
+    if provider in ("ollama", "huggingface", "gemini", "groq", "openrouter",
+                    "cloudflare", "deepseek", "github") and _github_models_token():
+        out = _call_github_models(prompt, system=system, max_tokens=max_tokens)
+        if out:
+            return out
+    if provider in ("ollama", "huggingface", "gemini", "groq", "openrouter",
+                    "cloudflare", "deepseek", "github", "mistral") and _mistral_token():
+        out = _call_mistral(prompt, system=system, max_tokens=max_tokens)
+        if out:
+            return out
+    if provider in ("ollama", "huggingface", "gemini", "groq", "openrouter",
+                    "cloudflare", "deepseek", "github", "mistral", "cohere") and _cohere_token():
+        out = _call_cohere(prompt, system=system, max_tokens=max_tokens)
+        if out:
+            return out
+    if provider in ("ollama", "huggingface", "gemini", "groq", "openrouter",
+                    "cloudflare", "deepseek", "github", "mistral", "cohere",
+                    "openai") and os.environ.get("OPENAI_API_KEY"):
         out = _call_openai(prompt, system=system, max_tokens=max_tokens)
         if out:
             return out
-    if provider in ("ollama", "huggingface", "gemini", "groq", "openrouter", "openai", "anthropic") and os.environ.get("ANTHROPIC_API_KEY"):
+    if provider in ("ollama", "huggingface", "gemini", "groq", "openrouter",
+                    "cloudflare", "deepseek", "github", "mistral", "cohere",
+                    "openai", "anthropic") and os.environ.get("ANTHROPIC_API_KEY"):
         out = _call_anthropic(prompt, system=system, max_tokens=max_tokens)
         if out:
             return out
@@ -623,6 +847,22 @@ def llm_status() -> dict:
             elif ui_provider == "openrouter":
                 out["model"] = s.get("model") or OPENROUTER_MODEL_DEFAULT
                 out["endpoint"] = s.get("base_url") or OPENROUTER_BASE_URL_DEFAULT
+            elif ui_provider == "cloudflare":
+                out["model"] = s.get("model") or CLOUDFLARE_MODEL_DEFAULT
+                out["endpoint"] = s.get("base_url") or CLOUDFLARE_BASE_URL_TEMPLATE.format(
+                    account_id=s.get("account_id") or "<account-id>")
+            elif ui_provider == "deepseek":
+                out["model"] = s.get("model") or DEEPSEEK_MODEL_DEFAULT
+                out["endpoint"] = s.get("base_url") or DEEPSEEK_BASE_URL_DEFAULT
+            elif ui_provider == "github":
+                out["model"] = s.get("model") or GITHUB_MODELS_MODEL_DEFAULT
+                out["endpoint"] = s.get("base_url") or GITHUB_MODELS_BASE_URL_DEFAULT
+            elif ui_provider == "mistral":
+                out["model"] = s.get("model") or MISTRAL_MODEL_DEFAULT
+                out["endpoint"] = s.get("base_url") or MISTRAL_BASE_URL_DEFAULT
+            elif ui_provider == "cohere":
+                out["model"] = s.get("model") or COHERE_MODEL_DEFAULT
+                out["endpoint"] = s.get("base_url") or COHERE_BASE_URL_DEFAULT
             elif ui_provider == "openai":
                 out["model"] = s.get("model") or OPENAI_MODEL
                 out["endpoint"] = s.get("base_url") or "https://api.openai.com"
@@ -653,6 +893,27 @@ def llm_status() -> dict:
         base = os.environ.get("SAFECADENCE_OPENROUTER_BASE_URL", OPENROUTER_BASE_URL_DEFAULT)
         model = os.environ.get("SAFECADENCE_OPENROUTER_MODEL") or OPENROUTER_MODEL_DEFAULT
         return {"provider": "openrouter", "model": model, "endpoint": base, "source": "env"}
+    if p == "cloudflare":
+        acct = _cloudflare_account_id() or "<account-id>"
+        base = os.environ.get("SAFECADENCE_CLOUDFLARE_BASE_URL") or CLOUDFLARE_BASE_URL_TEMPLATE.format(account_id=acct)
+        model = os.environ.get("SAFECADENCE_CLOUDFLARE_MODEL") or CLOUDFLARE_MODEL_DEFAULT
+        return {"provider": "cloudflare", "model": model, "endpoint": base, "source": "env"}
+    if p == "deepseek":
+        base = os.environ.get("SAFECADENCE_DEEPSEEK_BASE_URL", DEEPSEEK_BASE_URL_DEFAULT)
+        model = os.environ.get("SAFECADENCE_DEEPSEEK_MODEL") or DEEPSEEK_MODEL_DEFAULT
+        return {"provider": "deepseek", "model": model, "endpoint": base, "source": "env"}
+    if p == "github":
+        base = os.environ.get("SAFECADENCE_GITHUB_MODELS_BASE_URL", GITHUB_MODELS_BASE_URL_DEFAULT)
+        model = os.environ.get("SAFECADENCE_GITHUB_MODELS_MODEL") or GITHUB_MODELS_MODEL_DEFAULT
+        return {"provider": "github", "model": model, "endpoint": base, "source": "env"}
+    if p == "mistral":
+        base = os.environ.get("SAFECADENCE_MISTRAL_BASE_URL", MISTRAL_BASE_URL_DEFAULT)
+        model = os.environ.get("SAFECADENCE_MISTRAL_MODEL") or MISTRAL_MODEL_DEFAULT
+        return {"provider": "mistral", "model": model, "endpoint": base, "source": "env"}
+    if p == "cohere":
+        base = os.environ.get("SAFECADENCE_COHERE_BASE_URL", COHERE_BASE_URL_DEFAULT)
+        model = os.environ.get("SAFECADENCE_COHERE_MODEL") or COHERE_MODEL_DEFAULT
+        return {"provider": "cohere", "model": model, "endpoint": base, "source": "env"}
     if p == "openai":
         out: dict = {"provider": "openai", "model": OPENAI_MODEL}
         if OPENAI_BASE_URL != "https://api.openai.com":

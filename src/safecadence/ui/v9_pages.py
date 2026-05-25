@@ -8840,6 +8840,11 @@ on disk.</p>
         <option value="gemini">Google Gemini (1M tokens/day free)</option>
         <option value="groq">Groq (free, ~300 tok/s)</option>
         <option value="openrouter">OpenRouter (200+ models incl. free)</option>
+        <option value="cloudflare">Cloudflare Workers AI (10k neurons/day free)</option>
+        <option value="deepseek">DeepSeek (strong reasoning, free tier)</option>
+        <option value="github">GitHub Models (free with any GH token)</option>
+        <option value="mistral">Mistral La Plateforme (free credits)</option>
+        <option value="cohere">Cohere (1k calls/month free)</option>
       </optgroup>
       <optgroup label="Paid cloud">
         <option value="openai">OpenAI (or OpenAI-compatible local: LM Studio / vLLM / TGI)</option>
@@ -8899,6 +8904,49 @@ on disk.</p>
     <input id="llm-or-base" class="llm-openrouter" style="display:none;padding:6px"
            placeholder="https://openrouter.ai/api/v1" />
 
+    <!-- Cloudflare Workers AI section (v11.6.0) -->
+    <div id="llm-cf-acct-label" class="llm-cloudflare" style="display:none"><strong>Account ID</strong></div>
+    <input id="llm-cf-acct" class="llm-cloudflare" style="display:none;padding:6px"
+           placeholder="abc123def456... (from dash.cloudflare.com URL)" />
+    <div id="llm-cf-key-label" class="llm-cloudflare" style="display:none"><strong>API token</strong></div>
+    <input id="llm-cf-key" type="password" class="llm-cloudflare" style="display:none;padding:6px"
+           placeholder="(create at dash.cloudflare.com/profile/api-tokens — leave blank to keep current)" />
+    <div id="llm-cf-model-label" class="llm-cloudflare" style="display:none"><strong>Model</strong></div>
+    <input id="llm-cf-model" class="llm-cloudflare" style="display:none;padding:6px"
+           placeholder="@cf/meta/llama-3.1-8b-instruct" />
+
+    <!-- DeepSeek section (v11.6.0) -->
+    <div id="llm-ds-key-label" class="llm-deepseek" style="display:none"><strong>API key</strong></div>
+    <input id="llm-ds-key" type="password" class="llm-deepseek" style="display:none;padding:6px"
+           placeholder="sk-... (from platform.deepseek.com — leave blank to keep current)" />
+    <div id="llm-ds-model-label" class="llm-deepseek" style="display:none"><strong>Model</strong></div>
+    <input id="llm-ds-model" class="llm-deepseek" style="display:none;padding:6px"
+           placeholder="deepseek-chat (or deepseek-reasoner for thinking)" />
+
+    <!-- GitHub Models section (v11.6.0) -->
+    <div id="llm-gh-key-label" class="llm-github" style="display:none"><strong>GitHub token</strong></div>
+    <input id="llm-gh-key" type="password" class="llm-github" style="display:none;padding:6px"
+           placeholder="ghp_... or github_pat_... (any GitHub token — leave blank to keep current)" />
+    <div id="llm-gh-model-label" class="llm-github" style="display:none"><strong>Model</strong></div>
+    <input id="llm-gh-model" class="llm-github" style="display:none;padding:6px"
+           placeholder="gpt-4o-mini  (or Phi-3.5-mini-instruct, Mistral-large, etc.)" />
+
+    <!-- Mistral section (v11.6.0) -->
+    <div id="llm-ms-key-label" class="llm-mistral" style="display:none"><strong>API key</strong></div>
+    <input id="llm-ms-key" type="password" class="llm-mistral" style="display:none;padding:6px"
+           placeholder="(from console.mistral.ai — leave blank to keep current)" />
+    <div id="llm-ms-model-label" class="llm-mistral" style="display:none"><strong>Model</strong></div>
+    <input id="llm-ms-model" class="llm-mistral" style="display:none;padding:6px"
+           placeholder="mistral-small-latest  (or mistral-large-latest, codestral-latest)" />
+
+    <!-- Cohere section (v11.6.0, non-OpenAI shape) -->
+    <div id="llm-co-key-label" class="llm-cohere" style="display:none"><strong>API key</strong></div>
+    <input id="llm-co-key" type="password" class="llm-cohere" style="display:none;padding:6px"
+           placeholder="(from dashboard.cohere.com — leave blank to keep current)" />
+    <div id="llm-co-model-label" class="llm-cohere" style="display:none"><strong>Model</strong></div>
+    <input id="llm-co-model" class="llm-cohere" style="display:none;padding:6px"
+           placeholder="command-r  (or command-r-plus, command-light)" />
+
     <!-- OpenAI section -->
     <div id="llm-oa-key-label" class="llm-openai" style="display:none"><strong>API key</strong></div>
     <input id="llm-oa-key" type="password" class="llm-openai" style="display:none;padding:6px"
@@ -8956,7 +9004,7 @@ on disk.</p>
 _LLM_SETTINGS_SCRIPT = """
 function llmShowProvider() {
   const p = document.getElementById('llm-provider').value;
-  document.querySelectorAll('.llm-section, .llm-hf, .llm-gemini, .llm-groq, .llm-openrouter, .llm-openai, .llm-anthropic')
+  document.querySelectorAll('.llm-section, .llm-hf, .llm-gemini, .llm-groq, .llm-openrouter, .llm-cloudflare, .llm-deepseek, .llm-github, .llm-mistral, .llm-cohere, .llm-openai, .llm-anthropic')
           .forEach(el => el.style.display = 'none');
   const show = (cls) => document.querySelectorAll('.' + cls)
                                 .forEach(el => el.style.display = '');
@@ -8965,6 +9013,11 @@ function llmShowProvider() {
   if (p === 'gemini') show('llm-gemini');
   if (p === 'groq') show('llm-groq');
   if (p === 'openrouter') show('llm-openrouter');
+  if (p === 'cloudflare') show('llm-cloudflare');
+  if (p === 'deepseek') show('llm-deepseek');
+  if (p === 'github') show('llm-github');
+  if (p === 'mistral') show('llm-mistral');
+  if (p === 'cohere') show('llm-cohere');
   if (p === 'openai') show('llm-openai');
   if (p === 'anthropic') show('llm-anthropic');
 }
@@ -9001,6 +9054,22 @@ async function llmLoad() {
     if (p.openrouter) {
       document.getElementById('llm-or-model').value = p.openrouter.model || '';
       document.getElementById('llm-or-base').value = p.openrouter.base_url || '';
+    }
+    if (p.cloudflare) {
+      document.getElementById('llm-cf-acct').value = p.cloudflare.account_id || '';
+      document.getElementById('llm-cf-model').value = p.cloudflare.model || '';
+    }
+    if (p.deepseek) {
+      document.getElementById('llm-ds-model').value = p.deepseek.model || '';
+    }
+    if (p.github) {
+      document.getElementById('llm-gh-model').value = p.github.model || '';
+    }
+    if (p.mistral) {
+      document.getElementById('llm-ms-model').value = p.mistral.model || '';
+    }
+    if (p.cohere) {
+      document.getElementById('llm-co-model').value = p.cohere.model || '';
     }
     if (p.openai) {
       document.getElementById('llm-oa-base').value = p.openai.base_url || '';
@@ -9046,6 +9115,27 @@ function llmReadForm() {
     api_key: document.getElementById('llm-or-key').value || '',
     model: document.getElementById('llm-or-model').value || '',
     base_url: document.getElementById('llm-or-base').value || '',
+  };
+  if (p === 'cloudflare') body.cloudflare = {
+    api_key: document.getElementById('llm-cf-key').value || '',
+    account_id: document.getElementById('llm-cf-acct').value || '',
+    model: document.getElementById('llm-cf-model').value || '',
+  };
+  if (p === 'deepseek') body.deepseek = {
+    api_key: document.getElementById('llm-ds-key').value || '',
+    model: document.getElementById('llm-ds-model').value || '',
+  };
+  if (p === 'github') body.github = {
+    api_key: document.getElementById('llm-gh-key').value || '',
+    model: document.getElementById('llm-gh-model').value || '',
+  };
+  if (p === 'mistral') body.mistral = {
+    api_key: document.getElementById('llm-ms-key').value || '',
+    model: document.getElementById('llm-ms-model').value || '',
+  };
+  if (p === 'cohere') body.cohere = {
+    api_key: document.getElementById('llm-co-key').value || '',
+    model: document.getElementById('llm-co-model').value || '',
   };
   if (p === 'openai') body.openai = {
     api_key: document.getElementById('llm-oa-key').value || '',
