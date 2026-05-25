@@ -311,15 +311,24 @@ def _render_configure_form(
 
 
 def _render_ai_agents(agents: list[dict], scores_by_id: dict[str, dict]) -> str:
+    # v16 — top-of-page action: register a new agent via the form.
+    actions = (
+        "<div class='card' style='display:flex;justify-content:space-between;align-items:center;background:#0a1029;border-color:#7c5cff'>"
+        "<div><strong>Registered agents</strong> are tracked in the v14 "
+        "governance registry. Every MCP tool call by a registered agent "
+        "ties back to it in the audit log.</div>"
+        "<a href='/ai-agents/new' style='padding:6px 14px;background:#7c5cff;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;font-size:13px'>"
+        "+ Register agent</a></div>"
+    )
+
     if not agents:
-        return (
+        return actions + (
             "<div class='card'>"
-            "<strong>No AI agents registered.</strong><br>"
+            "<strong>No AI agents registered yet.</strong><br>"
             "<span class='muted'>"
-            "Register agents via <code>safecadence.ai_governance.register_agent()</code>. "
-            "Once an agent is registered, every MCP tool call it makes is "
-            "attributed to it in the audit log.</span>"
-            "</div>"
+            "Click <strong>Register agent</strong> above to add one via the form, "
+            "or call <code>safecadence.ai_governance.register_agent()</code> directly."
+            "</span></div>"
         )
 
     rows = []

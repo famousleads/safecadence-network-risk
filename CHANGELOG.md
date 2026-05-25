@@ -1,5 +1,66 @@
 # Changelog
 
+## [16.0.0] — 2026-05-25 — AI agents that work for you while you sleep
+
+The v16 release answers what v14 left open: **what do the AI agents
+actually DO?** Where v14 was identity + governance (who is acting),
+v16 is behavior (what they observe, decide, and ask you about). The
+release explicitly does NOT bypass existing governance — Tier-3 SSH
+triple-gate, v11.3 audit chain, and v12.1 active-only guards all apply.
+
+Design principle: **An agent that doesn't lose your trust is more
+valuable than one that does more things.**
+
+**`safecadence.agents.memory` — long-running stateful memory**
+- Per-agent observation/decision/nudge_sent log with signature-based
+  dedup. Default TTL 90 days; operator decisions = permanent.
+
+**`safecadence.agents.nudges` — proactive operator inbox**
+- Operator-facing queue of suggestions, live via v13 SSE bus.
+- Accept / dismiss / snooze with auto-promote of expired snoozes.
+- Every create dedup'd against agent memory — no nagging.
+
+**`safecadence.agents.adversarial` — red + blue pair**
+- Red walks the v13 Knowledge Graph for attack paths to crown jewels.
+- Blue checks compensating controls.
+- **Only disagreements surface to the operator.** Continuous
+  adversarial review without alarm fatigue.
+
+**`safecadence.agents.drift_explainer` — closes the v13 drift loop**
+- Attributes drift to responsible engineer via v11.3 audit log.
+- Three-option nudge: intentional (file exception), rollback
+  (queues for Tier-3 triple-gate), ignore.
+
+**`safecadence.agents.regulatory_watcher` — proactive reg-drift**
+- Polls CISA KEV + operator-configured custom feeds.
+- Local classifier — no fleet data leaves the install.
+- Fires only on genuine matches + within the dedup window.
+
+**UI**
+- `GET /nudges` — operator inbox.
+- `GET /red-vs-blue` — adversarial-pair results.
+- `GET /ai-agents/new` — agent creation form (closes v15 gap).
+- `GET /agents/{agent_id}` — per-agent timeline + recent nudges.
+- `POST /api/v1/nudges/{id}/{accept|dismiss|snooze}`.
+- `POST /api/v1/agents/create`.
+- Sidebar gains 3 new entries; `SC_READONLY=1` mode shows previews
+  but blocks all mutating POSTs with 403.
+
+**What this layer explicitly does NOT do**
+- No bypass of Tier-3 SSH triple-gate.
+- No global ML training corpus — local-first means no telemetry.
+- No autonomous mutating execution. Every action loops the operator
+  in via a nudge.
+- No multi-agent free-form coordination (v17+ work; v16 ships the
+  substrate — memory, nudges, dedup — that orchestration would
+  build on).
+
+**Tests**
+- `tests/test_v16_0_agents.py` — 30 new tests covering all five
+  modules + the four new UI routes + readonly mode + dedup.
+
+Version bump 15.2.0 → 16.0.0. No breaking changes to v9–v15 APIs.
+
 ## [15.2.0] — 2026-05-25 — Peer configuration form (WebUI)
 
 Operators asked for it: peer / HA env vars are now editable from
