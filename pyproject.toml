@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "safecadence-netrisk"
-version = "16.0.0"
+version = "16.0.1"
 description = "Free, open-source infrastructure + identity platform — 45 adapters (40 infra + 5 identity), 22 controls, 16 multi-vendor translators, AI policy intelligence, attack-path graph, KEV+EPSS-prioritized CVEs, cross-system drift detection, local-first, BYO-AI, never executes."
 readme = "README.md"
 requires-python = ">=3.9"
