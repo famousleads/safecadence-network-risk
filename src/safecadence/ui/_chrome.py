@@ -28,7 +28,7 @@ _HEAD = """<!doctype html>
 <meta name="theme-color" content="#1F6F6A" />
 <title>SafeCadence — %TITLE%</title>
 <link rel="manifest" href="/manifest.webmanifest" />
-<link rel="stylesheet" href="/static/responsive.css" />
+<link rel="stylesheet" href="/static/responsive.css?v=m5inline" />
 <style>
 :root {
   --bg: #0b1020; --panel: #121a33; --panel-2: #1a2447;
@@ -323,25 +323,94 @@ th { color: var(--muted); font-weight: 500; }
   50%      { box-shadow: 0 0 0 6px rgba(124, 92, 255, 0.35); transform: scale(1.2); }
 }
 
-/* ============ MOBILE ============ */
+/* ============ MOBILE (inline, can't be served stale by SW cache) ======== */
 @media (max-width: 720px) {
-  body { flex-direction: column; }
+  html, body { max-width: 100vw !important; overflow-x: hidden !important; }
+  body { flex-direction: column !important; display: block !important; }
+
+  /* Sidebar collapses to a fixed bottom-bar with EVERY nav item visible
+     (both top-level .nav-item AND group .sub items) so users can still
+     reach every section from their phone. */
   aside.sc-sidebar {
-    position: fixed; bottom: 0; top: auto; width: 100%; height: 64px;
-    flex-direction: row; padding: 6px; border-right: 0;
-    border-top: 1px solid var(--border); z-index: 50; overflow-x: auto;
+    position: fixed !important;
+    left: 0 !important; right: 0 !important; bottom: 0 !important; top: auto !important;
+    width: 100% !important; height: 56px !important;
+    flex-direction: row !important;
+    padding: 4px 4px !important;
+    border-right: 0 !important;
+    border-top: 1px solid var(--border) !important;
+    z-index: 100 !important;
+    overflow-x: auto !important; overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    background: var(--panel) !important;
+    gap: 0 !important;
   }
-  aside.sc-sidebar .sc-logo, aside.sc-sidebar .sc-search,
-  aside.sc-sidebar .group-title, aside.sc-sidebar .footer { display: none; }
-  aside.sc-sidebar .group { display: flex; flex: 1; }
-  aside.sc-sidebar .nav-item {
-    flex: 1; flex-direction: column; gap: 2px; font-size: 10px; padding: 4px; text-align: center;
+  aside.sc-sidebar .sc-logo,
+  aside.sc-sidebar .sc-search,
+  aside.sc-sidebar .group-title,
+  aside.sc-sidebar .footer,
+  aside.sc-sidebar .who { display: none !important; }
+  aside.sc-sidebar .group {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    flex: 0 0 auto !important;
+    gap: 0 !important; margin: 0 !important; padding: 0 !important;
   }
-  aside.sc-sidebar .sub { display: none; }
-  main.sc-main { padding-bottom: 70px; width: 100%; }
-  .sc-topbar { padding: 10px 12px; flex-wrap: wrap; }
-  .sc-page { padding: 14px; }
-  .sc-slideover { width: 100%; }
+  /* KEEP the .sub items visible on mobile (the old rule hid them, which
+     meant only the Home top-level item was reachable from a phone). */
+  aside.sc-sidebar .nav-item,
+  aside.sc-sidebar .sub {
+    display: inline-flex !important;
+    flex-direction: column !important;
+    align-items: center !important; justify-content: center !important;
+    gap: 2px !important;
+    padding: 4px 10px !important;
+    font-size: 10px !important; line-height: 1.1 !important;
+    white-space: nowrap !important;
+    min-width: 56px !important; min-height: 48px !important;
+    border-radius: 6px !important;
+    flex: 0 0 auto !important;
+    text-align: center !important;
+    color: var(--text) !important;
+  }
+
+  /* Main content fills the screen above the bottom-nav. */
+  main.sc-main {
+    width: 100% !important;
+    padding: 12px !important; padding-bottom: 72px !important;
+  }
+
+  .sc-topbar { padding: 8px 12px !important; flex-wrap: wrap !important; gap: 6px !important; }
+  .sc-breadcrumb { font-size: 12px !important; }
+  .sc-page { padding: 12px !important; }
+  .sc-slideover { width: 100% !important; max-width: 100vw !important; }
+
+  /* Home page killer-band — marketing tiles balloon vertically on phones
+     (~600px tall). Hide them; actual KPIs render below. */
+  #killer-band, .killer-band { display: none !important; }
+
+  /* Home stat row + two-col layouts — stack so 32px stats don't crush. */
+  #stat-row { grid-template-columns: 1fr !important; gap: 6px !important; }
+  #two-col, [id^="two-col"] { grid-template-columns: 1fr !important; }
+  #hero { flex-direction: column !important; align-items: stretch !important; gap: 14px !important; padding: 16px !important; }
+
+  /* Inline grid styles in any page — stack. */
+  [style*="grid-template-columns: 1fr 360px"],
+  [style*="grid-template-columns:1fr 360px"],
+  [style*="grid-template-columns: 1fr 320px"],
+  [style*="grid-template-columns:1fr 320px"] { grid-template-columns: 1fr !important; }
+  [style*="repeat(3,1fr)"], [style*="repeat(3, 1fr)"],
+  [style*="repeat(4,1fr)"], [style*="repeat(4, 1fr)"],
+  [style*="repeat(5,1fr)"], [style*="repeat(5, 1fr)"]
+    { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
+  /* Demo banner: drop the long pitch text on phones. */
+  .sc-demo-banner { padding: 8px 10px !important; font-size: 12px !important; flex-wrap: wrap !important; gap: 6px !important; }
+  .sc-demo-banner .pitch, .sc-demo-banner .tagline { display: none !important; }
+
+  /* Tables outside .sc-inv-table get horizontal scroll instead of pushing
+     the body wider than the viewport. */
+  main table:not(.sc-inv-table) { display: block; overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
 }
 </style>
 </head>

@@ -170,9 +170,214 @@
   h2 { font-size: 15px; }
 }
 
+/* ---------- Tablet + Mobile fixes for inline grid layouts that bypass
+   the responsive grid rules. These selectors target inline-styled grids
+   used in the home page, killer-features band, two-col splits, and the
+   sticky demo banner. Without these the layouts stay desktop-wide. */
+
+@media (max-width: 768px) {
+  /* ------------------------------------------------------------------ */
+  /* SIDEBAR — force the bottom-bar collapse + show ALL nav items, not  */
+  /* just .nav-item. The _chrome.py inline @media (max-width:720px)     */
+  /* hides .sub which makes the sidebar useless on phones.              */
+  /* ------------------------------------------------------------------ */
+  body { flex-direction: column !important; }
+  aside.sc-sidebar {
+    position: fixed !important; bottom: 0 !important; top: auto !important;
+    left: 0 !important; right: 0 !important;
+    width: 100% !important; height: 56px !important;
+    flex-direction: row !important; padding: 4px 4px !important;
+    border-right: 0 !important;
+    border-top: 1px solid var(--border) !important;
+    z-index: 100 !important; overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 0 !important;
+    background: var(--panel) !important;
+  }
+  /* Hide brand, search, group titles, footer at bottom-bar */
+  aside.sc-sidebar .sc-logo,
+  aside.sc-sidebar .sc-search,
+  aside.sc-sidebar .group-title,
+  aside.sc-sidebar .footer,
+  aside.sc-sidebar .who { display: none !important; }
+  /* Groups become inline flex containers */
+  aside.sc-sidebar .group {
+    display: flex !important; flex: 0 0 auto !important;
+    flex-direction: row !important; gap: 0 !important; margin: 0 !important;
+  }
+  /* IMPORTANT: keep the .sub items visible (was display:none in _chrome.py).
+     They're the actual navigation; without them only "Home" is reachable. */
+  aside.sc-sidebar .nav-item,
+  aside.sc-sidebar .sub {
+    display: inline-flex !important;
+    flex-direction: column !important;
+    align-items: center !important; justify-content: center !important;
+    gap: 2px !important;
+    padding: 4px 10px !important;
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+    min-width: 56px !important; min-height: 48px !important;
+    border-radius: 6px !important;
+    flex: 0 0 auto !important;
+    text-align: center !important;
+  }
+  aside.sc-sidebar .nav-item .icon,
+  aside.sc-sidebar .sub::before {
+    font-size: 16px !important;
+    line-height: 1 !important;
+  }
+  main.sc-main {
+    padding: 12px !important;
+    padding-bottom: 76px !important;
+    width: 100% !important;
+  }
+
+  /* Hide help-button (floating green circle) on mobile — covers the
+     bottom-nav and is too small for thumb tap. */
+  #sc-help-launcher, #help-launcher,
+  .sc-help-launcher { bottom: 64px !important; right: 8px !important;
+                       width: 36px !important; height: 36px !important; }
+
+  /* Demo banner — readable single-line on phones, hide the long pitch text. */
+  .sc-demo-banner {
+    padding: 8px 10px !important;
+    font-size: 12px !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+  .sc-demo-banner .pitch,
+  .sc-demo-banner .tagline { display: none !important; }
+  .sc-demo-banner a.cta {
+    margin-left: auto !important;
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+  }
+
+  /* Top bar: stack search + icons in a wrap, never overflow horizontally. */
+  .sc-topbar {
+    flex-wrap: wrap !important;
+    padding: 8px 12px !important;
+    gap: 8px !important;
+  }
+  .sc-breadcrumb {
+    flex: 1 1 100% !important;
+    order: 2 !important;
+    font-size: 12px !important;
+  }
+  .sc-topbar .sc-iconbtn,
+  .sc-topbar button { order: 3 !important; }
+
+  /* Home killer-features band — these are marketing tiles, not navigation.
+     On a phone they balloon vertically and crowd out actual content.
+     Hide them outright; users have the bottom nav for navigation and the
+     real KPIs / Safe Score / actions render below. */
+  #killer-band,
+  .killer-band {
+    display: none !important;
+  }
+
+  /* Home stat row — 3 cards in one row becomes 1 column. */
+  #stat-row {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+  }
+  #stat-row .card { padding: 10px 8px !important; }
+  #stat-row .card > div:first-child { font-size: 22px !important; }
+
+  /* Home two-col — 1fr 360px stacks. */
+  #two-col,
+  .home-two-col,
+  [id^="two-col"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Hero card — flex direction column on mobile so the asset name + button
+     don't overlap the score circle. */
+  #hero {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 14px !important;
+    padding: 18px !important;
+  }
+  #hero .donut, #hero .score-ring { margin: 0 auto !important; }
+
+  /* Any inline 1fr <px> two-column grid should stack on mobile. */
+  [style*="grid-template-columns: 1fr 360px"],
+  [style*="grid-template-columns:1fr 360px"],
+  [style*="grid-template-columns: 1fr 320px"],
+  [style*="grid-template-columns:1fr 320px"],
+  [style*="grid-template-columns: 1fr 280px"],
+  [style*="grid-template-columns:1fr 280px"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Any inline repeat(3..6,1fr) grid → wrap so it doesn't push horizontal scroll. */
+  [style*="repeat(3,1fr)"],
+  [style*="repeat(3, 1fr)"],
+  [style*="repeat(4,1fr)"],
+  [style*="repeat(4, 1fr)"],
+  [style*="repeat(5,1fr)"],
+  [style*="repeat(5, 1fr)"],
+  [style*="repeat(6,1fr)"],
+  [style*="repeat(6, 1fr)"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  /* Hero text sizes — chunky 32px+ stats look fine on desktop, oversize on
+     phones. */
+  .stat .v, .metric .v, .dash-kpi .val,
+  [style*="font-size:32px"], [style*="font-size: 32px"] {
+    font-size: 22px !important;
+  }
+  [style*="font-size:28px"], [style*="font-size: 28px"] {
+    font-size: 20px !important;
+  }
+
+  /* Cards: edge-to-edge padding so we don't waste 20% of the screen on
+     internal margin. */
+  .card { padding: 14px !important; }
+
+  /* Reports + form rows that use inline grid - stack. */
+  .rep-row, .rep-grid-2, .rep-grid-3 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Mobile-only: stat row → 1 column to give numbers room. */
+  #stat-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Page padding tightens further. */
+  .sc-page { padding: 8px !important; }
+  .card, .card-soft { padding: 12px !important; }
+
+  /* Hide secondary topbar elements (Ask AI, search) — leave hamburger + brand. */
+  .sc-topbar .sc-search-box,
+  .sc-topbar [data-hide-on-mobile] { display: none !important; }
+
+  /* Long pre/code blocks: allow horizontal scroll instead of breaking layout. */
+  pre, code.block { max-width: 100%; overflow-x: auto; }
+
+  /* Tables that aren't .sc-inv-table get a horizontal scroll wrapper. */
+  table:not(.sc-inv-table) {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  /* "Ask anything" + answer-style chat rows stack instead of side-by-side. */
+  .live-activity, .live-act { grid-template-columns: 1fr !important; }
+}
+
 /* ---------- Print (used by reports) ---------- */
 @media print {
-  .sc-sidebar, .sc-topbar, .sc-banner, .skip-to-content, .sc-hamburger {
+  .sc-sidebar, .sc-topbar, .sc-banner, .skip-to-content, .sc-hamburger,
+  .sc-demo-banner {
     display: none !important;
   }
   main.sc-main { padding: 0; }

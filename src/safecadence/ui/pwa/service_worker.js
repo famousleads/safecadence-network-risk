@@ -8,7 +8,7 @@
  * Cache is versioned so a release bump invalidates old assets automatically.
  */
 
-const CACHE_VERSION = 'sc-v11.1.0';
+const CACHE_VERSION = 'sc-v16.0.1-mobile';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 

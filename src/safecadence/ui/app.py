@@ -1492,8 +1492,18 @@ class _DictShim:
 
 
 def _is_port_free(host: str, port: int) -> bool:
+    """Test whether `port` can be bound on `host`. Sets SO_REUSEADDR so a
+    socket still in TIME_WAIT (from a previous systemd restart cycle)
+    doesn't falsely cause the CLI to walk to port+1. Without this the
+    production safecadence-demo service kept landing on 8004 after every
+    restart, causing Caddy 502s."""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            except (AttributeError, OSError):
+                pass  # not supported on this platform
             s.bind((host, port))
         return True
     except OSError:

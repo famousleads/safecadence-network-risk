@@ -115,3 +115,6 @@ ROADMAP_v12_to_v14.md
 
 # ─── Local publish venv (created on-demand by the publish workflow) ─────
 .publish-venv/
+ROADMAP_v17_PRIVATE.md
+GSC_SUBMISSION_CHECKLIST*.md
+MONETIZATION_SETUP_CHECKLIST*.md
