@@ -545,6 +545,15 @@ th { color: var(--muted); font-weight: 500; }
             aria-label="Notifications" aria-haspopup="true">
       🔔<span class="badge" aria-hidden="true">0</span>
     </button>
+    <!-- v16.0.2 — open-source "real-human support" CTA. Every install
+         + demo visit advertises support@safecadence.com so the OSS
+         user base has a direct path to ask for help. -->
+    <a class="sc-iconbtn" href="mailto:support@safecadence.com?subject=NetRisk%20help%20request"
+       title="Email a real human (me) — usually a same-business-day reply"
+       aria-label="Email support@safecadence.com for help"
+       style="text-decoration:none">
+      ✉ Help
+    </a>
     <!-- v12.1 — HA / cluster status badge.
          Hidden by default; the cluster.js fetch turns it on only when
          /api/v1/cluster/status returns a real cluster view. -->

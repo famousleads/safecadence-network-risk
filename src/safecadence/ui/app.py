@@ -1536,7 +1536,15 @@ def run(*, host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True,
 
     url = f"http://{host}:{port}/"
     auth_note = " (password-protected)" if password else ""
-    sys.stdout.write(f"\n  SafeCadence Local UI starting at {url}{auth_note}\n  Press Ctrl-C to stop.\n\n")
+    sys.stdout.write(
+        f"\n"
+        f"  SafeCadence Local UI starting at {url}{auth_note}\n"
+        f"  Open /home for the dashboard · Ctrl-C to stop\n"
+        f"\n"
+        f"  Stuck? Email support@safecadence.com — real human reply,\n"
+        f"  usually same business day. Free for every OSS user, forever.\n"
+        f"\n"
+    )
 
     if open_browser:
         _open_browser_when_ready(url)
