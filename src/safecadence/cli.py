@@ -214,6 +214,19 @@ def scan(source, vendor, as_dir, workers, out_dir, output, json_path, html_path,
         store.close()
         _print(f"Saved to local history (id #{sid}).")
 
+        # Optional Cloud Sync — only if the user explicitly ran `cloud connect`.
+        # Best-effort: a cloud hiccup must never break a local scan (local-first).
+        try:
+            from safecadence import cloud_sync
+            if cloud_sync.is_enabled():
+                res = cloud_sync.push_scan_result(result)
+                if res.get("sent"):
+                    _print("Pushed to your SafeCadence Security Graph (Cloud Sync).")
+                elif res.get("reason") != "not connected":
+                    _print(f"Cloud Sync push skipped: {res.get('reason')}")
+        except Exception:
+            pass
+
 
 def _bulk_scan(source, *, workers, out_dir, vendor, criticality, save_history, quiet):
     """Run a bulk scan over a directory of configs in parallel."""
@@ -1403,6 +1416,83 @@ def cmd_adapter_test(adapter_name: str, live: bool, host: str,
         suffix = f"  -- {f['detail']}" if f["detail"] else ""
         click.echo(f"  {mark}  {f['check']}{suffix}")
     click.echo(f"\n{result.pass_count} pass, {result.fail_count} fail")
+
+
+@cli.group("cloud")
+def cloud_cli():
+    """Optional Cloud Sync — OFF by default. NetRisk is local-first and never
+    calls home unless you explicitly `cloud connect` it to a SafeCadence
+    Security Graph (for MSP dashboards / cross-site rollups)."""
+    pass
+
+
+@cloud_cli.command("connect")
+@click.argument("token")
+@click.option("--url", default="https://analyzer.safecadence.com/portal/api/shield/graph/import-netrisk",
+              show_default=True, help="The Security Graph import endpoint (https only).")
+def cmd_cloud_connect(token: str, url: str):
+    """Opt in: connect this install with a per-tenant token (sgt_...)."""
+    from safecadence import cloud_sync
+    try:
+        cloud_sync.connect(token, url=url)
+    except ValueError as e:
+        click.echo(f"Could not connect: {e}", err=True); return
+    click.echo("Cloud Sync ON. Future `scan --save-history` results push to your "
+               "SafeCadence Security Graph. Run `cloud disconnect` to stop.")
+
+
+@cloud_cli.command("disconnect")
+def cmd_cloud_disconnect():
+    """Opt out: delete the local Cloud Sync config so nothing is ever sent."""
+    from safecadence import cloud_sync
+    click.echo("Cloud Sync OFF — config removed." if cloud_sync.disconnect()
+               else "Cloud Sync was not connected.")
+
+
+@cloud_cli.command("status")
+def cmd_cloud_status():
+    """Show whether Cloud Sync is connected and what it does."""
+    from safecadence import cloud_sync
+    s = cloud_sync.status()
+    if not s["connected"]:
+        click.echo("Cloud Sync: OFF (local-first). " + s["detail"]); return
+    q = f" · {s['queued']} queued (run `cloud flush`)" if s.get("queued") else ""
+    click.echo(f"Cloud Sync: {'ON' if s['enabled'] else 'PAUSED'} → {s['url']} "
+               f"(token {s['token']}){q}. {s['detail']}")
+
+
+@cloud_cli.command("flush")
+def cmd_cloud_flush():
+    """Retry any scan results that were queued while offline."""
+    from safecadence import cloud_sync
+    if not cloud_sync.is_enabled():
+        click.echo("Not connected.", err=True); return
+    res = cloud_sync.flush_queue()
+    click.echo(f"Flushed {res['flushed']} queued payload(s); "
+               f"{res['remaining']} remaining.")
+
+
+@cloud_cli.command("sync")
+def cmd_cloud_sync():
+    """Push the local scan history to the Security Graph now (one batch)."""
+    from safecadence import cloud_sync
+    from safecadence.core.store import HistoryStore
+    if not cloud_sync.is_enabled():
+        click.echo("Not connected. Run `safecadence cloud connect <token>` first.",
+                   err=True); return
+    store = HistoryStore()
+    scans = []
+    try:
+        for row in store.list(limit=1000):
+            payload = store.get(row["id"])
+            if payload:
+                scans.append(payload)
+    finally:
+        store.close()
+    if not scans:
+        click.echo("No local history to sync."); return
+    res = cloud_sync.push({"scans": scans})
+    click.echo("Synced." if res.get("sent") else f"Sync failed: {res.get('reason')}")
 
 
 @cli.group("msp")

@@ -44,6 +44,30 @@ confirming there is no outbound traffic.
 Some SafeCadence features intentionally make external calls.
 Every one of them is opt-in, documented, and listed here.
 
+### Cloud Sync to a Security Graph (v16.1+)
+
+OFF by default. NetRisk only sends scan data to a SafeCadence Security
+Graph if you explicitly connect it:
+
+```
+safecadence cloud connect <sgt_token>   # opt in
+safecadence cloud status                # see exactly what's on
+safecadence cloud disconnect            # opt out — local config is deleted
+```
+
+- **When it sends:** only after you run `cloud connect`. With no
+  `~/.safecadence/cloud.json`, nothing is ever sent — a fresh or
+  air-gapped install sends nothing.
+- **What gets sent:** your scan results (`scan --save-history`, or a
+  batch via `cloud sync`) — assets, findings, CVEs, topology, and
+  identities/agents NetRisk discovered.
+- **Where it goes:** the HTTPS Security Graph endpoint you connected.
+- **Auth:** a per-tenant token (`sgt_…`) issued to YOUR organization by
+  your SafeCadence operator; uploads bind to your org only.
+- **How to disable:** `safecadence cloud disconnect` (deletes the local
+  config and stops all syncing). Pushes are best-effort and never block
+  or alter a local scan.
+
 ### LLM provider integration (v11.3+)
 
 When you configure an LLM provider via `/settings/llm`, SafeCadence
