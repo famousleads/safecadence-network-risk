@@ -17,6 +17,11 @@ Forty-five adapters across network gear, servers, identity, cloud, and backup. T
 
 </div>
 
+> **Need help? Email [hello@safecadence.com](mailto:hello@safecadence.com?subject=Help%20with%20SafeCadence).**
+> A real person (Faz, who built this) reads it and usually replies within 24 hours. No sales pitch.
+> NetRisk is local-first and never phones home — we can't tell when you're stuck, so please just ask.
+> You can also run `safecadence help`.
+
 ```bash
 pip install 'safecadence-netrisk[server]'
 safecadence demo                          # seed a 34-asset demo fleet

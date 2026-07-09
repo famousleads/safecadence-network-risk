@@ -1,5 +1,60 @@
 # Changelog
 
+## [16.3.0] — 2026-07-09 — Claude Fable 5, and never an empty answer
+
+**Fixed — a silent failure that has been there all along.** `_call_anthropic`
+collected only `type == "text"` blocks and returned `"".join(...)`. A response
+carrying no text block — a refusal, a thinking-only turn, a `tool_use` block —
+produced an empty string and raised nothing, so `safecadence ai-explain` printed
+nothing and never said why. Every provider path now refuses to return an empty
+explanation in silence. The same guard covers Ollama and OpenAI.
+
+**Claude Fable 5 is now the default Anthropic model** (was
+`claude-haiku-4-5-20251001`), overridable with `SAFECADENCE_CLAUDE_MODEL`, with
+`claude-opus-4-8` as the fallback (`SAFECADENCE_CLAUDE_FALLBACK`).
+
+**Refusals are handled honestly.** A refusal arrives as HTTP 200 with
+`stop_reason="refusal"` and now raises `AIRefusal`. For a tool whose whole job
+is describing vulnerabilities and how to fix them, this is not an edge case — it
+is exactly the shape of request a safety classifier may decline. So:
+
+    refusal → retry once on the fallback model → still refused → deterministic engine
+
+You always get a briefing, and it tells you which models declined. NetRisk has a
+rule-based engine, so it should never leave you with nothing.
+
+**`--effort`** on `safecadence ai-explain` (`low|medium|high|xhigh|max`), sent as
+`output_config.effort`. Ignored by providers that don't support it. No
+`temperature` is sent on the Claude path — adaptive thinking is always on, and
+the two don't mix. `max_tokens` raised from 1500 to 4096 for the same reason:
+thinking blocks share that budget.
+
+No telemetry. Keys still never leave your machine.
+
+*Not yet ported:* `reports/ai_helpers.py` is a separate AI layer with its own
+provider routing. It already degrades safely (returns `None` → deterministic via
+`_try_ai`), but still defaults to Haiku 4.5 with `max_tokens=400`.
+
+## [16.2.0] — 2026-07-09 — Say plainly that a human is here
+
+NetRisk is local-first and never phones home. That is a feature, and it has a
+cost: we cannot see when someone is stuck. The terminal is the only channel we
+have to the person running the tool — and until now it never once offered help.
+
+- **`safecadence help`** — new command. How to reach a human, what to paste
+  (the last few lines of your scan summary is usually enough), plus docs,
+  issues, and the private security-advisory path.
+- **Post-scan footer** — every scan summary now ends with a one-line offer of
+  help. Respects `--quiet`, and degrades to plain text when `rich` is absent.
+- **`safecadence --help` epilog** — the help address now sits on the most-run
+  command in the tool.
+- **Web UI** — the sidebar footer carries a `Need help?` mailto link.
+- **README** — a help callout at the top, which is also the PyPI description.
+
+No telemetry was added. Nothing phones home. The only change is that the
+software now says a person is available: **hello@safecadence.com** — a real
+reply, usually within 24 hours, no sales pitch.
+
 ## [16.0.0] — 2026-05-25 — AI agents that work for you while you sleep
 
 The v16 release answers what v14 left open: **what do the AI agents

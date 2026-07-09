@@ -23,6 +23,16 @@ class AIError(RuntimeError):
     pass
 
 
+class AIRefusal(AIError):
+    """The model declined to answer.
+
+    For a security tool this is not exceptional. Asking a model to describe a
+    vulnerability and how to fix it is exactly the shape of request a safety
+    classifier may decline. Callers retry once on a fallback model, then drop to
+    the deterministic engine — so the user always gets an explanation.
+    """
+
+
 class AIProvider(str, Enum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
@@ -41,6 +51,42 @@ def detect_provider(env: Optional[dict] = None) -> AIProvider:
     if e.get("ANTHROPIC_API_KEY"):
         return AIProvider.ANTHROPIC
     return AIProvider.NONE
+
+
+# --------------------------------------------------------------------------- #
+# Claude model selection (Fable 5)                                             #
+# --------------------------------------------------------------------------- #
+# Read at call time rather than import time, so flipping an env var takes effect
+# without reimporting the module — and so tests can set it cleanly.
+_DEFAULT_ANTHROPIC_MODEL = "claude-fable-5"
+_FALLBACK_ANTHROPIC_MODEL = "claude-opus-4-8"
+
+#: Fable 5 reasoning-effort levels, sent as ``output_config.effort``.
+EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
+
+
+def _anthropic_model() -> str:
+    return (os.environ.get("SAFECADENCE_CLAUDE_MODEL") or _DEFAULT_ANTHROPIC_MODEL).strip()
+
+
+def _anthropic_fallback_model() -> str:
+    return (os.environ.get("SAFECADENCE_CLAUDE_FALLBACK") or _FALLBACK_ANTHROPIC_MODEL).strip()
+
+
+def _require_text(text: str, provider: str, *, stop_reason: Optional[str] = None) -> str:
+    """Never hand back an empty explanation in silence.
+
+    Before this guard, a response carrying no text block — a refusal, a
+    thinking-only turn, a tool_use block — collapsed to ``''`` with no error
+    raised, so ``safecadence ai-explain`` printed nothing and never said why.
+    """
+    cleaned = (text or "").strip()
+    if cleaned:
+        return cleaned
+    if stop_reason == "refusal":
+        raise AIRefusal(f"{provider} declined to answer (stop_reason=refusal).")
+    suffix = f" (stop_reason={stop_reason})" if stop_reason else ""
+    raise AIError(f"{provider} returned no text content{suffix}.")
 
 
 def _import_httpx():
@@ -78,19 +124,33 @@ def _call_openai(user_prompt: str, *, api_key: str, model: str, timeout: int) ->
     if r.status_code >= 400:
         raise AIError(f"OpenAI returned {r.status_code}: {r.text[:300]}")
     try:
-        return r.json()["choices"][0]["message"]["content"].strip()
+        message = r.json()["choices"][0]["message"]
     except (KeyError, IndexError, ValueError) as exc:
         raise AIError(f"Could not parse OpenAI response: {exc}") from exc
+    if message.get("refusal"):
+        raise AIRefusal(f"OpenAI ({model}) declined: {str(message['refusal'])[:200]}")
+    return _require_text(message.get("content") or "", f"OpenAI ({model})")
 
 
-def _call_anthropic(user_prompt: str, *, api_key: str, model: str, timeout: int) -> str:
+def _call_anthropic(user_prompt: str, *, api_key: str, model: str, timeout: int,
+                    effort: Optional[str] = None, max_tokens: int = 4096) -> str:
     httpx = _import_httpx()
     payload = {
         "model": model,
-        "max_tokens": 1500,
+        # Fable 5 keeps adaptive thinking on, and thinking blocks share this
+        # budget — 1500 was enough for text-only models and truncates here.
+        "max_tokens": max_tokens,
         "system": SYSTEM_PROMPT,
         "messages": [{"role": "user", "content": user_prompt}],
     }
+    # Deliberately no `temperature` on the Claude path: adaptive thinking is
+    # always on and the two don't mix.
+    if effort:
+        if effort not in EFFORT_LEVELS:
+            raise AIError(
+                f"Unknown effort {effort!r}. Choose one of: {', '.join(EFFORT_LEVELS)}."
+            )
+        payload["output_config"] = {"effort": effort}
     headers = {
         "x-api-key": api_key,
         "anthropic-version": "2023-06-01",
@@ -107,11 +167,18 @@ def _call_anthropic(user_prompt: str, *, api_key: str, model: str, timeout: int)
         raise AIError(f"Anthropic returned {r.status_code}: {r.text[:300]}")
     try:
         body = r.json()
-        # /v1/messages returns content as a list of blocks
-        chunks = [b.get("text", "") for b in body.get("content", []) if b.get("type") == "text"]
-        return ("".join(chunks)).strip()
-    except (KeyError, ValueError) as exc:
+    except ValueError as exc:
         raise AIError(f"Could not parse Anthropic response: {exc}") from exc
+
+    # A refusal arrives as HTTP 200 with stop_reason="refusal" and no text block.
+    stop_reason = body.get("stop_reason")
+    if stop_reason == "refusal":
+        raise AIRefusal(f"Anthropic ({model}) declined to answer (stop_reason=refusal).")
+
+    # /v1/messages returns content as a list of blocks; thinking blocks are not
+    # text and are skipped here by design.
+    chunks = [b.get("text", "") for b in body.get("content", []) if b.get("type") == "text"]
+    return _require_text("".join(chunks), f"Anthropic ({model})", stop_reason=stop_reason)
 
 
 def explain_findings(
@@ -121,11 +188,14 @@ def explain_findings(
     api_key: str | None = None,
     model: str | None = None,
     timeout: int = 60,
+    effort: str | None = None,
 ) -> str:
     """
     Produce an executive remediation briefing.
 
-    Returns a deterministic fallback string if no provider is available.
+    Returns a deterministic fallback string if no provider is available, or if
+    the model declines to answer (see AIRefusal). `effort` is Fable 5's
+    reasoning budget and is ignored by providers that don't support it.
     """
     prov = provider if isinstance(provider, AIProvider) else (
         AIProvider(provider) if provider else detect_provider()
@@ -148,12 +218,30 @@ def explain_findings(
         key = (api_key or os.environ.get("ANTHROPIC_API_KEY", "")).strip()
         if not key:
             raise AIError("ANTHROPIC_API_KEY not set and no --api-key provided.")
-        return _call_anthropic(
-            build_user_prompt(result),
-            api_key=key,
-            model=model or "claude-haiku-4-5-20251001",
-            timeout=timeout,
-        )
+        prompt = build_user_prompt(result)
+        primary = model or _anthropic_model()
+        try:
+            return _call_anthropic(prompt, api_key=key, model=primary,
+                                   timeout=timeout, effort=effort)
+        except AIRefusal:
+            fallback = _anthropic_fallback_model()
+            if fallback and fallback != primary:
+                try:
+                    return _call_anthropic(prompt, api_key=key, model=fallback,
+                                           timeout=timeout, effort=effort)
+                except AIRefusal:
+                    pass
+            # Both declined. A security tool must still explain itself, so drop
+            # to the rule-based engine rather than leaving the user with nothing.
+            return _deterministic_fallback(
+                result,
+                header=(
+                    f"The AI model declined to write a remediation narrative "
+                    f"(tried {primary}, then {fallback}). That can happen when a "
+                    "safety classifier sees vulnerability detail. Falling back to "
+                    "the deterministic engine — the findings themselves are unchanged."
+                ),
+            )
 
     if prov == AIProvider.OLLAMA:
         host = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
@@ -187,25 +275,29 @@ def _call_ollama(user_prompt: str, *, host: str, model: str, timeout: int) -> st
         raise AIError(f"Ollama returned {r.status_code}: {r.text[:300]}")
     try:
         body = r.json()
-        return (body.get("message", {}).get("content", "")).strip()
-    except (KeyError, ValueError) as exc:
+    except ValueError as exc:
         raise AIError(f"Could not parse Ollama response: {exc}") from exc
+    return _require_text(body.get("message", {}).get("content", ""), f"Ollama ({model})")
 
 
-def _deterministic_fallback(result: ScanResult) -> str:
-    """No-AI fallback — still useful, just rule-based."""
+def _deterministic_fallback(result: ScanResult, header: str | None = None) -> str:
+    """Rule-based briefing. Used when there's no AI key, and when the model
+    declines — in which case `header` explains what happened."""
+    lead = header or (
+        "No AI key detected (set OPENAI_API_KEY or ANTHROPIC_API_KEY to enable "
+        "AI-generated remediation plans)."
+    )
     if not result.findings:
         return (
-            "No AI key detected. The deterministic engine found no findings on "
-            "this device. Re-scan periodically and after every change."
+            f"{lead}\n\nThe deterministic engine found no findings on this "
+            "device. Re-scan periodically and after every change."
         )
     crit = [f for f in result.findings if f.severity.value == "critical"]
     high = [f for f in result.findings if f.severity.value == "high"]
     top = (crit + high)[:5] or result.findings[:5]
     bullets = "\n".join(f"  - [{f.severity.value.upper()}] {f.title}" for f in top)
     return (
-        "No AI key detected (set OPENAI_API_KEY or ANTHROPIC_API_KEY to enable "
-        "AI-generated remediation plans).\n\n"
+        f"{lead}\n\n"
         f"Top findings to address first:\n{bullets}\n\n"
         f"Risk score: {result.risk_score}/100 ({result.risk_band}). "
         f"Health: {result.health_score}/100 ({result.health_band})."

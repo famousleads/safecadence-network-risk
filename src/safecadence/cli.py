@@ -22,7 +22,7 @@ from pathlib import Path
 import click
 
 from safecadence import __version__
-from safecadence.ai import AIError, detect_provider, explain_findings
+from safecadence.ai import EFFORT_LEVELS, AIError, detect_provider, explain_findings
 from safecadence.bulk import bulk_scan
 from safecadence.core.registry import AdapterRegistry
 from safecadence.core.schema import Asset, ScanResult, Severity
@@ -79,12 +79,67 @@ _SEV_COLOR = {
 
 
 # --------------------------------------------------------------------------- #
+# Getting help                                                                #
+# --------------------------------------------------------------------------- #
+# NetRisk is local-first and never phones home, so the terminal is the only
+# channel we have to the person running it. We can't see that someone is stuck
+# — so the tool has to say, plainly and often, that a human is available.
+HELP_EMAIL = "hello@safecadence.com"
+_REPO_URL = "https://github.com/famousleads/safecadence-network-risk"
+_HELP_EPILOG = (
+    f"Need help?  Email {HELP_EMAIL} — a real person (Faz, who built this) reads "
+    "it and usually replies within 24 hours. No sales pitch.  "
+    "Or run: safecadence help"
+)
+
+
+def _print_help_footer() -> None:
+    """Printed after every scan summary, so the offer of help is where the user
+    already is — not buried in a website footer they'll never visit."""
+    if _has_rich():
+        _print(
+            f"\n[dim]Stuck on a finding? Email [cyan]{HELP_EMAIL}[/cyan] — a real "
+            "person replies within 24h, no sales pitch.  "
+            "([cyan]safecadence help[/cyan])[/dim]"
+        )
+    else:
+        _print(
+            f"\nStuck on a finding? Email {HELP_EMAIL} — a real person replies "
+            "within 24h, no sales pitch.  (safecadence help)"
+        )
+
+
+# --------------------------------------------------------------------------- #
 # Commands                                                                    #
 # --------------------------------------------------------------------------- #
-@click.group(context_settings={"help_option_names": ["-h", "--help"]})
+@click.group(context_settings={"help_option_names": ["-h", "--help"]},
+             epilog=_HELP_EPILOG)
 @click.version_option(__version__, prog_name="safecadence")
 def cli():
     """SafeCadence Network Risk — open-source network audit tool."""
+
+
+@cli.command("help")
+def help_cmd() -> None:
+    """How to reach a human when you're stuck."""
+    for line in (
+        "SafeCadence NetRisk — getting help",
+        "",
+        f"  Email     {HELP_EMAIL}",
+        "            A real person (Faz, who built this) reads it and usually",
+        "            replies within 24 hours. No sales pitch.",
+        "",
+        "  Tip       Paste the last few lines of your scan summary. That is",
+        "            usually enough for us to tell you what to fix first.",
+        "",
+        f"  Docs      {_REPO_URL}#readme",
+        f"  Issues    {_REPO_URL}/issues",
+        "  Security  See SECURITY.md — private advisory, never a public issue.",
+        "",
+        "NetRisk is local-first: it never phones home, so we cannot see that you",
+        "are stuck unless you tell us. Please do — questions are welcome.",
+    ):
+        _print(line)
 
 
 @cli.command("scan")
@@ -446,10 +501,13 @@ def rule_info(rule_id):
               default="auto", show_default=True,
               help="ollama = local LLM (set OLLAMA_HOST or use default 127.0.0.1:11434).")
 @click.option("--model", default=None, help="Override the default model name.")
+@click.option("--effort", type=click.Choice(list(EFFORT_LEVELS)), default=None,
+              help="Claude (Fable 5) reasoning effort. Ignored by providers "
+                   "that don't support it.")
 @click.option("--api-key", default=None, help="API key (else read from env).")
 @click.option("--output", "-o", type=click.Path(dir_okay=False), default=None,
               help="Write the briefing to this Markdown file (in addition to printing).")
-def ai_explain(source, vendor, provider, model, api_key, output):
+def ai_explain(source, vendor, provider, model, effort, api_key, output):
     """Run a scan, then ask your BYO LLM for an executive remediation plan."""
     text = Path(source).read_text(encoding="utf-8", errors="replace")
     if vendor:
@@ -478,7 +536,8 @@ def ai_explain(source, vendor, provider, model, api_key, output):
 
     prov = None if provider == "auto" else provider
     try:
-        out = explain_findings(result, provider=prov, api_key=api_key, model=model)
+        out = explain_findings(result, provider=prov, api_key=api_key, model=model,
+                               effort=effort)
     except AIError as exc:
         click.echo(str(exc), err=True)
         sys.exit(2)
@@ -823,6 +882,7 @@ def _print_summary(result: ScanResult) -> None:
         f"[dim]AI provider auto-detected: [bold]{detected}[/bold] — "
         f"run [cyan]safecadence ai-explain {result.source}[/cyan] for a plan.[/dim]"
     )
+    _print_help_footer()
 
 
 @cli.command("collect")

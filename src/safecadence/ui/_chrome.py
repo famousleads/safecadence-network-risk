@@ -523,6 +523,10 @@ th { color: var(--muted); font-weight: 500; }
       <button onclick="scToggleTheme()" title="toggle light/dark">🌗</button>
       <button onclick="scShowHelp()" title="keyboard shortcuts">⌨</button>
     </div>
+    <div class="sc-help-strip" style="width:100%;margin-top:8px;font-size:11px;line-height:1.45">
+      <a href="mailto:hello@safecadence.com?subject=Help%20with%20SafeCadence"
+         style="color:#22d3ee;text-decoration:none" title="A real person replies within 24h, no sales pitch">✉ Need help? hello@safecadence.com</a>
+    </div>
   </div>
 </aside>
 
