@@ -432,4 +432,38 @@ def create_app(*, db_url: Optional[str] = None, jwt_secret: Optional[str] = None
     except Exception:                              # pragma: no cover
         pass
 
+    # ---- v16.4 (DESAT): events + incidents + geo routers ---------- #
+    try:
+        from safecadence.events.api import build_router as _events_router
+        _r = _events_router()
+        if _r is not None:
+            app.include_router(_r)
+    except Exception:                              # pragma: no cover
+        pass
+    try:
+        from safecadence.incidents.api import build_router as _incidents_router
+        _r = _incidents_router()
+        if _r is not None:
+            app.include_router(_r)
+    except Exception:                              # pragma: no cover
+        pass
+    try:
+        from safecadence.platform.geo_api import build_router as _geo_router
+        _r = _geo_router()
+        if _r is not None:
+            app.include_router(_r)
+    except Exception:                              # pragma: no cover
+        pass
+    # Inbound listeners (syslog/traps) start only when explicitly
+    # enabled — SC_EVENTS_LISTENERS=1 (or SC_SYSLOG_PORT/SC_TRAP_PORT).
+    try:
+        import os as _os
+        if _os.environ.get("SC_EVENTS_LISTENERS") == "1" \
+                or _os.environ.get("SC_SYSLOG_PORT") \
+                or _os.environ.get("SC_TRAP_PORT"):
+            from safecadence.events.listeners import start_listeners
+            start_listeners()
+    except Exception:                              # pragma: no cover
+        pass
+
     return app

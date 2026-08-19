@@ -50,6 +50,11 @@ _DEVICE_TYPE_TO_ASSET_TYPE = {
     "workstation": "server", "workstation-mac": "server",
     "workstation-windows": "server",
     "printer": "iot", "camera": "iot", "iot": "iot",
+    # Public-safety (DESAT) categories keep base asset types for every
+    # existing consumer; precise identity rides in asset.public_safety.
+    "alpr": "iot", "uas": "iot", "bodycam-infra": "iot",
+    "radio": "iot", "access-control": "iot",
+    "vms": "server",
     "nas": "storage", "storage": "storage",
     "hypervisor": "hypervisor",
     "voip": "voip", "media": "media",
@@ -111,6 +116,12 @@ def discovered_to_asset(host) -> UnifiedAsset:
     sysdescr = h.get("snmp_sysdescr") or ""
     if sysdescr:
         asset.os = OperatingSystem(os_type=os_type, os_version=sysdescr[:120])
+
+    # Public-safety taxonomy (DESAT) — empty block when not applicable.
+    from safecadence.platform.public_safety import classify_public_safety
+    banners_text = " ".join(str(v) for v in (h.get("banners") or {}).values())
+    asset.public_safety = classify_public_safety(
+        vendor=vendor, category=dev_type, banners_text=banners_text)
 
     open_ports = h.get("open_ports") or []
     weak = sorted({_WEAK_PROTO_BY_PORT[p] for p in open_ports

@@ -2405,9 +2405,77 @@ def get_section(key: str) -> dict | None:
     return None
 
 
+# ================================================================
+# DESAT — Evidence Infrastructure Health (public safety)
+# ================================================================
+
+_EIH_STATUS_COLORS = {
+    "healthy": "#16a34a", "warning": "#d97706",
+    "critical": "#dc2626", "unknown": "#64748b",
+}
+
+
+def evidence_infrastructure(store: Any, scope: dict) -> dict:
+    """Evidence Infrastructure Health — per evidence-chain stage
+    (capture → transfer → store → access → preserve), assembled from
+    asset health, storage capacity/replication, backup RPO/immutability
+    and CVE/KEV exposure. Infrastructure only — never touches
+    evidentiary content."""
+    from safecadence.platform.evidence_health import (
+        STAGES, evidence_infrastructure_summary,
+    )
+    assets = _filter_assets(_load_platform_assets(), scope)
+    summary = evidence_infrastructure_summary(assets or [])
+
+    rows = []
+    for stage in STAGES:
+        s = summary["stages"][stage]
+        color = _EIH_STATUS_COLORS.get(s["status"], "#64748b")
+        issue_html = "<br>".join(
+            f'{"&#9888;" if i["severity"] == "warning" else "&#10071;"} '
+            f'{_esc(i["message"])}'
+            for i in s["issues"][:6]) or "&mdash;"
+        rows.append(
+            f"<tr><td style='text-transform:capitalize'>{_esc(stage)}</td>"
+            f"<td><span style='color:{color};font-weight:700'>"
+            f"{_esc(s['status'].upper())}</span></td>"
+            f"<td>{s['asset_count']}</td>"
+            f"<td style='font-size:12px'>{issue_html}</td></tr>")
+
+    color = _EIH_STATUS_COLORS.get(summary["overall_status"], "#64748b")
+    body = (
+        f'<p class="sc-narrative"><strong style="color:{color}">'
+        f'{_esc(summary["headline"])}</strong></p>'
+        + (f'<p style="color:#475569;font-size:13px">'
+            f'{_esc(summary["guidance"])}</p>' if summary["guidance"] else "")
+        + '<table class="sc-table"><thead><tr><th>Chain stage</th>'
+          '<th>Status</th><th>Assets</th><th>Issues</th></tr></thead>'
+          f'<tbody>{"".join(rows)}</tbody></table>'
+        + f'<p style="color:#94a3b8;font-size:11.5px;margin-top:8px">'
+          f'{_esc(summary["disclaimer"])}</p>'
+    )
+    return {
+        "title": "Evidence infrastructure health",
+        "data": summary,
+        "html_fragment": body,
+        "empty": summary["overall_status"] == "unknown" and not assets,
+    }
+
+
+SECTION_REGISTRY.append({
+    "key": "evidence_infrastructure",
+    "name": "Evidence infrastructure health",
+    "description": ("Public safety: capture/transfer/store/access/preserve "
+                     "chain health from storage, backup, and cyber signals."),
+    "category": "Public safety", "default_enabled": False,
+    "fn": evidence_infrastructure,
+})
+
+
 __all__ = [
     "SECTION_REGISTRY",
     "get_section",
+    "evidence_infrastructure",
     "kpi_summary", "host_inventory", "cve_exposure", "compliance_posture",
     "compliance_executive_summary", "compliance_control_matrix",
     "compliance_evidence_pack", "compliance_gap_analysis",

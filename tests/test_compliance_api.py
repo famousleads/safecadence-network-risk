@@ -59,13 +59,21 @@ def auth(client):
 # =================================================== mappings + coverage
 
 
-def test_api_compliance_frameworks_lists_six(client):
+def test_api_compliance_frameworks_lists_seven(client):
     r = client.get("/api/compliance/frameworks", headers=auth(client))
     assert r.status_code == 200
     fws = {f["key"] for f in r.json()["frameworks"]}
     for k in ("nist_800_53", "cis_v8", "pci_dss_4", "hipaa",
-                "iso_27001_2022", "soc2_tsc"):
+                "iso_27001_2022", "soc2_tsc", "cjis"):
         assert k in fws
+
+
+def test_api_compliance_coverage_for_cjis(client):
+    r = client.get("/api/compliance/coverage/cjis", headers=auth(client))
+    assert r.status_code == 200
+    body = r.json()
+    assert body["framework"] == "CJIS Security Policy"
+    assert body["covered_count"] > 0
 
 
 def test_api_compliance_coverage_for_nist(client):

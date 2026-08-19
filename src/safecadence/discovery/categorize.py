@@ -6,6 +6,8 @@ Given a DiscoveredHost (with MAC, open ports, banners, mDNS services), assign:
               nas | iot | media | voip | server-linux | server-windows |
               workstation-mac | workstation-windows | mobile-ios |
               mobile-android | unknown
+              public-safety (DESAT): alpr | uas | vms | bodycam-infra |
+              radio | access-control
   - risk_score: 0-100 (higher = worse)
   - risk_band: safe | low | medium | high | critical
   - findings: list of strings, one per security concern
@@ -54,10 +56,28 @@ def categorize_device(host: Any, sysdescr_parsed: dict | None = None) -> str:
     if sysd == "windows":
         return "server-windows"
 
+    # Public-safety vendors (DESAT) — checked before the generic camera
+    # rule because ALPR/body-cam devices also speak RTSP and would
+    # otherwise land as plain "camera".
+    if any(s in vendor for s in ("flock", "vigilant", "elsag")):
+        return "alpr"
+    if "axon" in vendor or "watchguard video" in vendor:
+        return "bodycam-infra"
+    if any(s in vendor for s in ("dji", "skydio", "brinc", "autel")):
+        return "uas"
+    if any(s in vendor for s in ("milestone", "genetec", "avigilon")):
+        return "vms"
+    if any(s in vendor for s in ("l3harris", "tait", "motorola solutions")):
+        return "radio"
+    if any(s in vendor for s in ("lenel", "brivo", "hid global")):
+        return "access-control"
+
     # Port-pattern heuristics
     if 9100 in ports or 631 in ports or "cups" in banners_text or "ipp" in banners_text:
         return "printer"
-    if 554 in ports or "rtsp" in banners_text or "hikvision" in vendor or "dahua" in vendor:
+    if (554 in ports or "rtsp" in banners_text
+            or any(s in vendor for s in ("hikvision", "dahua", "axis",
+                                           "verkada", "hanwha"))):
         return "camera"
     if 5060 in ports or 5061 in ports:
         return "voip"

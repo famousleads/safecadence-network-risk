@@ -33,6 +33,11 @@ class AssetIdentity:
     serial_number: str = ""
     chassis_serial_number: str = ""
     asset_type: str = ""               # network | server | storage | hypervisor | cloud | backup
+                                        # | iot | voip | media | mobile | unknown
+                                        # Public-safety devices keep these base
+                                        # types (a camera is asset_type=iot); the
+                                        # precise taxonomy lives in the
+                                        # UnifiedAsset.public_safety block.
     location: str = ""
     site: str = ""
     rack: str = ""
@@ -407,6 +412,44 @@ class ComplianceSignals:
 
 
 @dataclass
+class PublicSafety:
+    """Public-safety asset taxonomy + mission context (DESAT).
+
+    Additive and optional: every field defaults to empty, so existing
+    stored assets and every adapter remain valid without changes. A
+    populated ``ps_category`` marks the asset as public-safety relevant;
+    everything else stays "".
+
+    ``cji_classification`` mirrors the CJIS Security Policy distinction
+    that matters in procurement: systems that store/transmit Criminal
+    Justice Information carry certification obligations (CJIS/FIPS/SOC 2)
+    that standalone environmental sensors do not.
+    """
+    # camera | vms | body_camera_infrastructure | alpr | uas |
+    # evidence_platform | cad_rms | access_control | radio_comms |
+    # environmental_sensor | dispatch | interview_room | "" (not public-safety)
+    ps_category: str = ""
+    # What mission does this asset serve if it works — and break if it fails?
+    # evidence_capture | evidence_transfer | evidence_storage |
+    # evidence_access | surveillance | dispatch | communications |
+    # patrol_support | facility_security | ""
+    mission_function: str = ""
+    # Which stages of the evidence chain this asset participates in.
+    # Subset of: capture | transfer | store | access | preserve
+    evidence_roles: list[str] = field(default_factory=list)
+    # Organizational hierarchy above AssetIdentity.site
+    # (Platform -> Agency -> Department -> Site -> Asset).
+    agency: str = ""
+    department: str = ""
+    # Geolocation for the GIS/map layer. 0.0/0.0 = unset.
+    latitude: float = 0.0
+    longitude: float = 0.0
+    geo_source: str = ""               # manual | import | adapter | derived
+    # cji | non_cji | unknown — drives which cert obligations apply.
+    cji_classification: str = ""
+
+
+@dataclass
 class UnifiedAsset:
     """The single source of truth for any infrastructure asset.
 
@@ -439,6 +482,9 @@ class UnifiedAsset:
     system_logging: SystemLogging = field(default_factory=SystemLogging)
     voice_uc: VoiceUC = field(default_factory=VoiceUC)
     compliance_signals: ComplianceSignals = field(default_factory=ComplianceSignals)
+
+    # DESAT — public-safety taxonomy + mission context (optional, additive)
+    public_safety: PublicSafety = field(default_factory=PublicSafety)
 
     # Relationships — populated by the correlation engine
     relationships: list[dict] = field(default_factory=list)

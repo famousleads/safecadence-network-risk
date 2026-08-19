@@ -13,6 +13,17 @@
 #     hipaa           list of HIPAA Safeguard citations (164.308(a)(1), ...)
 #     iso_27001_2022  list of Annex A control numbers (A.5.1, A.8.16, ...)
 #     soc2_tsc        list of SOC 2 Trust Services Criteria (CC6.1, CC7.2, ...)
+#     cjis            list of CJIS Security Policy citations, classic 5.x
+#                     policy-area numbering (5.4 Audit, 5.5 Access Control,
+#                     5.6 I&A, 5.6.2.2 Advanced Auth/MFA, 5.7 Config Mgmt,
+#                     5.8 Media Protection, 5.10 System & Comms Protection,
+#                     5.10.1.2 Encryption, 5.10.4.1 Patch Mgmt). CJIS SP
+#                     v6.0 renumbers to NIST 800-53-style families — read
+#                     alongside the nist_800_53 row for v6-style citations.
+#                     NOTE: mapping support only ("assesses against") — not
+#                     a CJIS audit, certification, or attestation. Backup/
+#                     resilience controls cite 5.8 as nearest area (v5.9
+#                     has no contingency-planning family).
 #     owner_default   role expected to own this control (when unset on policy)
 #     sla_severity_days  default time-to-remediate by severity, e.g. critical=7
 #     frequency       continuous | daily | weekly | monthly | quarterly | annual
@@ -33,6 +44,7 @@ disable_telnet:
   hipaa: ["164.312(e)(1)"]
   iso_27001_2022: [A.8.20, A.8.21]
   soc2_tsc: [CC6.1, CC6.7]
+  cjis: ["5.5", "5.10"]
   owner_default: network_eng
   sla_severity_days: {critical: 1, high: 7, medium: 30, low: 90}
   frequency: continuous
@@ -47,6 +59,7 @@ enforce_ssh_v2:
   hipaa: ["164.312(e)(2)(ii)"]
   iso_27001_2022: [A.8.20, A.8.24]
   soc2_tsc: [CC6.1, CC6.7]
+  cjis: ["5.10", "5.10.1.2"]
   owner_default: network_eng
   sla_severity_days: {critical: 7, high: 30, medium: 90, low: 180}
   frequency: continuous
@@ -61,6 +74,7 @@ require_aaa:
   hipaa: ["164.308(a)(4)", "164.312(a)(2)(i)"]
   iso_27001_2022: [A.8.2, A.8.3, A.8.5]
   soc2_tsc: [CC6.1, CC6.2, CC6.3]
+  cjis: ["5.4", "5.5.1", "5.6"]
   owner_default: network_eng
   sla_severity_days: {critical: 7, high: 30, medium: 90, low: 180}
   frequency: continuous
@@ -75,6 +89,7 @@ enforce_snmpv3:
   hipaa: ["164.312(e)(1)"]
   iso_27001_2022: [A.8.20, A.8.24]
   soc2_tsc: [CC6.1, CC6.7]
+  cjis: ["5.6", "5.10.1.2"]
   owner_default: network_eng
   sla_severity_days: {critical: 14, high: 60, medium: 180, low: 365}
   frequency: continuous
@@ -89,6 +104,7 @@ enable_syslog:
   hipaa: ["164.308(a)(1)(ii)(D)", "164.312(b)"]
   iso_27001_2022: [A.8.15, A.8.16]
   soc2_tsc: [CC7.2, CC7.3]
+  cjis: ["5.4", "5.4.1"]
   owner_default: secops
   sla_severity_days: {critical: 7, high: 30, medium: 90, low: 180}
   frequency: continuous
@@ -103,6 +119,7 @@ enable_ntp:
   hipaa: ["164.312(b)"]
   iso_27001_2022: [A.8.17]
   soc2_tsc: [CC7.2]
+  cjis: ["5.4"]
   owner_default: network_eng
   sla_severity_days: {critical: 14, high: 60, medium: 180, low: 365}
   frequency: continuous
@@ -117,6 +134,7 @@ block_insecure_crypto:
   hipaa: ["164.312(e)(2)(ii)"]
   iso_27001_2022: [A.8.24]
   soc2_tsc: [CC6.7]
+  cjis: ["5.10.1.2"]
   owner_default: network_eng
   sla_severity_days: {critical: 7, high: 30, medium: 90, low: 180}
   frequency: continuous
@@ -131,6 +149,7 @@ restrict_management_access:
   hipaa: ["164.308(a)(4)"]
   iso_27001_2022: [A.8.20, A.8.22]
   soc2_tsc: [CC6.1, CC6.6]
+  cjis: ["5.5.2", "5.10.1"]
   owner_default: network_eng
   sla_severity_days: {critical: 1, high: 7, medium: 30, low: 90}
   frequency: continuous
@@ -147,6 +166,7 @@ enforce_patch_level:
   hipaa: ["164.308(a)(5)(ii)(B)"]
   iso_27001_2022: [A.8.8, A.8.9]
   soc2_tsc: [CC7.1, CC8.1]
+  cjis: ["5.10.4.1"]
   owner_default: sysadmin
   sla_severity_days: {critical: 7, high: 30, medium: 60, low: 90}
   frequency: weekly
@@ -161,6 +181,7 @@ enforce_encryption_at_rest:
   hipaa: ["164.312(a)(2)(iv)"]
   iso_27001_2022: [A.8.24, A.5.33]
   soc2_tsc: [CC6.1]
+  cjis: ["5.8", "5.10.1.2"]
   owner_default: sysadmin
   sla_severity_days: {critical: 14, high: 30, medium: 90, low: 180}
   frequency: monthly
@@ -175,6 +196,7 @@ enforce_encryption_in_transit:
   hipaa: ["164.312(e)(1)", "164.312(e)(2)(ii)"]
   iso_27001_2022: [A.8.20, A.8.24]
   soc2_tsc: [CC6.1, CC6.7]
+  cjis: ["5.10.1.2"]
   owner_default: sysadmin
   sla_severity_days: {critical: 7, high: 30, medium: 90, low: 180}
   frequency: monthly
@@ -189,6 +211,7 @@ restrict_default_creds:
   hipaa: ["164.308(a)(5)(ii)(D)"]
   iso_27001_2022: [A.8.5, A.5.17]
   soc2_tsc: [CC6.1]
+  cjis: ["5.6.2.1", "5.7"]
   owner_default: secops
   sla_severity_days: {critical: 1, high: 7, medium: 14, low: 30}
   frequency: monthly
@@ -203,6 +226,7 @@ enforce_password_policy:
   hipaa: ["164.308(a)(5)(ii)(D)"]
   iso_27001_2022: [A.5.17, A.8.5]
   soc2_tsc: [CC6.1]
+  cjis: ["5.6.2.1"]
   owner_default: secops
   sla_severity_days: {critical: 30, high: 60, medium: 90, low: 180}
   frequency: monthly
@@ -217,6 +241,7 @@ enforce_mfa:
   hipaa: ["164.312(d)"]
   iso_27001_2022: [A.5.17, A.8.5]
   soc2_tsc: [CC6.1, CC6.6]
+  cjis: ["5.6.2.2"]
   owner_default: secops
   sla_severity_days: {critical: 7, high: 14, medium: 30, low: 60}
   frequency: continuous
@@ -231,6 +256,7 @@ enforce_least_privilege:
   hipaa: ["164.308(a)(3)(ii)(A)", "164.308(a)(4)"]
   iso_27001_2022: [A.5.15, A.8.2, A.8.3]
   soc2_tsc: [CC6.1, CC6.3]
+  cjis: ["5.5.2"]
   owner_default: secops
   sla_severity_days: {critical: 14, high: 30, medium: 90, low: 180}
   frequency: quarterly
@@ -247,6 +273,7 @@ idp_require_mfa_for_admins:
   hipaa: ["164.312(d)"]
   iso_27001_2022: [A.5.17, A.5.15]
   soc2_tsc: [CC6.1, CC6.6]
+  cjis: ["5.5.2", "5.6.2.2"]
   owner_default: iam_admin
   sla_severity_days: {critical: 1, high: 7, medium: 14, low: 30}
   frequency: continuous
@@ -261,6 +288,7 @@ idp_disable_dormant_accounts:
   hipaa: ["164.308(a)(3)(ii)(C)"]
   iso_27001_2022: [A.5.16, A.5.18]
   soc2_tsc: [CC6.2, CC6.3]
+  cjis: ["5.5.1"]
   owner_default: iam_admin
   sla_severity_days: {critical: 30, high: 60, medium: 90, low: 180}
   frequency: monthly
@@ -275,6 +303,7 @@ idp_password_complexity:
   hipaa: ["164.308(a)(5)(ii)(D)"]
   iso_27001_2022: [A.5.17]
   soc2_tsc: [CC6.1]
+  cjis: ["5.6.2.1"]
   owner_default: iam_admin
   sla_severity_days: {critical: 30, high: 60, medium: 90, low: 180}
   frequency: monthly
@@ -289,6 +318,7 @@ idp_conditional_access:
   hipaa: ["164.312(a)(1)"]
   iso_27001_2022: [A.5.15, A.8.5]
   soc2_tsc: [CC6.1, CC6.6]
+  cjis: ["5.5", "5.6.2.2"]
   owner_default: iam_admin
   sla_severity_days: {critical: 14, high: 30, medium: 90, low: 180}
   frequency: continuous
@@ -303,6 +333,7 @@ idp_privileged_role_review:
   hipaa: ["164.308(a)(3)(ii)(B)"]
   iso_27001_2022: [A.5.18, A.8.2]
   soc2_tsc: [CC6.2, CC6.3]
+  cjis: ["5.5.1"]
   owner_default: iam_admin
   sla_severity_days: {critical: 90, high: 90, medium: 180, low: 365}
   frequency: quarterly
@@ -319,6 +350,7 @@ block_public_exposure:
   hipaa: ["164.308(a)(4)"]
   iso_27001_2022: [A.8.20, A.8.22]
   soc2_tsc: [CC6.1, CC6.6]
+  cjis: ["5.10.1"]
   owner_default: cloud_eng
   sla_severity_days: {critical: 1, high: 7, medium: 14, low: 30}
   frequency: continuous
@@ -333,6 +365,7 @@ enforce_cloud_iam:
   hipaa: ["164.308(a)(4)"]
   iso_27001_2022: [A.5.15, A.8.2]
   soc2_tsc: [CC6.1, CC6.3]
+  cjis: ["5.5.1", "5.5.2"]
   owner_default: cloud_eng
   sla_severity_days: {critical: 14, high: 30, medium: 90, low: 180}
   frequency: monthly
@@ -347,6 +380,7 @@ enforce_logging:
   hipaa: ["164.308(a)(1)(ii)(D)", "164.312(b)"]
   iso_27001_2022: [A.8.15, A.8.16]
   soc2_tsc: [CC7.2, CC7.3]
+  cjis: ["5.4", "5.4.1"]
   owner_default: secops
   sla_severity_days: {critical: 7, high: 14, medium: 30, low: 90}
   frequency: continuous
@@ -363,6 +397,7 @@ enforce_backup_retention:
   hipaa: ["164.308(a)(7)(ii)(A)"]
   iso_27001_2022: [A.8.13]
   soc2_tsc: [A1.2, A1.3]
+  cjis: ["5.8"]
   owner_default: sysadmin
   sla_severity_days: {critical: 30, high: 60, medium: 90, low: 180}
   frequency: monthly
@@ -377,6 +412,7 @@ enforce_immutability:
   hipaa: ["164.308(a)(7)(ii)(B)"]
   iso_27001_2022: [A.8.13]
   soc2_tsc: [A1.2]
+  cjis: ["5.8"]
   owner_default: sysadmin
   sla_severity_days: {critical: 30, high: 60, medium: 180, low: 365}
   frequency: monthly
@@ -391,6 +427,7 @@ enforce_air_gap:
   hipaa: ["164.308(a)(7)(ii)(B)"]
   iso_27001_2022: [A.8.13]
   soc2_tsc: [A1.2]
+  cjis: ["5.8"]
   owner_default: sysadmin
   sla_severity_days: {critical: 60, high: 90, medium: 180, low: 365}
   frequency: quarterly
@@ -407,6 +444,7 @@ replication_enabled:
   hipaa: ["164.308(a)(7)(ii)(A)"]
   iso_27001_2022: [A.8.13, A.8.14]
   soc2_tsc: [A1.2, A1.3]
+  cjis: ["5.8"]
   owner_default: storage_admin
   sla_severity_days: {critical: 30, high: 60, medium: 180, low: 365}
   frequency: monthly

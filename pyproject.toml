@@ -43,6 +43,9 @@ ai = [
 ssh = [
     "paramiko>=3.0",
 ]
+saml = [
+    "signxml>=3.2",
+]
 vault = [
     "cryptography>=42.0",
 ]

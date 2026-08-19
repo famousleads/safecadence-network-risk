@@ -41,15 +41,32 @@ def test_mappings_loads_known_control():
     assert "iso_27001_2022" in m["enforce_mfa"]
 
 
-def test_mappings_lists_all_six_frameworks():
+def test_mappings_lists_all_seven_frameworks():
     from safecadence.compliance.mappings import list_frameworks
     fws = list_frameworks()
     keys = {f["key"] for f in fws}
     for k in ("nist_800_53", "cis_v8", "pci_dss_4", "hipaa",
-                "iso_27001_2022", "soc2_tsc"):
+                "iso_27001_2022", "soc2_tsc", "cjis"):
         assert k in keys
     # Each framework must have non-zero coverage given our seed pack.
     assert all(f["covered_count"] > 0 for f in fws)
+
+
+def test_cjis_mapping_present_on_every_control():
+    """CJIS (public-safety) mapping: every shipped control cites at least
+    one CJIS Security Policy area, and the marquee citations hold —
+    MFA → 5.6.2.2 (Advanced Authentication), encryption → 5.10.1.2,
+    patching → 5.10.4.1."""
+    from safecadence.compliance.mappings import load_mappings, coverage
+    m = load_mappings(force_reload=True)
+    missing = [cid for cid, entry in m.items() if not entry.get("cjis")]
+    assert missing == []
+    assert "5.6.2.2" in m["enforce_mfa"]["cjis"]
+    assert "5.10.1.2" in m["enforce_encryption_in_transit"]["cjis"]
+    assert "5.10.4.1" in m["enforce_patch_level"]["cjis"]
+    cov = coverage("cjis")
+    assert cov["covered_count"] > 0
+    assert cov["framework"] == "CJIS Security Policy"
 
 
 def test_coverage_returns_per_framework_id_rows():

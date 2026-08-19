@@ -25,6 +25,13 @@ _FRAMEWORKS = {
     "hipaa":           "HIPAA Security Rule",
     "iso_27001_2022":  "ISO 27001:2022",
     "soc2_tsc":        "SOC 2 Trust Services Criteria",
+    # CJIS Security Policy — citations use the classic 5.x policy-area
+    # numbering (v5.9.x), which agencies still recognize. CJIS SP v6.0
+    # renumbers to NIST 800-53-style control families; for v6-style
+    # citations, read this row alongside the nist_800_53 column.
+    # This is a MAPPING ("assesses against"), not a CJIS audit,
+    # certification, or ACE attestation.
+    "cjis":            "CJIS Security Policy",
 }
 
 
