@@ -62,6 +62,11 @@ _BODY = """
   <div class="kv-grid"></div>
 </div>
 
+<div id="sec-publicsafety" class="sec card" style="display:none">
+  <h2 style="margin-top:0">🛡️ Public Safety</h2>
+  <div class="kv-grid"></div>
+</div>
+
 <div id="sec-hardware" class="sec card" style="display:none">
   <h2 style="margin-top:0">🔹 Hardware Inventory</h2>
   <div class="kv-grid"></div>
@@ -1019,6 +1024,7 @@ function renderAsset(a) {
   const lg = a.system_logging || {};
   const vc = a.voice_uc || {};
   const cs = a.compliance_signals || {};
+  const ps = a.public_safety || {};
   const h = a.health || {};
   const sec = a.security || {};
 
@@ -1110,6 +1116,18 @@ function renderAsset(a) {
     ["discovery_source", id.discovery_source],
     ["discovered_at", id.discovered_at],
     ["last_collected_at", id.last_collected_at],
+  ]);
+
+  // Section 1b — Public safety (DESAT) — only shows when classified
+  renderKV("sec-publicsafety", [
+    ["category", ps.ps_category],
+    ["mission_function", ps.mission_function],
+    ["evidence_roles", listOr(ps.evidence_roles)],
+    ["agency", ps.agency],
+    ["department", ps.department],
+    ["cji_classification", ps.cji_classification],
+    ["coordinates", (ps.latitude && ps.longitude)
+        ? `${ps.latitude}, ${ps.longitude} <a href="/map">(view map)</a>` : ""],
   ]);
 
   // Section 2 — Hardware

@@ -193,3 +193,100 @@ def test_desat_incidents_api_list_and_detail(ui_client):
         f"/api/v1/desat/incidents?id={incs[0]['incident_id']}").json()
     assert detail["incident_id"] == incs[0]["incident_id"]
     assert detail["timeline"]
+
+
+def test_incident_transition_via_ui_api(ui_client):
+    open_inc = ui_client.get(
+        "/api/v1/desat/incidents?status=open").json()["incidents"][0]
+    iid = open_inc["incident_id"]
+    r = ui_client.post("/api/v1/desat/incidents/transition",
+                         json={"incident_id": iid, "status": "acknowledged",
+                                "note": "on it", "actor": "test"})
+    assert r.status_code == 200
+    assert r.json()["status"] == "acknowledged"
+    # illegal transition rejected with 400
+    r = ui_client.post("/api/v1/desat/incidents/transition",
+                         json={"incident_id": iid, "status": "open"})
+    assert r.status_code == 400
+    # note endpoint
+    r = ui_client.post("/api/v1/desat/incidents/note",
+                         json={"incident_id": iid, "note": "field update"})
+    assert r.status_code == 200
+    assert any(t["detail"] == "field update"
+                for t in r.json()["timeline"])
+
+
+def test_desat_events_api(ui_client):
+    r = ui_client.get("/api/v1/desat/events")
+    assert r.status_code == 200
+    evts = r.json()["events"]
+    assert len(evts) == 5
+    crit = ui_client.get("/api/v1/desat/events?severity=critical").json()
+    assert all(e["severity"] == "critical" for e in crit["events"])
+
+
+def test_events_page_renders(ui_client):
+    r = ui_client.get("/events")
+    assert r.status_code == 200
+    assert "Events" in r.text
+    assert "sc-sidebar" in r.text
+
+
+# ============================================================ licensing gate
+
+
+@pytest.fixture()
+def locked_client(tmp_path):
+    """No license, no sheriff demo data → everything locked."""
+    fastapi = pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+    from safecadence.ui.desat_pages import register
+    app = fastapi.FastAPI()
+    register(app)
+    return TestClient(app)
+
+
+def test_locked_pages_show_upsell_not_data(locked_client):
+    for path in ("/map", "/evidence-infrastructure", "/incidents", "/events"):
+        r = locked_client.get(path)
+        assert r.status_code == 200
+        assert "Public Safety license" in r.text
+        assert "demo --sheriff" in r.text          # evaluation path offered
+
+
+def test_locked_apis_return_402(locked_client):
+    for path in ("/api/v1/desat/geo", "/api/v1/desat/evidence-health",
+                   "/api/v1/desat/incidents", "/api/v1/desat/events"):
+        assert locked_client.get(path).status_code == 402
+    r = locked_client.post("/api/v1/desat/incidents/transition",
+                             json={"incident_id": "inc-x", "status": "closed"})
+    assert r.status_code == 402
+
+
+def test_evaluation_mode_shows_banner(ui_client):
+    r = ui_client.get("/map")
+    assert "Evaluation mode" in r.text
+
+
+def test_licensed_mode_no_banner(tmp_path, monkeypatch):
+    fastapi = pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+    from safecadence.ui import desat_pages
+    monkeypatch.setattr(desat_pages, "_ps_access", lambda: "licensed")
+    app = fastapi.FastAPI()
+    desat_pages.register(app)
+    c = TestClient(app)
+    r = c.get("/map")
+    assert r.status_code == 200
+    assert "Evaluation mode" not in r.text
+    assert "Public Safety license" not in r.text
+
+
+# ============================================================ surfaces seeding
+
+
+def test_loader_seeds_auxiliary_surfaces(tmp_path):
+    from safecadence.demo_sheriff import load_sheriff_demo
+    r = load_sheriff_demo(target_dir=tmp_path / "platform_assets")
+    # Best-effort by design, but in a healthy env most surfaces seed.
+    assert len(r["surfaces_seeded"]) >= 4, r["surfaces_seeded"]

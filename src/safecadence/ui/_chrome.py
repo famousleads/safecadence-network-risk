@@ -464,6 +464,7 @@ th { color: var(--muted); font-weight: 500; }
     <a class="sub" id="nav-map" href="/map">🗺️ Map</a>
     <a class="sub" id="nav-evidence-infra" href="/evidence-infrastructure">🎥 Evidence infrastructure</a>
     <a class="sub" id="nav-incidents" href="/incidents">🚨 Incidents</a>
+    <a class="sub" id="nav-events" href="/events">📡 Events</a>
   </div>
 
   <div class="group">
@@ -842,6 +843,7 @@ function scHighlightNav() {
     "/map": "nav-map",
     "/evidence-infrastructure": "nav-evidence-infra",
     "/incidents": "nav-incidents",
+    "/events": "nav-events",
     "/identity": "nav-identity",
     "/jit": "nav-jit",
     "/paths": "nav-paths",
@@ -971,6 +973,7 @@ const SC_TOOLS = [
   { kind: "tool", icon: "🗺️", name: "Asset map", href: "/map" },
   { kind: "tool", icon: "🎥", name: "Evidence infrastructure", href: "/evidence-infrastructure" },
   { kind: "tool", icon: "🚨", name: "Incidents", href: "/incidents" },
+  { kind: "tool", icon: "📡", name: "Events", href: "/events" },
   { kind: "tool", icon: "🔐", name: "Identity translator", href: "/identity" },
   { kind: "tool", icon: "⏱️", name: "JIT grants", href: "/jit" },
   { kind: "tool", icon: "🎯", name: "Attack paths", href: "/paths" },

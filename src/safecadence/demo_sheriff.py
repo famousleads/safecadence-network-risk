@@ -214,7 +214,7 @@ def build_sheriff_fleet() -> list[dict]:
                      ip="10.84.1.30", ps_category="evidence_platform",
                      mission="evidence_access", roles=["access", "preserve"],
                      cji="cji", health=_health(90)))
-    a.append(_asset("sh-veeam-evid", asset_type="backup", vendor="veeam",
+    veeam = _asset("sh-veeam-evid", asset_type="backup", vendor="veeam",
                      site="evidence-facility", criticality="high",
                      ip="10.84.1.40", ps_category="evidence_platform",
                      mission="evidence_storage", roles=["preserve"],
@@ -225,7 +225,19 @@ def build_sheriff_fleet() -> list[dict]:
                               "rpo_target_hours": 24, "actual_rpo_hours": 49,
                               "retention_days": 3650,
                               "immutability_enabled": True,
-                              "air_gapped": False}))
+                              "air_gapped": False})
+    # Correlation food: the dependency-chain engine links backup→protected
+    # assets by hostname mention in raw_collection (same trick demo.py uses).
+    veeam["raw_collection"] = {
+        "discover": {"ip": "10.84.1.40"},
+        "jobs": [
+            {"name": "evid-nas-daily", "protects": "sh-evid-nas-01"},
+            {"name": "vms-daily", "protects": "sh-vms-01"},
+            {"name": "evid-app-daily", "protects": "sh-evid-app-01"},
+            {"name": "cad-daily", "protects": "sh-cad-01"},
+        ],
+    }
+    a.append(veeam)
 
     # ---- dispatch / CAD / radio / identity -------------------------------
     # S4 — CAD server with an expiring TLS certificate.
@@ -415,11 +427,39 @@ def load_sheriff_demo(target_dir: Path | None = None,
     events_seeded = _seed_events() if written else 0
     incidents_seeded = _seed_incidents() if written else 0
 
+    # Light up EVERY UI surface with sheriff-flavored data by reusing the
+    # main demo's auxiliary seeders (compliance/findings, identity vault,
+    # NHIs, execution queue, users/webhooks, capabilities, IdP groups,
+    # automation rules). Each block is best-effort — identical policy to
+    # load_demo_fleet: one failure never breaks the loader.
+    surfaces: dict[str, Any] = {}
+    if written:
+        asset_ids = [x["identity"]["asset_id"] for x in build_sheriff_fleet()]
+        from safecadence import demo as _d
+        for name, fn, args in (
+            ("compliance", getattr(_d, "_seed_compliance_demo", None), (asset_ids,)),
+            ("identity_vault", getattr(_d, "_seed_identity_vault_demo", None), ()),
+            ("nhi", getattr(_d, "_seed_nhi_demo", None), ()),
+            ("execution", getattr(_d, "_seed_execution_demo", None), (asset_ids,)),
+            ("users_webhooks", getattr(_d, "_seed_users_and_webhooks_demo", None), ()),
+            ("capabilities", getattr(_d, "_seed_capabilities_demo", None), ()),
+            ("idp_groups", getattr(_d, "_seed_idp_groups_demo", None), ()),
+            ("automation", getattr(_d, "_seed_automation_demo", None), ()),
+        ):
+            if fn is None:
+                continue
+            try:
+                surfaces[name] = fn(*args)
+            except Exception as exc:          # noqa: BLE001 — best-effort
+                surfaces[name] = {"error": str(exc)[:120]}
+
     return {
         "agency": AGENCY,
         "written": written, "skipped": skipped,
         "events_seeded": events_seeded,
         "incidents_seeded": incidents_seeded,
+        "surfaces_seeded": sorted(k for k, v in surfaces.items()
+                                     if not (isinstance(v, dict) and v.get("error"))),
         "target_dir": str(base),
         "summary": (
             f"{AGENCY}: {written} public-safety assets across "

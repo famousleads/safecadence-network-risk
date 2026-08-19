@@ -4,7 +4,11 @@ other page:
 
 * ``GET /map``                       — GIS asset map (Leaflet, offline fallback)
 * ``GET /evidence-infrastructure``   — evidence-chain health dashboard
-* ``GET /incidents``                 — native incident queue + timelines
+* ``GET /incidents``                 — incident queue + timelines + ACTIONS
+                                        (ack / investigate / resolve / close /
+                                        reopen, with notes)
+* ``GET /events``                    — live inbound-event stream (syslog /
+                                        traps / webhooks) with filters
 
 Plus the page-local JSON they consume (namespaced under
 ``/api/v1/desat/*`` so they never collide with the headless server's
@@ -265,6 +269,16 @@ async function incLoad() {
     tb.appendChild(tr);
   }
 }
+// Legal next steps per status — mirrors incidents/store.py _TRANSITIONS.
+const INC_NEXT = {
+  open:            [["acknowledged","Acknowledge"],["investigating","Start investigating"],
+                     ["resolved","Resolve"],["closed","Close"]],
+  acknowledged:    [["investigating","Start investigating"],["resolved","Resolve"],
+                     ["closed","Close"]],
+  investigating:   [["resolved","Resolve"],["closed","Close"]],
+  resolved:        [["closed","Close"],["investigating","Reopen investigation"]],
+  closed:          [["open","Reopen"]],
+};
 async function incDetail(id) {
   const r = await fetch("/api/v1/desat/incidents?id=" + encodeURIComponent(id));
   if (!r.ok) return;
@@ -279,20 +293,195 @@ async function incDetail(id) {
       `<td style="font-size:12px">${t.detail}` +
       (t.actor ? ` <span class="muted">— ${t.actor}</span>` : "") + `</td></tr>`;
   }
+  let actions = "";
+  for (const [to, label] of (INC_NEXT[i.status] || [])) {
+    actions += `<button class="alt" style="width:auto;padding:6px 12px;` +
+      `font-size:12px" onclick="incAct('${i.incident_id}','${to}')">${label}</button>`;
+  }
   el.innerHTML =
     `<div style="display:flex;gap:10px;align-items:center">` +
     `<h2 style="font-size:15px;margin:0">${i.title}</h2><span style="flex:1"></span>` +
-    `<span class="muted" style="font-size:12px">${i.incident_id}</span></div>` +
+    `<span class="muted" style="font-size:12px">${i.incident_id} · ` +
+    `<span style="text-transform:capitalize">${i.status}</span></span></div>` +
     (i.mission_impact ? `<p style="margin:8px 0 0;font-size:13px">` +
       `<b>Mission impact:</b> ${i.mission_impact}</p>` : "") +
     (i.resolution ? `<p style="margin:6px 0 0;font-size:13px;color:var(--ok)">` +
       `<b>Resolution:</b> ${i.resolution}</p>` : "") +
+    `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px">` +
+    actions +
+    `<input id="inc-note" placeholder="Add a note (optional — required to resolve)"` +
+    ` style="flex:1;min-width:220px;padding:6px 10px;font-size:12px">` +
+    `<button class="alt" style="width:auto;padding:6px 12px;font-size:12px"` +
+    ` onclick="incNote('${i.incident_id}')">＋ Note</button></div>` +
+    `<div class="muted" id="inc-msg" style="font-size:12px;margin-top:6px"></div>` +
     `<h2 style="font-size:13px;margin:12px 0 4px">Timeline</h2>` +
     `<table><tbody>${tl}</tbody></table>`;
   el.scrollIntoView({behavior: "smooth"});
 }
+async function incAct(id, to) {
+  const note = (document.getElementById("inc-note") || {}).value || "";
+  const body = {incident_id: id, status: to, note: note, actor: "operator"};
+  if (to === "resolved") body.resolution = note || "Resolved via UI";
+  const r = await fetch("/api/v1/desat/incidents/transition", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(body)});
+  const d = await r.json().catch(() => ({}));
+  const msg = document.getElementById("inc-msg");
+  if (!r.ok) { if (msg) msg.textContent = d.detail || d.error || "transition failed"; return; }
+  await incLoad();
+  await incDetail(id);
+}
+async function incNote(id) {
+  const note = (document.getElementById("inc-note") || {}).value || "";
+  if (!note.trim()) return;
+  const r = await fetch("/api/v1/desat/incidents/note", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({incident_id: id, note: note, actor: "operator"})});
+  if (r.ok) await incDetail(id);
+}
 incLoad();
 """
+
+
+# ============================================================ /events
+
+_EVT_BODY = """
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+  <h1 style="margin:0">📡 Events</h1>
+  <span class="muted" id="evt-stats" style="font-size:12px"></span>
+  <span style="flex:1"></span>
+  <select id="evt-sev" onchange="evtLoad()" style="width:auto;padding:6px 10px;font-size:12px">
+    <option value="">All severities</option>
+    <option value="critical">Critical</option>
+    <option value="high">High</option>
+    <option value="medium">Medium</option>
+    <option value="low">Low</option>
+    <option value="info">Info</option>
+  </select>
+  <select id="evt-src" onchange="evtLoad()" style="width:auto;padding:6px 10px;font-size:12px">
+    <option value="">All sources</option>
+    <option value="syslog">Syslog</option>
+    <option value="snmp_trap">SNMP trap</option>
+    <option value="webhook">Webhook</option>
+  </select>
+  <button class="alt" style="width:auto;padding:6px 10px;font-size:12px"
+          onclick="evtLoad()">⟳ Reload</button>
+</div>
+<p class="muted" style="margin-top:0;font-size:12px">
+  Inbound telemetry: syslog, SNMP traps, and webhooks — deduplicated,
+  linked to assets by sender IP. Enable listeners with
+  <code>SC_EVENTS_LISTENERS=1</code> (syslog :5514, traps :5162 by
+  default, loopback-bound). Critical/high events on known assets can
+  auto-open incidents (<code>SC_EVENTS_AUTO_INCIDENT=1</code>).
+</p>
+<div class="card" style="padding:0">
+  <table><thead><tr><th>Received</th><th>Severity</th><th>Source</th>
+    <th>Type</th><th>Asset</th><th>Description</th></tr></thead>
+    <tbody id="evt-tbody"><tr><td colspan="6" class="muted"
+      style="padding:14px">Loading…</td></tr></tbody></table>
+</div>
+"""
+
+_EVT_SCRIPT = r"""
+const EVT_SEV = {critical:"var(--bad)", high:"var(--warn)",
+                   medium:"var(--med)", low:"var(--ok)", info:"var(--muted)"};
+async function evtLoad() {
+  const sev = document.getElementById("evt-sev").value;
+  const src = document.getElementById("evt-src").value;
+  const qs = new URLSearchParams();
+  if (sev) qs.set("severity", sev);
+  if (src) qs.set("source", src);
+  const r = await fetch("/api/v1/desat/events?" + qs.toString());
+  if (!r.ok) return;
+  const d = await r.json();
+  const rows = d.events || [];
+  document.getElementById("evt-stats").textContent =
+    rows.length + " event" + (rows.length === 1 ? "" : "s") + " (last " +
+    (d.days || 7) + " days)";
+  const tb = document.getElementById("evt-tbody");
+  tb.innerHTML = rows.length ? "" :
+    `<tr><td colspan="6" class="muted" style="padding:14px">No events yet.` +
+    ` Point device syslog/traps at the listeners, POST to the webhook, or` +
+    ` seed the demo: <code>safecadence demo --sheriff</code></td></tr>`;
+  for (const e of rows) {
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      `<td class="muted" style="white-space:nowrap;font-size:12px">` +
+      `${(e.received_at || "").slice(0, 16).replace("T", " ")}</td>` +
+      `<td><span style="color:${EVT_SEV[e.severity] || "var(--muted)"};` +
+      `font-weight:700;font-size:11px;text-transform:uppercase">${e.severity}</span></td>` +
+      `<td style="font-size:12px">${e.source}</td>` +
+      `<td style="font-size:12px">${e.event_type}</td>` +
+      `<td style="font-size:12px">` +
+      (e.asset_id ? `<a href="/asset/${encodeURIComponent(e.asset_id)}">` +
+        `${e.hostname || e.asset_id}</a>` : (e.source_ip || "—")) + `</td>` +
+      `<td style="font-size:12px">${e.description}</td>`;
+    tb.appendChild(tr);
+  }
+}
+evtLoad();
+"""
+
+
+# ============================================================ licensing gate
+
+_UPSELL_BODY = """
+<div class="card" style="max-width:640px;margin:40px auto;text-align:center;padding:34px">
+  <div style="font-size:38px">🛡️</div>
+  <h1 style="margin:8px 0 4px">SafeCadence Public Safety</h1>
+  <p class="muted" style="font-size:13px;margin:0 0 14px">
+    The evidence-infrastructure assurance layer for law-enforcement
+    agencies: asset map, evidence-chain health, incidents, event
+    ingestion, CJIS control mapping.
+  </p>
+  <p style="font-size:13px;margin:0 0 6px">
+    This capability requires a <b>Public Safety license</b> — priced per
+    agency by monitored assets, with deployment support and an SLA.
+  </p>
+  <p style="font-size:13px;margin:0 0 18px">
+    Evaluate it right now, free, with the built-in synthetic agency:<br>
+    <code style="font-size:12px">safecadence demo --sheriff</code>
+  </p>
+  <a href="mailto:hello@safecadence.com?subject=Public%20Safety%20license"
+     style="display:inline-block;background:var(--accent);color:#fff;border-radius:8px;
+            padding:10px 18px;font-weight:700;text-decoration:none">
+    Talk to us about licensing</a>
+  <p class="muted" style="font-size:11px;margin-top:14px">
+    A real person replies within 24h — no automated sales sequence.
+  </p>
+</div>
+"""
+
+_EVAL_BANNER = (
+    '<div style="background:rgba(245,158,11,.12);border:1px solid var(--warn);'
+    'border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:12.5px">'
+    '⚠️ <b>Evaluation mode</b> — synthetic demo data, not licensed for '
+    'production use. <a href="mailto:hello@safecadence.com?subject='
+    'Public%20Safety%20license">Get a Public Safety license</a> for live '
+    'agency deployment.</div>')
+
+
+def _ps_access() -> str:
+    """'licensed' | 'evaluation' | 'locked'.
+
+    Licensed: the signed license file carries the ``public_safety``
+    feature. Evaluation: sheriff demo data is loaded (free, synthetic,
+    banner-marked). Locked: neither — pages show the upsell, APIs 402.
+    """
+    try:
+        from safecadence.license import feature_enabled
+        if feature_enabled("public_safety"):
+            return "licensed"
+    except Exception:
+        pass
+    try:
+        from safecadence.server.platform_api import list_assets
+        for a in list_assets():
+            if "demo:sheriff" in ((a.get("identity") or {}).get("tags") or []):
+                return "evaluation"
+    except Exception:
+        pass
+    return "locked"
 
 
 # ============================================================ register
@@ -300,11 +489,27 @@ incLoad();
 def register(app) -> None:                              # pragma: no cover
     if not _FASTAPI_OK:
         return
+    from fastapi import Body, HTTPException
+
+    def _api_gate() -> None:
+        if _ps_access() == "locked":
+            raise HTTPException(
+                402, "Public Safety license required (or load the "
+                       "evaluation tenant: safecadence demo --sheriff)")
+
+    def _page(title: str, body: str, script: str) -> "HTMLResponse":
+        access = _ps_access()
+        if access == "locked":
+            return HTMLResponse(wrap(title, _UPSELL_BODY, ""))
+        if access == "evaluation":
+            body = _EVAL_BANNER + body
+        return HTMLResponse(wrap(title, body, script))
 
     # ---- page-local JSON (namespaced; no collision with the headless
     # server's /api/v1/events|incidents|geo routers) ------------------
     @app.get("/api/v1/desat/geo")
     def desat_geo(risk_band: str = "", site: str = "", ps_category: str = ""):
+        _api_gate()
         from safecadence.platform.geo_api import assets_geojson
         from safecadence.server.platform_api import list_assets
         return assets_geojson(list_assets(), site=site,
@@ -312,6 +517,7 @@ def register(app) -> None:                              # pragma: no cover
 
     @app.get("/api/v1/desat/evidence-health")
     def desat_evidence_health():
+        _api_gate()
         from safecadence.platform.evidence_health import (
             evidence_infrastructure_summary,
         )
@@ -320,22 +526,68 @@ def register(app) -> None:                              # pragma: no cover
 
     @app.get("/api/v1/desat/incidents")
     def desat_incidents(status: str = "", id: str = ""):
+        _api_gate()
         from safecadence.incidents.store import get_incident, list_incidents
         if id:
             inc = get_incident(id)
             return inc.to_dict() if inc else {"error": "not found"}
         return {"incidents": list_incidents(status=status)}
 
+    @app.post("/api/v1/desat/incidents/transition")
+    def desat_incident_transition(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence.incidents.store import transition_incident
+        try:
+            inc = transition_incident(
+                str(payload.get("incident_id", "")),
+                str(payload.get("status", "")),
+                actor=str(payload.get("actor", "ui")),
+                note=str(payload.get("note", "")),
+                resolution=str(payload.get("resolution", "")))
+        except KeyError as exc:
+            raise HTTPException(404, "incident not found") from exc
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return inc.to_dict()
+
+    @app.post("/api/v1/desat/incidents/note")
+    def desat_incident_note(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence.incidents.store import add_note
+        try:
+            inc = add_note(str(payload.get("incident_id", "")),
+                            str(payload.get("note", "")),
+                            actor=str(payload.get("actor", "ui")))
+        except KeyError as exc:
+            raise HTTPException(404, "incident not found") from exc
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return inc.to_dict()
+
+    @app.get("/api/v1/desat/events")
+    def desat_events(severity: str = "", source: str = "",
+                      asset_id: str = "", days: int = 7, limit: int = 300):
+        _api_gate()
+        from safecadence.events.store import query_events
+        days = max(1, min(int(days), 30))
+        return {"days": days,
+                 "events": query_events(limit=max(1, min(int(limit), 1000)),
+                                          severity=severity, source=source,
+                                          asset_id=asset_id, days=days)}
+
     # ---- pages -------------------------------------------------------
     @app.get("/map", response_class=HTMLResponse)
     def map_page():
-        return HTMLResponse(wrap("Asset map", _MAP_BODY, _MAP_SCRIPT))
+        return _page("Asset map", _MAP_BODY, _MAP_SCRIPT)
 
     @app.get("/evidence-infrastructure", response_class=HTMLResponse)
     def evidence_infrastructure_page():
-        return HTMLResponse(wrap("Evidence infrastructure",
-                                    _EIH_BODY, _EIH_SCRIPT))
+        return _page("Evidence infrastructure", _EIH_BODY, _EIH_SCRIPT)
 
     @app.get("/incidents", response_class=HTMLResponse)
     def incidents_page():
-        return HTMLResponse(wrap("Incidents", _INC_BODY, _INC_SCRIPT))
+        return _page("Incidents", _INC_BODY, _INC_SCRIPT)
+
+    @app.get("/events", response_class=HTMLResponse)
+    def events_page():
+        return _page("Events", _EVT_BODY, _EVT_SCRIPT)
