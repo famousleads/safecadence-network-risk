@@ -1925,13 +1925,31 @@ def cmd_execute_rbac():
               help="Remove demo assets from the platform store.")
 @click.option("--overwrite", is_flag=True,
               help="Re-write demo assets even if they already exist.")
-def cmd_demo(clear: bool, overwrite: bool):
+@click.option("--sheriff", is_flag=True,
+              help="Load the public-safety (DESAT) demo tenant instead: a "
+                     "synthetic sheriff agency with cameras/VMS/ALPR/evidence "
+                     "storage, GPS map data, and 5 wired incident scenarios.")
+def cmd_demo(clear: bool, overwrite: bool, sheriff: bool):
     """Load 30 realistic fake assets so the UI is alive on first run.
 
     Designed to surface policy violations + cross-system drift +
     attack paths immediately, so a brand-new user can see what the
     platform does without having to wire up a single adapter first.
     """
+    if sheriff:
+        from safecadence.demo_sheriff import clear_sheriff_demo, load_sheriff_demo
+        if clear:
+            result = clear_sheriff_demo()
+            click.echo(f"Removed {result['removed']} sheriff demo assets from "
+                        f"{result['target_dir']}")
+            return
+        result = load_sheriff_demo(overwrite=overwrite)
+        click.echo(f"Loaded {result['written']} public-safety assets "
+                    f"({result['skipped']} already present) into "
+                    f"{result['target_dir']}")
+        click.echo("")
+        click.echo(result["summary"])
+        return
     from safecadence.demo import load_demo_fleet, clear_demo_fleet
     if clear:
         result = clear_demo_fleet()

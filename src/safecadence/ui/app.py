@@ -1450,6 +1450,12 @@ h1{{margin:0 0 6px;font-size:18px}}small{{color:#8b95b1}}</style></head><body>
     except Exception:                          # pragma: no cover
         pass
     try:
+        # DESAT — public-safety pages (map / evidence infra / incidents)
+        from safecadence.ui.desat_pages import register as _reg_desat
+        _reg_desat(app)
+    except Exception:                          # pragma: no cover
+        pass
+    try:
         from safecadence.ui.tour import register as _reg_tour
         _reg_tour(app)
     except Exception:                          # pragma: no cover

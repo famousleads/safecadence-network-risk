@@ -1,5 +1,6 @@
 """
-GIS-lite — /api/v1/geo/assets (GeoJSON) + /map (Leaflet page).
+GIS-lite — /api/v1/geo/assets (GeoJSON). The human-facing map lives
+in the UI chrome at /map (ui/desat_pages.py).
 
 Assets with coordinates (``public_safety.latitude/longitude``, set by
 import/adapter/manual edit) become a GeoJSON FeatureCollection, styled
@@ -72,99 +73,9 @@ def assets_geojson(assets: list[dict], *, site: str = "",
                                  sum(1 for a in assets if asset_feature(a) is None)}}
 
 
-_MAP_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SafeCadence — asset map</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<style>
- body{margin:0;font:14px/1.5 system-ui,sans-serif;background:#0b1220;color:#e2e8f0}
- #map{height:100vh}
- .fallback{padding:24px;max-width:760px;margin:0 auto}
- .fallback table{width:100%;border-collapse:collapse;font-size:13px}
- .fallback td,.fallback th{border-bottom:1px solid #1e293b;padding:6px;text-align:left}
- .legend{position:absolute;bottom:18px;left:12px;z-index:1000;background:#0b1220cc;
-   padding:8px 12px;border-radius:8px;font-size:12px}
- .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px}
-</style></head><body>
-<div id="map"></div>
-<div class="legend" id="legend" style="display:none">
-  <span class="dot" style="background:#16a34a"></span>safe/low&nbsp;
-  <span class="dot" style="background:#d97706"></span>medium/high&nbsp;
-  <span class="dot" style="background:#dc2626"></span>critical
-</div>
-<div class="fallback" id="fallback" style="display:none">
-  <h2>Asset map (offline mode)</h2>
-  <p>Map tiles need internet access. GeoJSON is available at
-     <code>/api/v1/geo/assets</code> for ArcGIS/QGIS import. Assets with
-     coordinates:</p>
-  <table id="tbl"><thead><tr><th>Host</th><th>Category</th><th>Site</th>
-    <th>Risk</th><th>Lat</th><th>Lon</th></tr></thead><tbody></tbody></table>
-</div>
-<script>
-const BAND={critical:"#dc2626",high:"#d97706",medium:"#d97706",
-             low:"#16a34a",safe:"#16a34a"};
-async function boot(){
-  const r=await fetch("/api/v1/geo/assets",{headers:authHeaders()});
-  if(!r.ok){showFallback([]);return;}
-  const gj=await r.json();
-  let leafletOk=false;
-  try{
-    await import("https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js");
-    leafletOk=typeof L!=="undefined"||true;
-  }catch(e){leafletOk=false;}
-  if(!leafletOk||typeof L==="undefined"){
-    const s=document.createElement("script");
-    s.src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-    s.onload=()=>draw(gj); s.onerror=()=>showFallback(gj.features||[]);
-    document.head.appendChild(s); return;
-  }
-  draw(gj);
-}
-function authHeaders(){
-  const t=localStorage.getItem("sc_token");
-  return t?{Authorization:"Bearer "+t}:{}; }
-function draw(gj){
-  const feats=gj.features||[];
-  if(!feats.length){showFallback(feats);return;}
-  const map=L.map("map");
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    {maxZoom:19,attribution:"&copy; OpenStreetMap"}).addTo(map);
-  const pts=[];
-  for(const f of feats){
-    const [lon,lat]=f.geometry.coordinates;
-    const p=f.properties;
-    pts.push([lat,lon]);
-    L.circleMarker([lat,lon],{radius:8,color:BAND[p.risk_band]||"#64748b",
-      fillOpacity:.75}).addTo(map)
-     .bindPopup(`<b>${p.hostname||p.asset_id}</b><br>${p.ps_category||p.asset_type}`+
-        `<br>site: ${p.site||"?"} · risk: ${p.risk_band}`+
-        `<br>score: ${p.overall_score}/100`);
-  }
-  map.fitBounds(pts,{padding:[30,30]});
-  document.getElementById("legend").style.display="block";
-}
-function showFallback(feats){
-  document.getElementById("map").style.display="none";
-  const fb=document.getElementById("fallback");
-  fb.style.display="block";
-  const tb=fb.querySelector("tbody");
-  for(const f of feats){
-    const p=f.properties,[lon,lat]=f.geometry.coordinates;
-    const tr=document.createElement("tr");
-    tr.innerHTML=`<td>${p.hostname||p.asset_id}</td><td>${p.ps_category||p.asset_type}</td>`+
-      `<td>${p.site||""}</td><td>${p.risk_band}</td>`+
-      `<td>${lat.toFixed(5)}</td><td>${lon.toFixed(5)}</td>`;
-    tb.appendChild(tr);
-  }
-}
-boot();
-</script></body></html>"""
-
-
 def build_router():
     try:
         from fastapi import APIRouter, Depends
-        from fastapi.responses import HTMLResponse
     except Exception:                                  # pragma: no cover
         return None
 
@@ -184,8 +95,5 @@ def build_router():
         return assets_geojson(list_assets(), site=site,
                                 ps_category=ps_category, risk_band=risk_band)
 
-    @router.get("/map", response_class=HTMLResponse, include_in_schema=False)
-    def map_page():
-        return HTMLResponse(_MAP_HTML)
 
     return router
