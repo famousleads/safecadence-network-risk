@@ -225,26 +225,34 @@ def start_listeners() -> dict:
     trap_port = int(os.environ.get("SC_TRAP_PORT", "5162") or 0) \
         if (both or os.environ.get("SC_TRAP_PORT")) else 0
 
+    # Audit fix — all-or-nothing startup. Bind EVERY socket first, then
+    # start threads. Previously, a failed trap bind after a successful
+    # syslog start left the process half-started, and the idempotency
+    # guard (`_threads` non-empty) made every retry a no-op.
+    plans = []
     if syslog_port:
-        sock = _bound_socket(syslog_port)      # bound before we return
-        stop = threading.Event()
-        t = threading.Thread(target=_udp_loop,
-                              args=(sock, handle_syslog_datagram, stop),
-                              name="sc-syslog", daemon=True)
-        t.start()
-        _threads.append(t)
-        _stops.append(stop)
-        started["syslog_port"] = syslog_port
+        plans.append(("syslog_port", syslog_port, handle_syslog_datagram, "sc-syslog"))
     if trap_port:
-        sock = _bound_socket(trap_port)        # bound before we return
+        plans.append(("trap_port", trap_port, handle_trap_datagram, "sc-traps"))
+    socks = []
+    try:
+        for _, port, _, _ in plans:
+            socks.append(_bound_socket(port))  # bound before we return
+    except OSError:
+        for s in socks:                        # roll back partial binds
+            try:
+                s.close()
+            except OSError:
+                pass
+        raise
+    for (key, port, handler, name), sock in zip(plans, socks):
         stop = threading.Event()
-        t = threading.Thread(target=_udp_loop,
-                              args=(sock, handle_trap_datagram, stop),
-                              name="sc-traps", daemon=True)
+        t = threading.Thread(target=_udp_loop, args=(sock, handler, stop),
+                              name=name, daemon=True)
         t.start()
         _threads.append(t)
         _stops.append(stop)
-        started["trap_port"] = trap_port
+        started[key] = port
     return started
 
 

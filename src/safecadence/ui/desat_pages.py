@@ -68,6 +68,8 @@ _MAP_BODY = """
 _MAP_SCRIPT = r"""
 const MAP_BAND = {critical:"#ef4444", high:"#f59e0b", medium:"#f59e0b",
                     low:"#10b981", safe:"#10b981"};
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 let scMap = null, scLayer = null;
 async function mapLoad() {
   const band = document.getElementById("map-band").value;
@@ -108,9 +110,9 @@ function mapDraw(gj) {
     L.circleMarker([lat, lon], {radius: 8,
         color: MAP_BAND[p.risk_band] || "#8b95b1", fillOpacity: .75})
       .addTo(scLayer)
-      .bindPopup(`<b>${p.hostname || p.asset_id}</b><br>` +
-        `${p.ps_category || p.asset_type} · ${p.site || "?"}<br>` +
-        `risk: ${p.risk_band} · score ${p.overall_score}/100<br>` +
+      .bindPopup(`<b>${esc(p.hostname || p.asset_id)}</b><br>` +
+        `${esc(p.ps_category || p.asset_type)} · ${esc(p.site || "?")}<br>` +
+        `risk: ${esc(p.risk_band)} · score ${p.overall_score}/100<br>` +
         `<a href="/asset/${encodeURIComponent(p.asset_id)}">open asset →</a>`);
   }
   scMap.fitBounds(pts, {padding: [30, 30]});
@@ -124,9 +126,9 @@ function mapFallback(feats) {
   for (const f of feats) {
     const p = f.properties, [lon, lat] = f.geometry.coordinates;
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${p.hostname || p.asset_id}</td>` +
-      `<td>${p.ps_category || p.asset_type}</td><td>${p.site || ""}</td>` +
-      `<td>${p.risk_band}</td><td>${lat.toFixed(5)}</td><td>${lon.toFixed(5)}</td>`;
+    tr.innerHTML = `<td>${esc(p.hostname || p.asset_id)}</td>` +
+      `<td>${esc(p.ps_category || p.asset_type)}</td><td>${esc(p.site || "")}</td>` +
+      `<td>${esc(p.risk_band)}</td><td>${lat.toFixed(5)}</td><td>${lon.toFixed(5)}</td>`;
     tb.appendChild(tr);
   }
 }
@@ -160,6 +162,10 @@ _EIH_BODY = """
 _EIH_SCRIPT = r"""
 const EIH_COLOR = {healthy:"var(--ok)", warning:"var(--warn)",
                      critical:"var(--bad)", unknown:"var(--muted)"};
+// Issue messages + asset names embed hostnames sourced from device
+// telemetry — escape everything server-derived.
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 async function eihLoad() {
   const r = await fetch("/api/v1/desat/evidence-health");
   if (!r.ok) return;
@@ -169,9 +175,9 @@ async function eihLoad() {
   const head = document.getElementById("eih-headline");
   head.innerHTML =
     `<div style="font-size:16px;font-weight:700;color:${EIH_COLOR[s.overall_status]}">` +
-    `${s.headline}</div>` +
-    (s.guidance ? `<div class="muted" style="margin-top:6px;font-size:12px">${s.guidance}</div>` : "") +
-    `<div class="muted" style="margin-top:8px;font-size:11px">${s.disclaimer}</div>`;
+    `${esc(s.headline)}</div>` +
+    (s.guidance ? `<div class="muted" style="margin-top:6px;font-size:12px">${esc(s.guidance)}</div>` : "") +
+    `<div class="muted" style="margin-top:8px;font-size:11px">${esc(s.disclaimer)}</div>`;
   const host = document.getElementById("eih-stages");
   host.innerHTML = "";
   for (const stage of ["capture","transfer","store","access","preserve"]) {
@@ -182,17 +188,17 @@ async function eihLoad() {
     for (const i of st.issues.slice(0, 5)) {
       issues += `<div style="font-size:12px;margin-top:4px;color:` +
         `${i.severity === "critical" ? "var(--bad)" : "var(--warn)"}">` +
-        `${i.severity === "critical" ? "❗" : "⚠️"} ${i.message}</div>`;
+        `${i.severity === "critical" ? "❗" : "⚠️"} ${esc(i.message)}</div>`;
     }
     card.innerHTML =
       `<div style="display:flex;align-items:center;gap:8px">` +
-      `<span style="text-transform:capitalize;font-weight:700">${stage}</span>` +
+      `<span style="text-transform:capitalize;font-weight:700">${esc(stage)}</span>` +
       `<span style="flex:1"></span>` +
       `<span style="color:${EIH_COLOR[st.status]};font-weight:700;font-size:12px;` +
-      `text-transform:uppercase">${st.status}</span></div>` +
+      `text-transform:uppercase">${esc(st.status)}</span></div>` +
       `<div class="muted" style="font-size:12px;margin-top:4px">` +
       `${st.asset_count} asset${st.asset_count === 1 ? "" : "s"}` +
-      (st.assets.length ? " — " + st.assets.slice(0, 4).join(", ") +
+      (st.assets.length ? " — " + esc(st.assets.slice(0, 4).join(", ")) +
         (st.assets.length > 4 ? "…" : "") : "") + `</div>` +
       (issues || `<div class="muted" style="font-size:12px;margin-top:4px">` +
         (st.asset_count ? "No open issues." :
@@ -239,6 +245,11 @@ _INC_BODY = """
 _INC_SCRIPT = r"""
 const INC_SEV = {critical:"var(--bad)", high:"var(--warn)",
                    medium:"var(--med)", low:"var(--ok)", info:"var(--muted)"};
+// XSS defense: incident/event data originates from unauthenticated syslog
+// and SNMP-trap datagrams, so EVERY server-derived value interpolated into
+// innerHTML must be escaped (covers ' for single-quoted onclick attrs too).
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 async function incLoad() {
   const st = document.getElementById("inc-status").value;
   const r = await fetch("/api/v1/desat/incidents" + (st ? "?status="+st : ""));
@@ -260,12 +271,12 @@ async function incLoad() {
     tr.onclick = () => incDetail(i.incident_id);
     tr.innerHTML =
       `<td><span style="color:${INC_SEV[i.severity] || "var(--muted)"};` +
-      `font-weight:700;text-transform:uppercase;font-size:11px">${i.severity}</span></td>` +
-      `<td>${i.title}</td>` +
-      `<td><span style="font-size:12px;text-transform:capitalize">${i.status}</span></td>` +
-      `<td>${i.site || ""}</td>` +
-      `<td class="muted" style="font-size:12px">${(i.affected_assets || []).join(", ")}</td>` +
-      `<td class="muted" style="font-size:12px">${(i.opened_at || "").slice(0, 16).replace("T", " ")}</td>`;
+      `font-weight:700;text-transform:uppercase;font-size:11px">${esc(i.severity)}</span></td>` +
+      `<td>${esc(i.title)}</td>` +
+      `<td><span style="font-size:12px;text-transform:capitalize">${esc(i.status)}</span></td>` +
+      `<td>${esc(i.site || "")}</td>` +
+      `<td class="muted" style="font-size:12px">${esc((i.affected_assets || []).join(", "))}</td>` +
+      `<td class="muted" style="font-size:12px">${esc((i.opened_at || "").slice(0, 16).replace("T", " "))}</td>`;
     tb.appendChild(tr);
   }
 }
@@ -288,31 +299,32 @@ async function incDetail(id) {
   let tl = "";
   for (const t of (i.timeline || [])) {
     tl += `<tr><td class="muted" style="white-space:nowrap;font-size:12px">` +
-      `${(t.at || "").slice(0, 16).replace("T", " ")}</td>` +
-      `<td style="font-size:12px">${t.kind}</td>` +
-      `<td style="font-size:12px">${t.detail}` +
-      (t.actor ? ` <span class="muted">— ${t.actor}</span>` : "") + `</td></tr>`;
+      `${esc((t.at || "").slice(0, 16).replace("T", " "))}</td>` +
+      `<td style="font-size:12px">${esc(t.kind)}</td>` +
+      `<td style="font-size:12px">${esc(t.detail)}` +
+      (t.actor ? ` <span class="muted">— ${esc(t.actor)}</span>` : "") + `</td></tr>`;
   }
   let actions = "";
+  const iid = esc(i.incident_id);
   for (const [to, label] of (INC_NEXT[i.status] || [])) {
     actions += `<button class="alt" style="width:auto;padding:6px 12px;` +
-      `font-size:12px" onclick="incAct('${i.incident_id}','${to}')">${label}</button>`;
+      `font-size:12px" onclick="incAct('${iid}','${esc(to)}')">${esc(label)}</button>`;
   }
   el.innerHTML =
     `<div style="display:flex;gap:10px;align-items:center">` +
-    `<h2 style="font-size:15px;margin:0">${i.title}</h2><span style="flex:1"></span>` +
-    `<span class="muted" style="font-size:12px">${i.incident_id} · ` +
-    `<span style="text-transform:capitalize">${i.status}</span></span></div>` +
+    `<h2 style="font-size:15px;margin:0">${esc(i.title)}</h2><span style="flex:1"></span>` +
+    `<span class="muted" style="font-size:12px">${iid} · ` +
+    `<span style="text-transform:capitalize">${esc(i.status)}</span></span></div>` +
     (i.mission_impact ? `<p style="margin:8px 0 0;font-size:13px">` +
-      `<b>Mission impact:</b> ${i.mission_impact}</p>` : "") +
+      `<b>Mission impact:</b> ${esc(i.mission_impact)}</p>` : "") +
     (i.resolution ? `<p style="margin:6px 0 0;font-size:13px;color:var(--ok)">` +
-      `<b>Resolution:</b> ${i.resolution}</p>` : "") +
+      `<b>Resolution:</b> ${esc(i.resolution)}</p>` : "") +
     `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px">` +
     actions +
     `<input id="inc-note" placeholder="Add a note (optional — required to resolve)"` +
     ` style="flex:1;min-width:220px;padding:6px 10px;font-size:12px">` +
     `<button class="alt" style="width:auto;padding:6px 12px;font-size:12px"` +
-    ` onclick="incNote('${i.incident_id}')">＋ Note</button></div>` +
+    ` onclick="incNote('${iid}')">＋ Note</button></div>` +
     `<div class="muted" id="inc-msg" style="font-size:12px;margin-top:6px"></div>` +
     `<h2 style="font-size:13px;margin:12px 0 4px">Timeline</h2>` +
     `<table><tbody>${tl}</tbody></table>`;
@@ -385,6 +397,9 @@ _EVT_BODY = """
 _EVT_SCRIPT = r"""
 const EVT_SEV = {critical:"var(--bad)", high:"var(--warn)",
                    medium:"var(--med)", low:"var(--ok)", info:"var(--muted)"};
+// Events carry raw syslog/trap text from unauthenticated senders — escape all.
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 async function evtLoad() {
   const sev = document.getElementById("evt-sev").value;
   const src = document.getElementById("evt-src").value;
@@ -407,15 +422,15 @@ async function evtLoad() {
     const tr = document.createElement("tr");
     tr.innerHTML =
       `<td class="muted" style="white-space:nowrap;font-size:12px">` +
-      `${(e.received_at || "").slice(0, 16).replace("T", " ")}</td>` +
+      `${esc((e.received_at || "").slice(0, 16).replace("T", " "))}</td>` +
       `<td><span style="color:${EVT_SEV[e.severity] || "var(--muted)"};` +
-      `font-weight:700;font-size:11px;text-transform:uppercase">${e.severity}</span></td>` +
-      `<td style="font-size:12px">${e.source}</td>` +
-      `<td style="font-size:12px">${e.event_type}</td>` +
+      `font-weight:700;font-size:11px;text-transform:uppercase">${esc(e.severity)}</span></td>` +
+      `<td style="font-size:12px">${esc(e.source)}</td>` +
+      `<td style="font-size:12px">${esc(e.event_type)}</td>` +
       `<td style="font-size:12px">` +
       (e.asset_id ? `<a href="/asset/${encodeURIComponent(e.asset_id)}">` +
-        `${e.hostname || e.asset_id}</a>` : (e.source_ip || "—")) + `</td>` +
-      `<td style="font-size:12px">${e.description}</td>`;
+        `${esc(e.hostname || e.asset_id)}</a>` : esc(e.source_ip || "—")) + `</td>` +
+      `<td style="font-size:12px">${esc(e.description)}</td>`;
     tb.appendChild(tr);
   }
 }

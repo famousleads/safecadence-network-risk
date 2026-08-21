@@ -162,16 +162,26 @@ def query_events(*, limit: int = 200, severity: str = "",
     return out
 
 
+_COUNT_SCAN_CAP = 20000  # audit fix: bound the dashboard rollup scan
+
+
 def event_counts(days: int = 2) -> dict[str, Any]:
-    """Cheap rollup for dashboards: totals by severity + source."""
+    """Cheap rollup for dashboards: totals by severity + source.
+
+    Bounded: scans at most ``_COUNT_SCAN_CAP`` newest events so a
+    flooded event log (e.g. a syslog storm) can't make every dashboard
+    load O(all events). When the cap is hit, ``truncated`` is True and
+    ``total`` reflects the scanned window, not the absolute count.
+    """
     by_sev: dict[str, int] = {}
     by_src: dict[str, int] = {}
     total = 0
-    for rec in query_events(limit=100000, days=days):
+    for rec in query_events(limit=_COUNT_SCAN_CAP, days=days):
         total += 1
         by_sev[rec.get("severity", "info")] = by_sev.get(rec.get("severity", "info"), 0) + 1
         by_src[rec.get("source", "?")] = by_src.get(rec.get("source", "?"), 0) + 1
-    return {"total": total, "by_severity": by_sev, "by_source": by_src}
+    return {"total": total, "by_severity": by_sev, "by_source": by_src,
+            "truncated": total >= _COUNT_SCAN_CAP}
 
 
 def reset_for_tests() -> None:

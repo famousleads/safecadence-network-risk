@@ -45,6 +45,7 @@ ssh = [
 ]
 saml = [
     "signxml>=3.2",
+    "defusedxml>=0.7",
 ]
 vault = [
     "cryptography>=42.0",

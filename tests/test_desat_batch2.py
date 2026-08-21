@@ -310,13 +310,21 @@ def _selfsigned_cert_and_key():
 
 def _signed_response(key_pem, cert_pem, *, audience="sc-sp",
                        email="deputy@sheriff.test",
-                       not_on_or_after=None, assertion_id=None):
+                       not_on_or_after=None, assertion_id=None,
+                       omit_conditions=False):
     pytest.importorskip("signxml")
     from lxml import etree
     from signxml import XMLSigner
     nooa = (not_on_or_after or
              datetime.now(timezone.utc) + timedelta(minutes=5))
     aid = assertion_id or f"_a{int(time.time() * 1000)}"
+    conditions = "" if omit_conditions else (
+        f'    <saml:Conditions NotBefore="2000-01-01T00:00:00Z"\n'
+        f'      NotOnOrAfter="{nooa.strftime("%Y-%m-%dT%H:%M:%SZ")}">\n'
+        f'      <saml:AudienceRestriction><saml:Audience>{audience}'
+        f'</saml:Audience>\n'
+        f'      </saml:AudienceRestriction>\n'
+        f'    </saml:Conditions>\n')
     xml = f"""<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
   xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_r1" Version="2.0">
   <saml:Assertion ID="{aid}" Version="2.0">
@@ -324,12 +332,7 @@ def _signed_response(key_pem, cert_pem, *, audience="sc-sp",
     <saml:Subject><saml:NameID
       Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
       >{email}</saml:NameID></saml:Subject>
-    <saml:Conditions NotBefore="2000-01-01T00:00:00Z"
-      NotOnOrAfter="{nooa.strftime('%Y-%m-%dT%H:%M:%SZ')}">
-      <saml:AudienceRestriction><saml:Audience>{audience}</saml:Audience>
-      </saml:AudienceRestriction>
-    </saml:Conditions>
-  </saml:Assertion>
+{conditions}  </saml:Assertion>
 </samlp:Response>"""
     root = etree.fromstring(xml.encode())
     signed = XMLSigner().sign(root, key=key_pem, cert=cert_pem)
@@ -406,6 +409,28 @@ def test_saml_replay_rejected(saml_env, monkeypatch):
     res = saml.handle_acs_response(resp)
     assert res["ok"] is False
     assert res["error"] == "assertion_replayed"
+
+
+def test_saml_missing_conditions_rejected(saml_env):
+    """Audit fix: an assertion with no <Conditions> must fail closed."""
+    cert_pem, key_pem = saml_env
+    from safecadence.auth import saml
+    resp = _signed_response(key_pem, cert_pem, omit_conditions=True)
+    res = saml.handle_acs_response(resp)
+    assert res["ok"] is False
+    assert res["error"] == "assertion_missing_conditions"
+
+
+def test_saml_unreadable_cert_fails_closed(saml_env, monkeypatch, tmp_path):
+    """Audit fix: a configured-but-unreadable cert must NOT downgrade to
+    the HMAC path — it must fail closed."""
+    cert_pem, key_pem = saml_env
+    from safecadence.auth import saml
+    monkeypatch.setenv("SC_SAML_IDP_CERT_FILE", str(tmp_path / "does-not-exist.pem"))
+    monkeypatch.setenv("SC_SAML_IDP_SHARED_SECRET", "sekret")  # tempt the downgrade
+    res = saml.handle_acs_response(_signed_response(key_pem, cert_pem))
+    assert res["ok"] is False
+    assert res["error"].startswith("saml_verification_unavailable")
 
 
 def test_saml_authn_request_redirect(monkeypatch):

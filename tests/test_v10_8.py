@@ -334,8 +334,19 @@ def test_saml_acs_accepts_signed_response(monkeypatch):
     # Build the assertion with a *placeholder* ds:Signature, ask the
     # SP for the canonical form (which strips the Signature element),
     # sign that bytestring, then splice the real signature back in.
+    # Conditions are mandatory since the fail-closed hardening: an
+    # expiry window + an AudienceRestriction naming this SP.
+    from datetime import datetime, timedelta, timezone
+    nooa = (datetime.now(timezone.utc) + timedelta(minutes=5)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ")
     inner = (
         '<saml:Subject><saml:NameID>alice@acme.com</saml:NameID></saml:Subject>'
+        '<saml:Conditions NotBefore="2000-01-01T00:00:00Z" '
+        f'NotOnOrAfter="{nooa}">'
+        '<saml:AudienceRestriction>'
+        '<saml:Audience>urn:safecadence:sp</saml:Audience>'
+        '</saml:AudienceRestriction>'
+        '</saml:Conditions>'
         '<saml:AttributeStatement>'
         '<saml:Attribute Name="groups">'
         '<saml:AttributeValue>analysts</saml:AttributeValue>'

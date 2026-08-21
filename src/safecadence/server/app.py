@@ -454,6 +454,40 @@ def create_app(*, db_url: Optional[str] = None, jwt_secret: Optional[str] = None
             app.include_router(_r)
     except Exception:                              # pragma: no cover
         pass
+    # ---- audit fix: pages the shared chrome links to must exist HERE
+    # too, not just on the local `safecadence ui` app — otherwise the
+    # hosted server renders a sidebar full of dead links (/map, /events,
+    # /incidents, /cluster-status, /ai-agents, ...). Same guarded
+    # pattern as ui/app.py; each page's data APIs keep their own gates.
+    try:
+        from safecadence.ui.v12_pages import router as _v12_router
+        if _v12_router is not None:
+            app.include_router(_v12_router)
+    except Exception:                              # pragma: no cover
+        pass
+    try:
+        from safecadence.ui.help_v13 import router as _help13_router
+        if _help13_router is not None:
+            app.include_router(_help13_router)
+    except Exception:                              # pragma: no cover
+        pass
+    try:
+        from safecadence.ui.v16_pages import router as _v16_router
+        if _v16_router is not None:
+            app.include_router(_v16_router)
+    except Exception:                              # pragma: no cover
+        pass
+    try:
+        from safecadence.ui.desat_pages import register as _reg_desat
+        _reg_desat(app)
+    except Exception:                              # pragma: no cover
+        pass
+    try:
+        from safecadence.portal.customer_routes import router as _cust_router
+        if _cust_router is not None:
+            app.include_router(_cust_router)
+    except Exception:                              # pragma: no cover
+        pass
     # Inbound listeners (syslog/traps) start only when explicitly
     # enabled — SC_EVENTS_LISTENERS=1 (or SC_SYSLOG_PORT/SC_TRAP_PORT).
     try:

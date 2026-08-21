@@ -40,6 +40,21 @@ import time
 import uuid
 import zlib
 import xml.etree.ElementTree as ET
+
+# Prefer defusedxml for parsing UNTRUSTED SAML (blocks XXE + billion-laughs
+# entity-expansion DoS). Falls back to stdlib with a hardened parse if the
+# optional dep is absent; production installs get it via [saml] extras.
+try:
+    from defusedxml.ElementTree import fromstring as _safe_fromstring
+except Exception:                                       # pragma: no cover
+    def _safe_fromstring(text):
+        # Stdlib ElementTree does not expand external entities by default
+        # in modern Python, but be explicit and reject DOCTYPE up front.
+        head = (text[:512] if isinstance(text, (bytes, bytearray))
+                else str(text)[:512].encode())
+        if b"<!DOCTYPE" in head or b"<!ENTITY" in head:
+            raise ValueError("DOCTYPE/ENTITY not permitted in SAML")
+        return ET.fromstring(text)
 from datetime import datetime, timezone
 from typing import Any
 
@@ -80,14 +95,26 @@ def _idp_shared_secret() -> str:
     return os.environ.get("SC_SAML_IDP_SHARED_SECRET", "")
 
 
+def _idp_cert_configured() -> bool:
+    """Has an operator asked for XML-DSig (cert file OR inline cert)?
+    Independent of whether the file is currently readable — used to
+    prevent a silent downgrade to the weak HMAC path."""
+    return bool(os.environ.get("SC_SAML_IDP_CERT_FILE")
+                or os.environ.get("SC_SAML_IDP_CERT"))
+
+
 def _idp_cert_pem() -> str:
-    """IdP signing certificate (PEM). File path wins over inline env."""
+    """IdP signing certificate (PEM). File path wins over inline env.
+    Raises RuntimeError when a cert FILE is configured but unreadable —
+    failing closed rather than downgrading to the shared-secret path."""
     path = os.environ.get("SC_SAML_IDP_CERT_FILE", "")
     if path:
         try:
             return open(path, encoding="utf-8").read()
-        except OSError:
-            return ""
+        except OSError as exc:
+            raise RuntimeError(
+                f"SC_SAML_IDP_CERT_FILE is set but unreadable ({exc}); "
+                "refusing to downgrade SAML verification") from exc
     return os.environ.get("SC_SAML_IDP_CERT", "")
 
 
@@ -250,26 +277,34 @@ def _check_conditions(xml_bytes: bytes) -> str | None:
     """Enforce Conditions (validity window + audience) and replay.
     Returns an error string, or None when the assertion is acceptable."""
     try:
-        root = ET.fromstring(xml_bytes)
+        root = _safe_fromstring(xml_bytes)
     except ET.ParseError:
         return "assertion_unparseable"
 
     now = datetime.now(timezone.utc).timestamp()
     cond = root.find(".//saml:Conditions", NS)
-    not_on_or_after = None
-    if cond is not None:
-        nb = _parse_iso8601(cond.get("NotBefore", ""))
-        if nb is not None and now + _CLOCK_SKEW_SEC < nb:
-            return "assertion_not_yet_valid"
-        not_on_or_after = _parse_iso8601(cond.get("NotOnOrAfter", ""))
-        if not_on_or_after is not None and now - _CLOCK_SKEW_SEC >= not_on_or_after:
-            return "assertion_expired"
-        audiences = [
-            (a.text or "").strip()
-            for a in cond.findall(".//saml:Audience", NS)
-        ]
-        if audiences and _sp_entity_id() not in audiences:
-            return "audience_mismatch"
+    # Fail closed: an assertion with no Conditions block has no validity
+    # window and no audience — accepting it would let a stolen or
+    # cross-SP assertion in indefinitely. Require the block.
+    if cond is None:
+        return "assertion_missing_conditions"
+    nb = _parse_iso8601(cond.get("NotBefore", ""))
+    if nb is not None and now + _CLOCK_SKEW_SEC < nb:
+        return "assertion_not_yet_valid"
+    not_on_or_after = _parse_iso8601(cond.get("NotOnOrAfter", ""))
+    # A validity window is mandatory — no NotOnOrAfter means no expiry.
+    if not_on_or_after is None:
+        return "assertion_no_expiry"
+    if now - _CLOCK_SKEW_SEC >= not_on_or_after:
+        return "assertion_expired"
+    # Audience is mandatory and must name this SP — an assertion minted
+    # for a different SP must never be accepted here.
+    audiences = [
+        (a.text or "").strip()
+        for a in cond.findall(".//saml:Audience", NS)
+    ]
+    if not audiences or _sp_entity_id() not in audiences:
+        return "audience_mismatch"
 
     assertion = root.find(".//saml:Assertion", NS)
     if assertion is None and root.tag.endswith("Assertion"):
@@ -290,7 +325,7 @@ def _check_conditions(xml_bytes: bytes) -> str | None:
 
 def _extract_email_and_groups(xml_bytes: bytes) -> tuple[str | None, list[str]]:
     try:
-        root = ET.fromstring(xml_bytes)
+        root = _safe_fromstring(xml_bytes)
     except ET.ParseError:
         return None, []
 
@@ -347,11 +382,14 @@ def handle_acs_response(saml_response: str) -> dict:
     # the HMAC stub path is never consulted, and identity is extracted
     # from the VERIFIED subtree only (signature-wrapping defense).
     identity_source = raw
-    if _idp_cert_pem():
+    if _idp_cert_configured():
+        # A cert is configured → XML-DSig is mandatory. An unreadable
+        # cert or a missing signxml dependency fails closed here rather
+        # than silently falling through to the HMAC path.
         try:
             verified = _verify_signature_xmldsig(raw)
         except RuntimeError as exc:
-            return {"ok": False, "error": f"saml_dependency_missing: {exc}"}
+            return {"ok": False, "error": f"saml_verification_unavailable: {exc}"}
         if verified is None:
             return {"ok": False, "error": "signature_invalid"}
         identity_source = verified

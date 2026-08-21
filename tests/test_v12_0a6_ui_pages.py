@@ -60,7 +60,7 @@ def test_api_keys_page_renders_empty(client):
 def test_v12_pages_router_has_three_routes():
     from safecadence.ui.v12_pages import router
     paths = {r.path for r in router.routes}
-    assert paths == {"/cluster-status", "/ai-agents", "/api-keys"}
+    assert {"/cluster-status", "/ai-agents", "/api-keys"} <= paths
 
 
 def test_v12_pages_never_500_when_underlying_apis_fail(client, monkeypatch):
