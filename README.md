@@ -9,7 +9,7 @@ Forty-five adapters across network gear, servers, identity, cloud, and backup. T
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![PyPI](https://img.shields.io/pypi/v/safecadence-netrisk.svg)](https://pypi.org/project/safecadence-netrisk/)
-[![Tests](https://img.shields.io/badge/tests-1749%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-2068%20passing-brightgreen.svg)](#testing)
 [![Local-first](https://img.shields.io/badge/local--first-yes-blue.svg)](PRIVACY.md)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-success.svg)](PRIVACY.md)
 [![MCP](https://img.shields.io/badge/MCP-2024--11--05-purple.svg)](#mcp-server)
@@ -31,6 +31,35 @@ safecadence ui                            # open http://127.0.0.1:8766/home
 That's it — about a minute end-to-end. The demo seed includes a three-tier identity scenario (a "good" tenant with a connected Okta + healthy NHIs, a "medium" tenant with an unsynced ClearPass, and a "broken" tenant with an LDAP misconfig) so every surface — Identity, NHI, Execute jobs, rollback plans, compliance — has populated content on first run.
 
 Prefer to clone the repo? `git clone https://github.com/famousleads/safecadence-network-risk && cd safecadence-network-risk && ./bootstrap.sh` does the same dance against an editable install.
+
+---
+
+## Public Safety add-on (for law-enforcement agencies)
+
+The agency layer ships as a separate package built on this core:
+
+```bash
+pip install safecadence-publicsafety      # installs the core automatically
+safecadence ui                            # /map · /incidents · /events · /evidence-infrastructure
+```
+
+It adds a risk-banded **asset map**, **evidence-infrastructure health**
+(capture → transfer → store → access → preserve chain scoring), native
+**incidents** and **events** pages over the core's syslog/SNMP/webhook
+ingestion, a **public-safety asset taxonomy** (cameras, ALPR, body cams,
+radio, access control, evidence storage), **CJIS Security Policy
+mapping** with integrity-hashed evidence packs, and a synthetic sheriff
+evaluation tenant (`safecadence demo --sheriff`).
+
+The **free 90-day trial starts automatically on first use** — no key, no
+signup, no call home. Same local-first rules as the core: your data
+never leaves your network, and because it deploys on your
+infrastructure, SafeCadence never takes custody of CJI. After the trial
+it locks until licensed; this open-source core keeps working forever.
+
+▶ Live demo (no signup): <https://analyzer.safecadence.com/netrisk/public-safety>
+· Product page: <https://safecadence.com/public-safety-command>
+· Licensing: [hello@safecadence.com](mailto:hello@safecadence.com?subject=Public%20Safety%20license)
 
 ---
 
