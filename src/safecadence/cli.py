@@ -142,6 +142,109 @@ def help_cmd() -> None:
         _print(line)
 
 
+@cli.command("retention")
+@click.argument("action", type=click.Choice(
+    ["status", "run", "verify", "preset"]), default="status")
+@click.option("--dry-run", is_flag=True,
+               help="Evaluate and log, but delete nothing.")
+@click.option("--name", default="fl_public_records",
+               help="Preset name for 'preset' (fl_public_records, conservative).")
+@click.option("--actor", default="cli",
+               help="Recorded in the immutable purge log.")
+def retention_cmd(action: str, dry_run: bool, name: str, actor: str) -> None:
+    """Automated data retention with an immutable, hash-chained purge log.
+
+    \b
+      safecadence retention status          what's due + policy + log integrity
+      safecadence retention run --dry-run   rehearse (logged, deletes nothing)
+      safecadence retention run             apply the active policy
+      safecadence retention verify          verify the purge-log hash chain
+      safecadence retention preset          seed the Florida public-records preset
+    """
+    from safecadence.platform import retention as rt
+    if action == "status":
+        s = rt.status()
+        _print(f"Policy file : {s['policy_file']}")
+        for k, v in s["policy"].items():
+            _print(f"  {k:<18} {v['days']:>5} days   ({v['basis']})")
+        _print("Due now:")
+        for k, v in s["due"].items():
+            _print(f"  {k:<18} {v['count']} item(s)")
+        lg = s["log"]
+        _print(f"Purge log   : {lg['entries']} entries — "
+                f"{'chain VERIFIED' if lg['ok'] else 'CHAIN BROKEN: ' + str(lg.get('reason'))}")
+    elif action == "run":
+        r = rt.run(dry_run=dry_run, actor=actor)
+        mode = "DRY RUN" if dry_run else "PURGE"
+        if not r["results"]:
+            _print(f"{mode}: nothing due under the active policy.")
+        for k, v in r["results"].items():
+            _print(f"{mode}: {k} -> {v['count']} item(s)   "
+                    f"log {v['log_hash'][:16]}…")
+        _print(f"Purge-log chain verified: {r['log_verified']}")
+    elif action == "verify":
+        v = rt.verify_log()
+        if v["ok"]:
+            _print(f"VERIFIED — {v['entries']} entries, head {v['head'][:16]}…")
+        else:
+            _print(f"CHAIN BROKEN at entry {v['failed_at']}: {v['reason']}")
+            raise SystemExit(1)
+    elif action == "preset":
+        p = rt.apply_preset(name, actor=actor)
+        _print(f"Applied preset '{name}':")
+        for k, v in p.items():
+            _print(f"  {k:<18} {v['days']:>5} days   ({v['basis']})")
+
+
+@cli.command("evidencewatch")
+@click.argument("action", type=click.Choice(
+    ["report", "snapshot", "audit", "verify"]), default="report")
+@click.option("--agency", default="", help="Agency name on the report.")
+@click.option("--out", default="", help="Output HTML path (default: data dir).")
+def evidencewatch_cmd(action: str, agency: str, out: str) -> None:
+    """EvidenceWatch — the Monday One-Pager + the Audit Button.
+
+    \b
+      safecadence evidencewatch report     write this week's one-pager HTML
+      safecadence evidencewatch snapshot   record this week into the audit chain
+      safecadence evidencewatch audit      write the auditor-ready history pack
+      safecadence evidencewatch verify     verify the snapshot hash chain
+    """
+    try:
+        from safecadence import evidencewatch as ew
+    except ImportError:
+        _print("EvidenceWatch ships with the Public Safety add-on:\n"
+                "    pip install safecadence-publicsafety")
+        return
+    from pathlib import Path as _P
+    if action == "report":
+        html = ew.render_report_html(agency=agency)
+        p = _P(out) if out else (ew._data_dir() / "onepager-latest.html")
+        p.write_text(html, encoding="utf-8")
+        r = ew.build_report()
+        _print(f"EvidenceWatch {r['week']}: {r['overall'].upper()} — "
+                f"{r['dark_count']}/{r['sense_total']} sensors dark")
+        _print(f"One-pager written: {p}")
+    elif action == "snapshot":
+        e = ew.snapshot()
+        _print(f"Snapshot {e['week']} recorded — {e['overall']} "
+                f"(hash {e['entry_hash'][:16]}…)")
+    elif action == "audit":
+        html = ew.audit_export(agency=agency)
+        p = _P(out) if out else (ew._data_dir() / "audit-pack.html")
+        p.write_text(html, encoding="utf-8")
+        v = ew.verify_history()
+        _print(f"Audit pack ({v['weeks']} weeks, "
+                f"{'VERIFIED' if v['ok'] else 'CHAIN BROKEN'}): {p}")
+    elif action == "verify":
+        v = ew.verify_history()
+        if v["ok"]:
+            _print(f"VERIFIED — {v['weeks']} weekly snapshot(s).")
+        else:
+            _print(f"CHAIN BROKEN at {v.get('failed_at')}: {v.get('reason')}")
+            raise SystemExit(1)
+
+
 @cli.command("scan")
 @click.argument("source", type=click.Path(exists=True, readable=True))
 @click.option("--vendor", default=None, help="Force a vendor adapter (e.g. cisco-ios).")

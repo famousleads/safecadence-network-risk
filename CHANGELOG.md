@@ -51,6 +51,16 @@ routers; /map, /events, /incidents, /evidence-infrastructure,
 /cluster-status, /ai-agents, /api-keys, /customer, /nudges, /red-vs-blue,
 and /help/topics returned 404 on hosted deployments. All are mounted now.
 
+**Also in this release — data retention with an immutable purge log.**
+`safecadence retention` applies declared per-record-type retention windows
+(Florida public-records preset included) and appends every action — dry
+runs too — to a SHA-256 hash-chained purge log that `retention verify`
+can prove untampered. Events purge as whole day-files; only CLOSED
+incidents age out. And the Public Safety add-on gains **EvidenceWatch**:
+a weekly one-pager (dark cameras with days-dark, evidence-chain status,
+storage runway, one recommended action) plus an auditor-ready,
+hash-chained monitoring history (`safecadence evidencewatch`).
+
 Full test suite: 2,056 passed.
 
 ## [16.3.0] — 2026-07-09 — Claude Fable 5, and never an empty answer

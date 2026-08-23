@@ -747,6 +747,25 @@ def register(app) -> None:                              # pragma: no cover
                                           severity=severity, source=source,
                                           asset_id=asset_id, days=days)}
 
+    # ---- EvidenceWatch (the wedge: one-pager + audit pack) -----------
+    @app.get("/evidencewatch", response_class=HTMLResponse)
+    def evidencewatch_page(agency: str = ""):
+        _api_gate()
+        from safecadence import evidencewatch as ew
+        return HTMLResponse(ew.render_report_html(agency=agency))
+
+    @app.get("/evidencewatch/audit", response_class=HTMLResponse)
+    def evidencewatch_audit(agency: str = ""):
+        _api_gate()
+        from safecadence import evidencewatch as ew
+        return HTMLResponse(ew.audit_export(agency=agency))
+
+    @app.get("/api/v1/desat/evidencewatch")
+    def evidencewatch_api():
+        _api_gate()
+        from safecadence import evidencewatch as ew
+        return ew.build_report()
+
     # ---- pages -------------------------------------------------------
     @app.get("/map", response_class=HTMLResponse)
     def map_page():

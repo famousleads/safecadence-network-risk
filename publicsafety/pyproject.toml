@@ -40,3 +40,4 @@ bypass-selection = true
 "../src/safecadence/platform/public_safety.py" = "safecadence/platform/public_safety.py"
 "../src/safecadence/platform/evidence_health.py" = "safecadence/platform/evidence_health.py"
 "../src/safecadence/demo_sheriff.py" = "safecadence/demo_sheriff.py"
+"../src/safecadence/evidencewatch.py" = "safecadence/evidencewatch.py"
