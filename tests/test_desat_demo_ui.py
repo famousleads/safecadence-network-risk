@@ -236,11 +236,21 @@ def test_events_page_renders(ui_client):
 
 
 @pytest.fixture()
-def locked_client(tmp_path):
-    """No license, no sheriff demo data → everything locked."""
+def locked_client(tmp_path, monkeypatch):
+    """No license, EXPIRED free trial, no sheriff demo data → locked.
+
+    (Since the built-in 90-day trial auto-starts on first use, "locked
+    out of the box" no longer exists — locked now means trial over.)"""
+    import json as _json
+    from datetime import datetime, timedelta, timezone
     fastapi = pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
     from safecadence.ui.desat_pages import register
+    trial = tmp_path / "trials.json"
+    stamp = (datetime.now(timezone.utc) - timedelta(days=120)).isoformat()
+    trial.write_text(_json.dumps({"public_safety": {"started_at": stamp}}))
+    monkeypatch.setenv("SC_TRIAL_PATH", str(trial))
+    monkeypatch.setenv("SC_LICENSE_PATH", str(tmp_path / "license.json"))
     app = fastapi.FastAPI()
     register(app)
     return TestClient(app)
@@ -263,7 +273,24 @@ def test_locked_apis_return_402(locked_client):
     assert r.status_code == 402
 
 
-def test_evaluation_mode_shows_banner(ui_client):
+def test_trial_mode_shows_trial_banner(ui_client, tmp_path, monkeypatch):
+    """Active free trial outranks evaluation: trial banner shows."""
+    monkeypatch.setenv("SC_TRIAL_PATH", str(tmp_path / "t.json"))
+    monkeypatch.setenv("SC_LICENSE_PATH", str(tmp_path / "l.json"))
+    r = ui_client.get("/map")
+    assert "90-day Public Safety trial" in r.text
+    assert "days" in r.text
+
+
+def test_evaluation_mode_shows_banner(ui_client, tmp_path, monkeypatch):
+    """After trial expiry, sheriff demo data => evaluation banner."""
+    import json as _json
+    from datetime import datetime, timedelta, timezone
+    trial = tmp_path / "trials.json"
+    stamp = (datetime.now(timezone.utc) - timedelta(days=120)).isoformat()
+    trial.write_text(_json.dumps({"public_safety": {"started_at": stamp}}))
+    monkeypatch.setenv("SC_TRIAL_PATH", str(trial))
+    monkeypatch.setenv("SC_LICENSE_PATH", str(tmp_path / "license.json"))
     r = ui_client.get("/map")
     assert "Evaluation mode" in r.text
 

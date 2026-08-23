@@ -477,16 +477,21 @@ _EVAL_BANNER = (
 
 
 def _ps_access() -> str:
-    """'licensed' | 'evaluation' | 'locked'.
+    """'licensed' | 'trial' | 'evaluation' | 'locked'.
 
-    Licensed: the signed license file carries the ``public_safety``
-    feature. Evaluation: sheriff demo data is loaded (free, synthetic,
-    banner-marked). Locked: neither — pages show the upsell, APIs 402.
+    Licensed: the license file carries the ``public_safety`` feature.
+    Trial: the built-in free 90-day evaluation (auto-starts on first
+    use; real data, banner shows days remaining). Evaluation: sheriff
+    demo data loaded after trial expiry (synthetic, banner-marked).
+    Locked: none of the above — pages show the upsell, APIs 402.
     """
     try:
-        from safecadence.license import feature_enabled
-        if feature_enabled("public_safety"):
+        from safecadence.license import feature_access
+        acc = feature_access("public_safety")
+        if acc["mode"] == "licensed":
             return "licensed"
+        if acc["mode"] == "trial":
+            return "trial"
     except Exception:
         pass
     try:
@@ -499,6 +504,22 @@ def _ps_access() -> str:
     return "locked"
 
 
+def _trial_banner() -> str:
+    days = 0
+    try:
+        from safecadence.license import trial_status
+        days = trial_status("public_safety").get("days_remaining", 0)
+    except Exception:
+        pass
+    return (
+        '<div style="background:rgba(14,124,134,.10);border:1px solid var(--accent);'
+        'border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:12.5px">'
+        f'⏳ <b>Free 90-day Public Safety trial</b> — {days} days '
+        'remaining. Full features, your data, runs entirely on this device. '
+        '<a href="mailto:hello@safecadence.com?subject=Public%20Safety%20license">'
+        'Get an agency license</a> to keep it after the trial.</div>')
+
+
 # ============================================================ register
 
 def register(app) -> None:                              # pragma: no cover
@@ -509,14 +530,18 @@ def register(app) -> None:                              # pragma: no cover
     def _api_gate() -> None:
         if _ps_access() == "locked":
             raise HTTPException(
-                402, "Public Safety license required (or load the "
-                       "evaluation tenant: safecadence demo --sheriff)")
+                402, "Public Safety license required — your free 90-day "
+                       "trial has ended. Email hello@safecadence.com for an "
+                       "agency license, or load the synthetic evaluation "
+                       "tenant: safecadence demo --sheriff")
 
     def _page(title: str, body: str, script: str) -> "HTMLResponse":
         access = _ps_access()
         if access == "locked":
             return HTMLResponse(wrap(title, _UPSELL_BODY, ""))
-        if access == "evaluation":
+        if access == "trial":
+            body = _trial_banner() + body
+        elif access == "evaluation":
             body = _EVAL_BANNER + body
         return HTMLResponse(wrap(title, body, script))
 

@@ -223,3 +223,105 @@ def require_feature(name: str) -> None:
             f"{_license_path()}. Free tier features: "
             f"{', '.join(load_license().features)}."
         )
+
+
+# --------------------------------------------------------------------------
+# Free evaluation trials (per-feature, one-time, auto-start)
+#
+# Some paid features ship with a built-in free trial so `pip install
+# safecadence-netrisk` is enough to evaluate them on real data — no key,
+# no signup, no call home. The trial stamp lives next to the license
+# file. Same philosophy as the license itself: this is a clean knob for
+# honest operators, not a copy-protection moat.
+# --------------------------------------------------------------------------
+
+TRIAL_FEATURES: dict[str, int] = {
+    "public_safety": 90,     # days
+}
+
+
+def _trial_path() -> Path:
+    return Path(os.environ.get("SC_TRIAL_PATH")
+                or (Path.home() / ".safecadence" / "trials.json"))
+
+
+def _read_trials() -> dict:
+    p = _trial_path()
+    if not p.exists():
+        return {}
+    try:
+        return dict(json.loads(p.read_text(encoding="utf-8")))
+    except Exception:
+        return {}
+
+
+def _write_trials(data: dict) -> None:
+    p = _trial_path()
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    except OSError:
+        pass                                     # read-only FS: trial just
+                                                 # won't persist; degrade soft
+
+
+def trial_status(feature: str) -> dict[str, Any]:
+    """{eligible, started, started_at, days_total, days_remaining, expired}"""
+    days_total = TRIAL_FEATURES.get(feature, 0)
+    rec = _read_trials().get(feature) or {}
+    started_at = rec.get("started_at", "")
+    out: dict[str, Any] = {
+        "feature": feature,
+        "eligible": days_total > 0,
+        "started": bool(started_at),
+        "started_at": started_at,
+        "days_total": days_total,
+        "days_remaining": 0,
+        "expired": False,
+    }
+    if not started_at:
+        return out
+    try:
+        start = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        elapsed = (_now() - start).days
+        remaining = days_total - elapsed
+        out["days_remaining"] = max(0, remaining)
+        out["expired"] = remaining <= 0
+    except Exception:
+        out["expired"] = True                    # unparseable stamp = over
+    return out
+
+
+def start_trial(feature: str) -> dict[str, Any]:
+    """Idempotent: stamps the trial start on first call, no-op after."""
+    if TRIAL_FEATURES.get(feature, 0) <= 0:
+        return trial_status(feature)
+    trials = _read_trials()
+    if not (trials.get(feature) or {}).get("started_at"):
+        trials[feature] = {"started_at": _now().isoformat()}
+        _write_trials(trials)
+    return trial_status(feature)
+
+
+def feature_access(feature: str) -> dict[str, Any]:
+    """The one call gates should use.
+
+    mode: 'licensed' | 'trial' | 'expired' | 'unavailable'
+    A trial auto-starts on first access so install→use just works.
+    """
+    if feature_enabled(feature):
+        return {"mode": "licensed", "days_remaining": 0,
+                "detail": "licensed"}
+    if TRIAL_FEATURES.get(feature, 0) <= 0:
+        return {"mode": "unavailable", "days_remaining": 0,
+                "detail": "no license and no trial for this feature"}
+    ts = start_trial(feature)                    # idempotent auto-start
+    if ts["expired"]:
+        return {"mode": "expired", "days_remaining": 0,
+                "detail": f"free {ts['days_total']}-day trial ended "
+                          f"{ts['started_at'][:10]} + {ts['days_total']}d"}
+    return {"mode": "trial", "days_remaining": ts["days_remaining"],
+            "detail": f"free trial - {ts['days_remaining']} of "
+                      f"{ts['days_total']} days remaining"}
