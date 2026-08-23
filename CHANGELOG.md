@@ -1,5 +1,18 @@
 # Changelog
 
+## [16.4.0] — 2026-08-23 — Public Safety: free 90-day trial built in
+
+`pip install safecadence-netrisk` is now enough to evaluate the full
+Public Safety module on your own data: the free 90-day trial starts
+automatically on first use — no key, no signup, no call home. A banner
+shows days remaining; when the trial ends, the pages lock to a license
+prompt (the synthetic sheriff evaluation tenant stays available). An
+agency license file with the `public_safety` feature unlocks permanently.
+Trial state lives beside the license file (`~/.safecadence/trials.json`,
+`SC_TRIAL_PATH` to relocate). Honest by design: local stamp, no phoning
+home — same philosophy as the license module itself.
+
+
 ## [16.3.1] — 2026-08-21 — Security hardening (recommended upgrade)
 
 **Security — stored XSS closed in the DESAT operator pages.** The map,
