@@ -1,5 +1,37 @@
 # Changelog
 
+## [16.3.1] — 2026-08-21 — Security hardening (recommended upgrade)
+
+**Security — stored XSS closed in the DESAT operator pages.** The map,
+evidence-infrastructure, incidents, and events views rendered
+incident/event/asset fields into `innerHTML` unescaped. Those fields can
+originate from unauthenticated syslog and SNMP-trap datagrams, so a crafted
+device name could run script in an operator's browser. Every server-derived
+interpolation in all four view scripts is now HTML-escaped.
+
+**Security — SAML fails closed.** An assertion with no `Conditions` block, no
+`NotOnOrAfter` expiry, or an `AudienceRestriction` that does not name this SP
+is now rejected (`assertion_missing_conditions` / `assertion_no_expiry` /
+`audience_mismatch`). A configured-but-unreadable IdP certificate no longer
+silently downgrades verification to the dev shared-secret path — it refuses
+(`saml_verification_unavailable`). Untrusted SAML XML is parsed with
+`defusedxml` (added to the `[saml]` extra), with a DOCTYPE/ENTITY-rejecting
+fallback when the dependency is absent.
+
+**Hardening.** `event_counts()` bounds its scan to the 20k newest events and
+reports `truncated` — an event-log flood can no longer make every dashboard
+load scan the full log. Event listener startup is all-or-nothing: every UDP
+socket binds before any thread starts, and a partial bind rolls back cleanly
+so a retry fully recovers.
+
+**Fixed — 11 dead sidebar links on the hosted server.** `server.create_app`
+rendered the shared navigation chrome but never mounted the newer page
+routers; /map, /events, /incidents, /evidence-infrastructure,
+/cluster-status, /ai-agents, /api-keys, /customer, /nudges, /red-vs-blue,
+and /help/topics returned 404 on hosted deployments. All are mounted now.
+
+Full test suite: 2,056 passed.
+
 ## [16.3.0] — 2026-07-09 — Claude Fable 5, and never an empty answer
 
 **Fixed — a silent failure that has been there all along.** `_call_anthropic`
