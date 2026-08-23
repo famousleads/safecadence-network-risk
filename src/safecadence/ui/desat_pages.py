@@ -33,8 +33,52 @@ from safecadence.ui._chrome import wrap
 # ============================================================ /map
 
 _MAP_BODY = """
+<style>
+#sc-tac{position:relative;height:560px;background:#0e1a15;overflow:hidden}
+#sc-tac svg.base{position:absolute;inset:0;width:100%;height:100%}
+.sc-pin{position:absolute;transform:translate(-50%,-50%);z-index:3;cursor:pointer;
+  display:flex;align-items:center;gap:5px;background:rgba(10,25,20,.88);
+  border:1px solid rgba(127,174,154,.45);border-radius:999px;padding:3px 9px 3px 5px;
+  font-size:11px;color:#d7ece3;text-decoration:none;white-space:nowrap}
+.sc-pin i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.sc-pin:hover{border-color:#5fd3b8;z-index:5}
+.sc-unit{position:absolute;transform:translate(-50%,-50%);z-index:4;
+  transition:left 1.9s linear,top 1.9s linear;display:flex;align-items:center;gap:5px;
+  background:rgba(14,40,44,.92);border:1px solid rgba(45,212,191,.55);
+  border-left:4px solid #2dd4bf;border-radius:999px;padding:3px 9px;
+  font-size:11px;font-weight:700;color:#bff2e7;cursor:default}
+.sc-unit small{font-weight:600;color:#7fae9a;text-transform:uppercase;font-size:8.5px;letter-spacing:.05em}
+.sc-chip{position:absolute;left:10px;top:10px;z-index:6;font-size:9.5px;font-weight:800;
+  letter-spacing:.07em;color:#9fe8dc;background:rgba(10,25,28,.85);
+  border:1px solid rgba(45,212,191,.35);border-radius:20px;padding:3px 9px}
+#sc-posture{position:absolute;top:10px;right:10px;z-index:6;width:212px;
+  background:rgba(10,22,18,.93);border:1px solid rgba(127,174,154,.4);border-radius:10px;
+  padding:12px;color:#d7ece3;font-size:12px;display:grid;gap:7px}
+#sc-posture .t{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#7fae9a}
+#sc-posture .n{font-size:26px;font-weight:800;line-height:1;color:#fff}
+#sc-posture .row{display:flex;justify-content:space-between;gap:8px}
+#sc-posture .row b{color:#fff}
+.sc-strip{margin-top:12px}
+.sc-strip .hd{display:flex;justify-content:space-between;align-items:center;margin:0 0 6px}
+.sc-strip .hd h2{font-size:14px;margin:0}
+.sc-strip .hd span{font-size:10.5px;color:var(--muted,#8b95b1);font-weight:700;
+  text-transform:uppercase;letter-spacing:.06em}
+.sc-row{display:grid;grid-template-columns:86px minmax(0,1fr) auto auto;gap:10px;
+  align-items:center;padding:8px 12px;border:1px solid var(--line,rgba(255,255,255,.08));
+  border-radius:8px;margin-bottom:6px;text-decoration:none;color:inherit;
+  border-left-width:4px}
+.sc-row:hover{background:rgba(255,255,255,.03)}
+.sc-row.critical,.sc-row.high{border-left-color:#ef4444}
+.sc-row.medium,.sc-row.warning{border-left-color:#f59e0b}
+.sc-row.watch,.sc-row.low,.sc-row.info{border-left-color:#334155}
+.sc-sev{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+.sc-sev.critical,.sc-sev.high{color:#ef4444}.sc-sev.medium,.sc-sev.warning{color:#f59e0b}
+.sc-sev.watch,.sc-sev.low,.sc-sev.info{color:#8b95b1}
+.sc-row .ti{font-size:12.5px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sc-row .me,.sc-row .st{font-size:11px;color:var(--muted,#8b95b1);white-space:nowrap}
+</style>
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-  <h1 style="margin:0">🗺️ Asset map</h1>
+  <h1 style="margin:0">🗺️ Command overview</h1>
   <span class="muted" id="map-stats" style="font-size:12px"></span>
   <span style="flex:1"></span>
   <select id="map-band" onchange="mapLoad()" style="width:auto;padding:6px 10px;font-size:12px">
@@ -49,90 +93,178 @@ _MAP_BODY = """
           onclick="mapLoad()">⟳ Reload</button>
 </div>
 <p class="muted" style="margin-top:0;font-size:12px">
-  Assets with GPS coordinates (set by import, adapter, or the asset
-  editor). Color = risk band. The GeoJSON behind this page
+  Your county on one screen: facilities and assets by risk, patrol units in
+  motion, posture at a glance — and everything that's burning, ranked, below.
+  The basemap renders on-device (no external tiles). The GeoJSON behind it
   (<code>/api/v1/desat/geo</code>) imports straight into ArcGIS/QGIS.
-  Tiles need internet — offline deployments get the table below.
 </p>
 <div class="card" style="padding:0;overflow:hidden">
-  <div id="sc-map" style="height:560px"></div>
+  <div id="sc-tac">
+    <span class="sc-chip">● SIMULATED AVL — connect CAD/AVL for live tracking</span>
+    <div id="sc-posture"><span class="t">Command posture</span>
+      <span class="n" id="scp-n">—</span><span id="scp-s" class="muted" style="font-size:11px">loading…</span>
+      <div class="row"><span>Critical / high</span><b id="scp-c">—</b></div>
+      <div class="row"><span>Evidence chain</span><b id="scp-e">—</b></div>
+    </div>
+  </div>
 </div>
-<div class="card" id="map-fallback" style="display:none;margin-top:12px">
-  <h2 style="font-size:14px;margin:0 0 6px">Assets with coordinates</h2>
-  <table><thead><tr><th>Host</th><th>Category</th><th>Site</th>
+<div class="sc-strip">
+  <div class="hd"><h2>Open incidents &amp; alerts</h2><span>highest severity first</span></div>
+  <div id="sc-strip-rows"><span class="muted" style="font-size:12px">loading…</span></div>
+</div>
+<details class="card" style="margin-top:12px">
+  <summary style="cursor:pointer;font-size:13px">Assets with coordinates (table)</summary>
+  <table style="margin-top:8px"><thead><tr><th>Host</th><th>Category</th><th>Site</th>
     <th>Risk</th><th>Lat</th><th>Lon</th></tr></thead>
     <tbody id="map-tbody"></tbody></table>
-</div>
+</details>
 """
 
 _MAP_SCRIPT = r"""
+/* Command overview: on-device tactical basemap (zero external tiles),
+   real assets projected by lat/lon, simulated patrol units (honest
+   chip; real CAD/AVL replaces them when connected), posture overlay,
+   and incidents+alerts ranked hot-to-cold below. */
 const MAP_BAND = {critical:"#ef4444", high:"#f59e0b", medium:"#f59e0b",
                     low:"#10b981", safe:"#10b981"};
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){
   return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
-let scMap = null, scLayer = null;
-async function mapLoad() {
-  const band = document.getElementById("map-band").value;
-  const r = await fetch("/api/v1/desat/geo" + (band ? "?risk_band="+band : ""));
-  if (!r.ok) { mapFallback([]); return; }
-  const gj = await r.json();
-  const stats = document.getElementById("map-stats");
-  stats.textContent = gj.features.length + " on map · " +
-    (gj.properties && gj.properties.assets_without_geo || 0) + " without coordinates";
-  if (typeof L === "undefined") { mapLeafletLoad(gj); return; }
-  mapDraw(gj);
+function rng(seed){let h=2166136261>>>0;
+  for(let i=0;i<seed.length;i++){h=Math.imul(h^seed.charCodeAt(i),16777619)>>>0;}
+  return function(){h=Math.imul(h^(h>>>15),2246822519)>>>0;
+    h=Math.imul(h^(h>>>13),3266489917)>>>0;return((h^=h>>>16)>>>0)/4294967296;};}
+function baseSVG(seed){
+  const r=rng(seed);let s='<rect width="600" height="400" fill="#0e1a15"/>';
+  for(let bx=0;bx<10;bx++)for(let by=0;by<7;by++){if(r()<.3)continue;
+    s+=`<rect x="${(bx*60+6+r()*6).toFixed(1)}" y="${(by*57+6+r()*6).toFixed(1)}"
+        width="${(44+r()*10).toFixed(1)}" height="${(41+r()*10).toFixed(1)}" rx="3"
+        fill="${r()<.25?"#12251d":"#101f19"}"/>`;}
+  const wy=40+r()*60;
+  s+=`<path d="M0 ${wy} C150 ${wy-24},300 ${wy+30},600 ${wy-8} L600 0 L0 0 Z" fill="#0c2027" opacity=".8"/>`;
+  const v1=(120+r()*90)|0,v2=(370+r()*120)|0,h1=(110+r()*60)|0,h2=(250+r()*80)|0;
+  for(const d of [`M ${v1} 0 V400`,`M ${v2} 0 V400`,`M 0 ${h1} H600`,`M 0 ${h2} H600`])
+    s+=`<path d="${d}" stroke="#1c3428" stroke-width="10" fill="none"/><path d="${d}" stroke="#27473a" stroke-width="6" fill="none"/>`;
+  for(let g=0;g<=600;g+=60)s+=`<line x1="${g}" y1="0" x2="${g}" y2="400" stroke="#2c5340" stroke-width=".4" opacity=".3"/>`;
+  for(let g=0;g<=400;g+=57)s+=`<line x1="0" y1="${g}" x2="600" y2="${g}" stroke="#2c5340" stroke-width=".4" opacity=".3"/>`;
+  s+='<g transform="translate(566,372)"><circle r="13" fill="rgba(10,25,20,.9)" stroke="#2c5340"/><path d="M0 -8 L3.5 4 L0 1.5 L-3.5 4 Z" fill="#5fd3b8"/><text y="-17" text-anchor="middle" font-size="9" fill="#7fae9a">N</text></g>';
+  return `<svg class="base" viewBox="0 0 600 400" preserveAspectRatio="xMidYMid slice">${s}</svg>`;
 }
-function mapLeafletLoad(gj) {
-  const css = document.createElement("link");
-  css.rel = "stylesheet";
-  css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-  document.head.appendChild(css);
-  const s = document.createElement("script");
-  s.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-  s.onload = () => mapDraw(gj);
-  s.onerror = () => mapFallback(gj.features || []);
-  document.head.appendChild(s);
+function project(feats){
+  let lats=[],lons=[];
+  for(const f of feats){lons.push(f.geometry.coordinates[0]);lats.push(f.geometry.coordinates[1]);}
+  const la=Math.min(...lats),lb=Math.max(...lats),oa=Math.min(...lons),ob=Math.max(...lons);
+  return function(lon,lat){
+    const x=(ob-oa)<1e-9?50:8+84*(lon-oa)/(ob-oa);
+    const y=(lb-la)<1e-9?50:12+76*(1-(lat-la)/(lb-la));
+    return [x,y];
+  };
 }
-function mapDraw(gj) {
-  const feats = gj.features || [];
-  if (!feats.length) { mapFallback(feats); return; }
-  if (!scMap) {
-    scMap = L.map("sc-map");
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-      {maxZoom: 19, attribution: "&copy; OpenStreetMap"}).addTo(scMap);
+let UNITS=null, unitTimer=null;
+function ensureUnits(spots){
+  if(UNITS)return;
+  const ids=[["U-12","patrol"],["M-07","medical"],["CR-5","patrol"],["E-9","fire"]];
+  UNITS=ids.map(function(pair,i){
+    const rr=rng(pair[0]);
+    const home=spots.length?spots[i%spots.length]:[20+rr()*60,20+rr()*60];
+    return {id:pair[0],kind:pair[1],r:rr,x:home[0],y:home[1],
+             st:["available","enroute","on_scene"][i%3],t:null,dwell:0,el:null};
+  });
+  unitTimer=setInterval(tickUnits,2000);
+}
+function tickUnits(){
+  if(document.visibilityState==="hidden"||!UNITS)return;
+  const hot=[...document.querySelectorAll(".sc-pin[data-hot]")]
+    .map(function(p){return [parseFloat(p.style.left),parseFloat(p.style.top)];});
+  for(const u of UNITS){
+    if(!u.el||!u.el.isConnected)continue;
+    if(u.st==="on_scene"){if(--u.dwell<=0){u.st="available";u.t=null;setUnit(u);}continue;}
+    if(!u.t||Math.hypot(u.x-u.t[0],u.y-u.t[1])<1.6){
+      if(u.st==="enroute"){u.st="on_scene";u.dwell=5+(u.r()*4|0);setUnit(u);continue;}
+      if(hot.length&&u.r()<.15){u.t=hot[(u.r()*hot.length)|0];u.st="enroute";setUnit(u);}
+      else{u.t=[10+u.r()*80,14+u.r()*72];}
+    }
+    const dx=u.t[0]-u.x,dy=u.t[1]-u.y,d=Math.hypot(dx,dy)||1,
+          sp=u.st==="enroute"?2.3:1.1,step=Math.min(sp,d);
+    u.x=Math.max(3,Math.min(97,u.x+dx/d*step+(u.r()-.5)*.3));
+    u.y=Math.max(4,Math.min(94,u.y+dy/d*step+(u.r()-.5)*.3));
+    u.el.style.left=u.x.toFixed(2)+"%";u.el.style.top=u.y.toFixed(2)+"%";
   }
-  if (scLayer) scLayer.remove();
-  scLayer = L.layerGroup().addTo(scMap);
-  const pts = [];
-  for (const f of feats) {
-    const [lon, lat] = f.geometry.coordinates, p = f.properties;
-    pts.push([lat, lon]);
-    L.circleMarker([lat, lon], {radius: 8,
-        color: MAP_BAND[p.risk_band] || "#8b95b1", fillOpacity: .75})
-      .addTo(scLayer)
-      .bindPopup(`<b>${esc(p.hostname || p.asset_id)}</b><br>` +
-        `${esc(p.ps_category || p.asset_type)} · ${esc(p.site || "?")}<br>` +
-        `risk: ${esc(p.risk_band)} · score ${p.overall_score}/100<br>` +
-        `<a href="/asset/${encodeURIComponent(p.asset_id)}">open asset →</a>`);
-  }
-  scMap.fitBounds(pts, {padding: [30, 30]});
 }
-function mapFallback(feats) {
-  document.getElementById("sc-map").style.display = "none";
-  const fb = document.getElementById("map-fallback");
-  fb.style.display = "block";
-  const tb = document.getElementById("map-tbody");
-  tb.innerHTML = "";
-  for (const f of feats) {
-    const p = f.properties, [lon, lat] = f.geometry.coordinates;
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${esc(p.hostname || p.asset_id)}</td>` +
-      `<td>${esc(p.ps_category || p.asset_type)}</td><td>${esc(p.site || "")}</td>` +
-      `<td>${esc(p.risk_band)}</td><td>${lat.toFixed(5)}</td><td>${lon.toFixed(5)}</td>`;
+function setUnit(u){if(u.el)u.el.innerHTML=esc(u.id)+" <small>"+esc(u.st.replace("_"," "))+"</small>";}
+async function mapLoad(){
+  const band=document.getElementById("map-band").value;
+  const r=await fetch("/api/v1/desat/geo"+(band?"?risk_band="+band:""));
+  const tac=document.getElementById("sc-tac");
+  const keep=[...tac.querySelectorAll(".sc-chip,#sc-posture")];
+  if(!r.ok){return;}
+  const gj=await r.json(),feats=gj.features||[];
+  document.getElementById("map-stats").textContent=feats.length+" on map · "+
+    ((gj.properties&&gj.properties.assets_without_geo)||0)+" without coordinates";
+  tac.innerHTML=baseSVG("county:"+feats.length);
+  keep.forEach(function(k){tac.appendChild(k);});
+  const pr=project(feats.length?feats:[{geometry:{coordinates:[0,0]}}]);
+  const tb=document.getElementById("map-tbody");tb.innerHTML="";
+  const spots=[];
+  for(const f of feats){
+    const [lon,lat]=f.geometry.coordinates,p=f.properties,[x,y]=pr(lon,lat);
+    const hot=(p.risk_band==="critical"||p.risk_band==="high");
+    const a=document.createElement("a");
+    a.className="sc-pin";a.style.left=x.toFixed(2)+"%";a.style.top=y.toFixed(2)+"%";
+    if(hot){a.setAttribute("data-hot","1");}
+    a.href="/asset/"+encodeURIComponent(p.asset_id);
+    a.title=(p.ps_category||p.asset_type||"")+" · "+(p.site||"")+" · risk "+(p.risk_band||"?");
+    a.innerHTML='<i style="background:'+(MAP_BAND[p.risk_band]||"#8b95b1")+'"></i>'+esc(p.hostname||p.asset_id);
+    tac.appendChild(a);
+    if(spots.length<6){spots.push([x,y]);}
+    const tr=document.createElement("tr");
+    tr.innerHTML="<td>"+esc(p.hostname||p.asset_id)+"</td><td>"+esc(p.ps_category||p.asset_type)+
+      "</td><td>"+esc(p.site||"")+"</td><td>"+esc(p.risk_band)+"</td><td>"+lat.toFixed(5)+
+      "</td><td>"+lon.toFixed(5)+"</td>";
     tb.appendChild(tr);
   }
+  ensureUnits(spots);
+  for(const u of UNITS){
+    const el=document.createElement("span");
+    el.className="sc-unit";el.style.left=u.x.toFixed(2)+"%";el.style.top=u.y.toFixed(2)+"%";
+    u.el=el;setUnit(u);tac.appendChild(el);
+  }
+  const crit=feats.filter(function(f){return f.properties.risk_band==="critical"||f.properties.risk_band==="high";}).length;
+  document.getElementById("scp-n").textContent=feats.length;
+  document.getElementById("scp-s").textContent="assets on the county map";
+  document.getElementById("scp-c").textContent=crit;
 }
-mapLoad();
+function sevRank(s){s=String(s||"watch").toLowerCase();
+  if(s.indexOf("crit")===0)return 0;if(s==="high"||s==="urgent")return 1;
+  if(s==="medium"||s==="warning"||s==="elevated")return 2;
+  if(s==="watch"||s==="open")return 3;if(s==="low")return 4;return 5;}
+async function stripLoad(){
+  const rows=[];
+  try{const r=await fetch("/api/v1/desat/incidents");
+    if(r.ok){for(const i of ((await r.json()).incidents||[]))
+      rows.push({sev:i.severity,ti:i.title,me:i.site||i.incident_type||"incident",
+                  st:i.status,href:"/incidents"});}}catch(e){}
+  try{const r=await fetch("/api/v1/desat/events?days=7&limit=100");
+    if(r.ok){for(const ev of ((await r.json()).events||[]))
+      rows.push({sev:ev.severity,ti:ev.description||ev.event_type,
+                  me:ev.hostname||ev.source||"event",st:ev.event_type||"alert",
+                  href:"/events"});}}catch(e){}
+  rows.sort(function(a,b){return sevRank(a.sev)-sevRank(b.sev);});
+  const box=document.getElementById("sc-strip-rows");
+  box.innerHTML=rows.slice(0,10).map(function(q){
+    const s=String(q.sev||"watch").toLowerCase().replace(/[^a-z0-9]/g,"");
+    return '<a class="sc-row '+esc(s)+'" href="'+esc(q.href)+'">'+
+      '<span class="sc-sev '+esc(s)+'">'+esc(q.sev||"watch")+'</span>'+
+      '<span class="ti">'+esc(q.ti||"Review item")+'</span>'+
+      '<span class="me">'+esc(q.me||"")+'</span>'+
+      '<span class="st">'+esc(String(q.st||"open").replace(/[_-]+/g," "))+'</span></a>';
+  }).join("")||'<span class="muted" style="font-size:12px">All clear — no open incidents or recent alerts.</span>';
+}
+async function postureLoad(){
+  try{const r=await fetch("/api/v1/desat/evidence-health");
+    if(r.ok){const s=await r.json();
+      document.getElementById("scp-e").textContent=String(s.overall_status||"unknown").replace(/[_-]+/g," ");}}catch(e){}
+}
+mapLoad();stripLoad();postureLoad();
 """
 
 

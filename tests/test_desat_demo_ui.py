@@ -157,7 +157,7 @@ def ui_client(tmp_path):
 
 
 def test_pages_render_in_chrome(ui_client):
-    for path, marker in (("/map", "Asset map"),
+    for path, marker in (("/map", "Command overview"),
                            ("/evidence-infrastructure", "Evidence infrastructure"),
                            ("/incidents", "Incidents")):
         r = ui_client.get(path)
