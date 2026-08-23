@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "safecadence-publicsafety"
+version = "1.0.0"
+description = "SafeCadence Public Safety — situational awareness for law-enforcement agencies: asset map, evidence-infrastructure health, incidents, events, CJIS Security Policy mapping. Add-on for safecadence-netrisk; free 90-day trial starts on first use. Local-first: your data never leaves your network."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "Proprietary"}
+keywords = ["public safety", "law enforcement", "situational awareness", "CJIS", "evidence", "sheriff", "police"]
+authors = [
+    {name = "SafeCadence (FamousTec LLC)", email = "hello@safecadence.com"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Information Technology",
+    "License :: Other/Proprietary License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+]
+dependencies = [
+    "safecadence-netrisk>=16.4.0",
+]
+
+[project.urls]
+Homepage = "https://safecadence.com/public-safety-command"
+Demo = "https://analyzer.safecadence.com/netrisk/public-safety"
+
+# The add-on installs its modules INTO the `safecadence` package the
+# core wheel owns; the file sets are disjoint (core excludes exactly
+# these four), so the two distributions coexist cleanly.
+[tool.hatch.build.targets.wheel]
+bypass-selection = true
+
+[tool.hatch.build.targets.wheel.force-include]
+"../src/safecadence/ui/desat_pages.py" = "safecadence/ui/desat_pages.py"
+"../src/safecadence/platform/public_safety.py" = "safecadence/platform/public_safety.py"
+"../src/safecadence/platform/evidence_health.py" = "safecadence/platform/evidence_health.py"
+"../src/safecadence/demo_sheriff.py" = "safecadence/demo_sheriff.py"

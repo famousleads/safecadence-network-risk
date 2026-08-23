@@ -2421,9 +2421,20 @@ def evidence_infrastructure(store: Any, scope: dict) -> dict:
     asset health, storage capacity/replication, backup RPO/immutability
     and CVE/KEV exposure. Infrastructure only — never touches
     evidentiary content."""
-    from safecadence.platform.evidence_health import (
-        STAGES, evidence_infrastructure_summary,
-    )
+    try:
+        from safecadence.platform.evidence_health import (
+            STAGES, evidence_infrastructure_summary,
+        )
+    except ImportError:
+        return {
+            "title": "Evidence infrastructure health",
+            "data": {},
+            "html_fragment": (
+                '<p class="sc-narrative">This section requires the '
+                'SafeCadence Public Safety add-on: '
+                '<code>pip install safecadence-publicsafety</code></p>'),
+            "empty": True,
+        }
     assets = _filter_assets(_load_platform_assets(), scope)
     summary = evidence_infrastructure_summary(assets or [])
 

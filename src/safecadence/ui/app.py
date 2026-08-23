@@ -1449,12 +1449,22 @@ h1{{margin:0 0 6px;font-size:18px}}small{{color:#8b95b1}}</style></head><body>
         _reg_v9(app)
     except Exception:                          # pragma: no cover
         pass
+    # DESAT — public-safety pages ship in the separate
+    # safecadence-publicsafety distribution; core falls back to stub
+    # pages so the chrome's sidebar links never dead-end.
+    _ps_registered = False
     try:
-        # DESAT — public-safety pages (map / evidence infra / incidents)
         from safecadence.ui.desat_pages import register as _reg_desat
         _reg_desat(app)
+        _ps_registered = True
     except Exception:                          # pragma: no cover
         pass
+    if not _ps_registered:
+        try:
+            from safecadence.ui.ps_stub import register as _reg_ps_stub
+            _reg_ps_stub(app)
+        except Exception:                      # pragma: no cover
+            pass
     try:
         from safecadence.ui.tour import register as _reg_tour
         _reg_tour(app)

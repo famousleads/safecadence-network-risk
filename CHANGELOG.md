@@ -1,16 +1,24 @@
 # Changelog
 
-## [16.4.0] — 2026-08-23 — Public Safety: free 90-day trial built in
+## [16.4.0] — 2026-08-23 — Public Safety split into its own package + free 90-day trial
 
-`pip install safecadence-netrisk` is now enough to evaluate the full
-Public Safety module on your own data: the free 90-day trial starts
-automatically on first use — no key, no signup, no call home. A banner
-shows days remaining; when the trial ends, the pages lock to a license
-prompt (the synthetic sheriff evaluation tenant stays available). An
-agency license file with the `public_safety` feature unlocks permanently.
-Trial state lives beside the license file (`~/.safecadence/trials.json`,
-`SC_TRIAL_PATH` to relocate). Honest by design: local stamp, no phoning
-home — same philosophy as the license module itself.
+**The Public Safety module now ships as a separate distribution:**
+`pip install safecadence-publicsafety` (which installs this core
+automatically). The core `safecadence-netrisk` package stays fully
+free and open-source; the add-on carries the agency layer — asset map,
+evidence-infrastructure health, incidents/events pages, public-safety
+taxonomy, and the sheriff evaluation tenant. Without the add-on, the
+core degrades cleanly: sidebar pages render an install hint instead of
+404ing, discovery skips the taxonomy block, and the evidence report
+section notes the requirement.
+
+**Free 90-day trial built in.** The add-on's trial starts automatically
+on first use — no key, no signup, no call home. A banner shows days
+remaining; at expiry the module locks to a license prompt (the
+synthetic sheriff tenant stays available). An agency license file with
+the `public_safety` feature unlocks permanently. Trial state lives
+beside the license file (`~/.safecadence/trials.json`, `SC_TRIAL_PATH`
+to relocate). Honest by design: local stamp, no phoning home.
 
 
 ## [16.3.1] — 2026-08-21 — Security hardening (recommended upgrade)

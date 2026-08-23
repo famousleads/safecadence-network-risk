@@ -87,6 +87,17 @@ Changelog = "https://github.com/famousleads/safecadence-network-risk/blob/main/C
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/safecadence"]
+# Public Safety ships as the separate `safecadence-publicsafety`
+# distribution (see publicsafety/pyproject.toml) — its modules are
+# excluded here so the two wheels install disjoint files into the same
+# `safecadence` package. Core degrades gracefully without them
+# (guarded imports + ui/ps_stub.py fallback pages).
+exclude = [
+    "src/safecadence/ui/desat_pages.py",
+    "src/safecadence/platform/public_safety.py",
+    "src/safecadence/platform/evidence_health.py",
+    "src/safecadence/demo_sheriff.py",
+]
 
 # YAML rule packs / CVE / EOL data live under src/safecadence/data and are
 # included automatically by `packages`. No force-include needed.
@@ -103,6 +114,12 @@ include = [
     "LICENSE",
     "Makefile",
     "pyproject.toml",
+]
+exclude = [
+    "src/safecadence/ui/desat_pages.py",
+    "src/safecadence/platform/public_safety.py",
+    "src/safecadence/platform/evidence_health.py",
+    "src/safecadence/demo_sheriff.py",
 ]
 
 [tool.ruff]

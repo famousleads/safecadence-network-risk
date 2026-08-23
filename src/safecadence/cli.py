@@ -1937,7 +1937,13 @@ def cmd_demo(clear: bool, overwrite: bool, sheriff: bool):
     platform does without having to wire up a single adapter first.
     """
     if sheriff:
-        from safecadence.demo_sheriff import clear_sheriff_demo, load_sheriff_demo
+        try:
+            from safecadence.demo_sheriff import clear_sheriff_demo, load_sheriff_demo
+        except ImportError:
+            click.echo("The sheriff demo ships with the Public Safety "
+                        "add-on:\n    pip install safecadence-publicsafety\n"
+                        "(free 90-day trial starts on first use)")
+            return
         if clear:
             result = clear_sheriff_demo()
             click.echo(f"Removed {result['removed']} sheriff demo assets from "

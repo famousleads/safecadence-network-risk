@@ -117,11 +117,15 @@ def discovered_to_asset(host) -> UnifiedAsset:
     if sysdescr:
         asset.os = OperatingSystem(os_type=os_type, os_version=sysdescr[:120])
 
-    # Public-safety taxonomy (DESAT) — empty block when not applicable.
-    from safecadence.platform.public_safety import classify_public_safety
-    banners_text = " ".join(str(v) for v in (h.get("banners") or {}).values())
-    asset.public_safety = classify_public_safety(
-        vendor=vendor, category=dev_type, banners_text=banners_text)
+    # Public-safety taxonomy — only when the safecadence-publicsafety
+    # add-on is installed; core assets simply skip the block otherwise.
+    try:
+        from safecadence.platform.public_safety import classify_public_safety
+        banners_text = " ".join(str(v) for v in (h.get("banners") or {}).values())
+        asset.public_safety = classify_public_safety(
+            vendor=vendor, category=dev_type, banners_text=banners_text)
+    except ImportError:
+        pass
 
     open_ports = h.get("open_ports") or []
     weak = sorted({_WEAK_PROTO_BY_PORT[p] for p in open_ports
