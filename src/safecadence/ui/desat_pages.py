@@ -766,6 +766,30 @@ def register(app) -> None:                              # pragma: no cover
         from safecadence import evidencewatch as ew
         return ew.build_report()
 
+    @app.get("/campuswatch", response_class=HTMLResponse)
+    def campuswatch_page(district: str = "", demo: int = 0):
+        _api_gate()
+        from safecadence import evidencewatch as ew
+        assets = None
+        if demo:
+            from safecadence.demo_campus import build_campus_fleet
+            assets = build_campus_fleet()
+        r = ew.build_report(assets, profile="campus")
+        return HTMLResponse(ew.render_report_html(r, agency=district,
+                                                    profile="campus"))
+
+    @app.get("/campuswatch/audit", response_class=HTMLResponse)
+    def campuswatch_audit(district: str = ""):
+        _api_gate()
+        from safecadence import evidencewatch as ew
+        return HTMLResponse(ew.audit_export(agency=district, profile="campus"))
+
+    @app.get("/api/v1/desat/campuswatch")
+    def campuswatch_api():
+        _api_gate()
+        from safecadence import evidencewatch as ew
+        return ew.build_report(profile="campus")
+
     # ---- pages -------------------------------------------------------
     @app.get("/map", response_class=HTMLResponse)
     def map_page():

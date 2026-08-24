@@ -30,7 +30,58 @@ _SENSE_TYPES = {
     "bodycam", "iot_sensor", "sensor", "uas", "drone", "acoustic",
     "traffic_signal",
 }
+_DOOR_TYPES = {
+    "access_control", "door_controller", "door", "intercom",
+    "panic_button", "alarm", "lockdown_controller",
+}
 _DARK_STATUSES = {"offline", "down", "failed", "unreachable", "dead"}
+
+# Two skins, one engine. "agency" = EvidenceWatch (sheriffs/PDs);
+# "campus" = CampusWatch (school districts): doors and intercoms are
+# watched as first-class devices, everything groups per school, and the
+# law-enforcement evidence-chain framing is replaced with plain
+# coverage/recording language.
+PROFILES: dict[str, dict[str, Any]] = {
+    "agency": {
+        "title": "EVIDENCEWATCH",
+        "watched_types": _SENSE_TYPES,
+        "dark_heading": "DARK CAMERAS & SENSORS",
+        "site_word": "site",
+        "include_chain": True,
+        "per_site_block": False,
+        "storage_heading": "EVIDENCE STORAGE",
+        "dark_action": ("Restore '{name}' at {site} — dark {days} day(s). "
+                          "A dark camera near evidence is a future "
+                          "suppression hearing."),
+        "storage_action": ("Evidence storage '{name}' is at {pct}% with "
+                             "replication '{repl}' — add capacity or repair "
+                             "replication this week."),
+        "dir": "evidencewatch",
+        "footer": ("Computed entirely on your hardware from your asset "
+                    "inventory — no evidentiary content is read, no data "
+                    "leaves your network. SafeCadence EvidenceWatch."),
+    },
+    "campus": {
+        "title": "CAMPUSWATCH",
+        "watched_types": _SENSE_TYPES | _DOOR_TYPES,
+        "dark_heading": "DARK CAMERAS, DOORS & DEVICES",
+        "site_word": "school",
+        "include_chain": False,
+        "per_site_block": True,
+        "storage_heading": "VIDEO STORAGE & RECORDING",
+        "dark_action": ("Restore '{name}' at {site} — offline {days} day(s). "
+                          "An unmonitored door or dark camera is the gap "
+                          "every incident review finds afterward."),
+        "storage_action": ("Video storage '{name}' is at {pct}% "
+                             "(replication '{repl}') — recordings may stop or "
+                             "overwrite early. Add capacity this week."),
+        "dir": "campuswatch",
+        "footer": ("Computed entirely on your district's hardware from your "
+                    "device inventory — no video content is read, no student "
+                    "data is touched, nothing leaves your network. "
+                    "SafeCadence CampusWatch."),
+    },
+}
 
 
 def _e(s: Any) -> str:
@@ -41,9 +92,9 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _data_dir() -> Path:
+def _data_dir(profile: str = "agency") -> Path:
     root = os.environ.get("SC_DATA_DIR") or str(Path.home() / ".safecadence")
-    p = Path(root) / "evidencewatch"
+    p = Path(root) / PROFILES.get(profile, PROFILES["agency"])["dir"]
     p.mkdir(parents=True, exist_ok=True)
     return p
 
@@ -60,7 +111,9 @@ def _days_since(iso: str) -> int | None:
 
 # ------------------------------------------------------------------ build
 
-def build_report(assets: list[dict] | None = None) -> dict[str, Any]:
+def build_report(assets: list[dict] | None = None,
+                  profile: str = "agency") -> dict[str, Any]:
+    prof = PROFILES.get(profile, PROFILES["agency"])
     if assets is None:
         try:
             from safecadence.server.platform_api import list_assets
@@ -75,7 +128,7 @@ def build_report(assets: list[dict] | None = None) -> dict[str, Any]:
         ps = a.get("public_safety") or {}
         health = a.get("health") or {}
         atype = str(ps.get("ps_category") or ident.get("asset_type") or "").lower()
-        if atype not in _SENSE_TYPES:
+        if atype not in prof["watched_types"]:
             continue
         status = str(ident.get("operational_status")
                       or a.get("operational_status") or "").lower()
@@ -98,15 +151,32 @@ def build_report(assets: list[dict] | None = None) -> dict[str, Any]:
             dark.append(rec)
     dark.sort(key=lambda r: -(r["days_dark"] or 0))
 
-    # --- evidence chain --------------------------------------------
-    try:
-        from safecadence.platform.evidence_health import (
-            evidence_infrastructure_summary)
-        chain = evidence_infrastructure_summary(assets or [])
-    except Exception:
-        chain = {"overall_status": "unknown", "headline":
-                  "Evidence-health engine unavailable (install "
-                  "safecadence-publicsafety).", "stages": {}, "guidance": ""}
+    # --- per-site (per-school) rollup ------------------------------
+    sites: dict[str, dict[str, int]] = {}
+    for rec in sense:
+        b = sites.setdefault(rec["site"] or "unassigned",
+                              {"total": 0, "dark": 0})
+        b["total"] += 1
+        if rec in dark or (rec["days_dark"] or 0) > 0 or \
+                rec["status"] in _DARK_STATUSES or (
+                isinstance(rec["score"], (int, float)) and rec["score"] <= 30):
+            b["dark"] += 1
+    site_rows = sorted(({"site": k, **v} for k, v in sites.items()),
+                        key=lambda x: (-x["dark"], x["site"]))
+
+    # --- evidence chain (agency profile only) ----------------------
+    if prof["include_chain"]:
+        try:
+            from safecadence.platform.evidence_health import (
+                evidence_infrastructure_summary)
+            chain = evidence_infrastructure_summary(assets or [])
+        except Exception:
+            chain = {"overall_status": "unknown", "headline":
+                      "Evidence-health engine unavailable (install "
+                      "safecadence-publicsafety).", "stages": {}, "guidance": ""}
+    else:
+        chain = {"overall_status": "n/a", "headline": "", "stages": {},
+                  "guidance": ""}
 
     # --- storage runway --------------------------------------------
     storage = []
@@ -138,15 +208,13 @@ def build_report(assets: list[dict] | None = None) -> dict[str, Any]:
     action = "No action needed — keep the watch."
     if dark:
         d = dark[0]
-        action = (f"Restore '{d['name']}' at {d['site'] or 'unknown site'} — "
-                   f"dark {d['days_dark'] if d['days_dark'] is not None else '?'}"
-                   " day(s). A dark camera near evidence is a future "
-                   "suppression hearing.")
+        action = prof["dark_action"].format(
+            name=d["name"], site=d["site"] or "unknown " + prof["site_word"],
+            days=d["days_dark"] if d["days_dark"] is not None else "?")
     elif any(s["flag"] for s in storage):
         s0 = next(s for s in storage if s["flag"])
-        action = (f"Evidence storage '{s0['name']}' is at {s0['pct_used']}% "
-                   f"with replication '{s0['replication']}' — add capacity or "
-                   "repair replication this week.")
+        action = prof["storage_action"].format(
+            name=s0["name"], pct=s0["pct_used"], repl=s0["replication"])
     elif chain.get("overall_status") in ("critical", "warning"):
         action = chain.get("guidance") or chain.get("headline") or action
 
@@ -161,6 +229,8 @@ def build_report(assets: list[dict] | None = None) -> dict[str, Any]:
     return {
         "generated_at": _now().isoformat(),
         "week": _now().strftime("%G-W%V"),
+        "profile": profile,
+        "sites": site_rows[:15],
         "overall": overall,
         "sense_total": len(sense),
         "dark": dark[:10],
@@ -178,8 +248,8 @@ def build_report(assets: list[dict] | None = None) -> dict[str, Any]:
 
 # ------------------------------------------------------------------ history (the Audit Button)
 
-def _hist_files() -> list[Path]:
-    return sorted(_data_dir().glob("week-*.json"))
+def _hist_files(profile: str = "agency") -> list[Path]:
+    return sorted(_data_dir(profile).glob("week-*.json"))
 
 
 def _entry_hash(body: dict) -> str:
@@ -188,11 +258,13 @@ def _entry_hash(body: dict) -> str:
     return hashlib.sha256(canon.encode("utf-8")).hexdigest()
 
 
-def snapshot(report: dict | None = None) -> dict[str, Any]:
+def snapshot(report: dict | None = None,
+              profile: str = "agency") -> dict[str, Any]:
     """Persist this week's report into the hash-chained history."""
-    report = report or build_report()
-    target = _data_dir() / f"week-{report['week']}.json"
-    files = [f for f in _hist_files() if f != target]
+    report = report or build_report(profile=profile)
+    profile = report.get("profile", profile)
+    target = _data_dir(profile) / f"week-{report['week']}.json"
+    files = [f for f in _hist_files(profile) if f != target]
     prev = GENESIS
     if target.exists():
         try:                      # re-snapshot of the same week: keep its
@@ -215,9 +287,9 @@ def snapshot(report: dict | None = None) -> dict[str, Any]:
     return body
 
 
-def verify_history() -> dict[str, Any]:
+def verify_history(profile: str = "agency") -> dict[str, Any]:
     prev = GENESIS
-    files = _hist_files()
+    files = _hist_files(profile)
     for i, f in enumerate(files):
         try:
             e = json.loads(f.read_text())
@@ -238,8 +310,10 @@ _BAND = {"healthy": "#16a34a", "warning": "#d97706", "critical": "#dc2626",
 
 
 def render_report_html(report: dict | None = None,
-                        agency: str = "") -> str:
-    r = report or build_report()
+                        agency: str = "",
+                        profile: str = "agency") -> str:
+    r = report or build_report(profile=profile)
+    prof = PROFILES.get(r.get("profile", profile), PROFILES["agency"])
     c = _BAND.get(r["overall"], "#64748b")
     dark_rows = "".join(
         f"<tr><td style='padding:6px 10px'><b>{_e(d['name'])}</b></td>"
@@ -266,14 +340,41 @@ def render_report_html(report: dict | None = None,
                  else ("Purge log: <b style='color:#dc2626'>CHAIN BROKEN — "
                         "investigate</b>" if ret["log_ok"] is False
                         else "Retention engine: not configured"))
-    title = f"EvidenceWatch — {agency}" if agency else "EvidenceWatch"
+    pname = prof["title"].title().replace("watch", "Watch")
+    title = f"{pname} — {agency}" if agency else pname
+    school_block = ""
+    if prof["per_site_block"] and r.get("sites"):
+        rows2 = "".join(
+            f"<tr><td style='padding:6px 10px'><b>{_e(x['site'])}</b></td>"
+            f"<td style='padding:6px 10px'>{_e(x['total'])}</td>"
+            f"<td style='padding:6px 10px;font-weight:800;"
+            f"color:{'#dc2626' if x['dark'] else '#16a34a'}'>"
+            f"{_e(x['dark']) if x['dark'] else '0 ✅'}</td></tr>"
+            for x in r["sites"])
+        school_block = (
+            "<p style='margin:0 0 4px;font-size:12px;color:#647386;"
+            "font-weight:800;letter-spacing:.06em'>PER-SCHOOL COVERAGE</p>"
+            "<table style='width:100%;border-collapse:collapse;font-size:13px;"
+            "margin-bottom:16px;border:1px solid #e4ede8'>"
+            "<tr style='background:#eef4f1;text-align:left'>"
+            "<th style='padding:6px 10px'>School</th>"
+            "<th style='padding:6px 10px'>Devices</th>"
+            "<th style='padding:6px 10px'>Dark</th></tr>"
+            f"{rows2}</table>")
+    chain_block = ""
+    if prof["include_chain"]:
+        chain_block = (
+            "<p style='margin:0 0 4px;font-size:12px;color:#647386;"
+            "font-weight:800;letter-spacing:.06em'>EVIDENCE CHAIN</p>"
+            f"<p style='margin:0 0 4px;font-size:13.5px'>{_e(r['chain']['headline'] or '')}</p>"
+            f"<p style='margin:0 0 16px;font-size:12.5px;color:#40556a'>{stages}</p>")
     return f"""<!doctype html><html><head><meta charset="utf-8">
 <title>{_e(title)} — week {_e(r['week'])}</title></head>
 <body style="margin:0;background:#f4f6f5;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#102033">
 <div style="max-width:640px;margin:0 auto;padding:22px 14px">
  <div style="background:#fff;border:1px solid #dbe7e1;border-radius:12px;overflow:hidden">
   <div style="background:#173d42;color:#dff4ed;padding:14px 18px">
-   <div style="font-size:11px;letter-spacing:.08em;font-weight:800">EVIDENCEWATCH · WEEK {_e(r['week'])}</div>
+   <div style="font-size:11px;letter-spacing:.08em;font-weight:800">{prof['title']} · WEEK {_e(r['week'])}</div>
    <div style="font-size:19px;font-weight:800;margin-top:2px">{_e(agency or 'Your agency')} —
     <span style="color:{c}">{_e(r['overall'].upper())}</span></div>
   </div>
@@ -281,32 +382,30 @@ def render_report_html(report: dict | None = None,
    <p style="margin:0 0 4px;font-size:12px;color:#647386;font-weight:800;letter-spacing:.06em">THIS WEEK'S ONE ACTION</p>
    <p style="margin:0 0 16px;font-size:14.5px;font-weight:650;border-left:4px solid {c};padding:8px 12px;background:#f7fbf8">{_e(r['action'])}</p>
 
-   <p style="margin:0 0 4px;font-size:12px;color:#647386;font-weight:800;letter-spacing:.06em">DARK CAMERAS &amp; SENSORS ({_e(r['dark_count'])} of {_e(r['sense_total'])})</p>
+   <p style="margin:0 0 4px;font-size:12px;color:#647386;font-weight:800;letter-spacing:.06em">{prof['dark_heading']} ({_e(r['dark_count'])} of {_e(r['sense_total'])})</p>
    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;border:1px solid #e4ede8">{dark_rows}</table>
 
-   <p style="margin:0 0 4px;font-size:12px;color:#647386;font-weight:800;letter-spacing:.06em">EVIDENCE CHAIN</p>
-   <p style="margin:0 0 4px;font-size:13.5px">{_e(r['chain']['headline'] or '')}</p>
-   <p style="margin:0 0 16px;font-size:12.5px;color:#40556a">{stages}</p>
+   {school_block}{chain_block}
 
-   <p style="margin:0 0 4px;font-size:12px;color:#647386;font-weight:800;letter-spacing:.06em">EVIDENCE STORAGE</p>
+   <p style="margin:0 0 4px;font-size:12px;color:#647386;font-weight:800;letter-spacing:.06em">{prof['storage_heading']}</p>
    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px;border:1px solid #e4ede8">{storage_rows}</table>
 
    <p style="margin:0;font-size:12.5px;color:#40556a">{ret_line} · {_e(r['asset_count'])} assets monitored · generated {_e(r['generated_at'][:16])}Z</p>
   </div>
   <div style="padding:10px 18px;border-top:1px solid #e4ede8;font-size:11px;color:#647386">
-   Computed entirely on your hardware from your asset inventory — no evidentiary
-   content is read, no data leaves your network. SafeCadence EvidenceWatch.
+   {prof['footer']}
   </div>
  </div>
 </div></body></html>"""
 
 
-def audit_export(agency: str = "") -> str:
+def audit_export(agency: str = "", profile: str = "agency") -> str:
     """The Audit Button: every weekly snapshot + chain verification,
     one self-contained HTML an auditor can read and re-verify."""
-    v = verify_history()
+    prof = PROFILES.get(profile, PROFILES["agency"])
+    v = verify_history(profile)
     rows = []
-    for f in _hist_files():
+    for f in _hist_files(profile):
         try:
             e = json.loads(f.read_text())
         except Exception:
@@ -322,10 +421,10 @@ def audit_export(agency: str = "") -> str:
               if v["ok"] else
               f"<b style='color:#dc2626'>CHAIN BROKEN at {_e(v.get('failed_at'))}</b>")
     return f"""<!doctype html><html><head><meta charset="utf-8">
-<title>EvidenceWatch Audit Pack {_e(('— ' + agency) if agency else '')}</title></head>
+<title>{prof['title'].title()} Audit Pack {_e(('— ' + agency) if agency else '')}</title></head>
 <body style="margin:0;background:#f4f6f5;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#102033">
 <div style="max-width:720px;margin:0 auto;padding:22px 14px">
- <h1 style="font-size:20px">EvidenceWatch Audit Pack{_e((' — ' + agency) if agency else '')}</h1>
+ <h1 style="font-size:20px">{prof['title'].title().replace('watch', 'Watch')} Audit Pack{_e((' — ' + agency) if agency else '')}</h1>
  <p style="font-size:13.5px">Continuous monitoring record for evidence
  infrastructure and camera/sensor fleet health. {v['weeks']} weekly
  snapshot(s). Integrity: {state}</p>
@@ -338,6 +437,6 @@ def audit_export(agency: str = "") -> str:
   <tbody>{''.join(rows) or '<tr><td style="padding:8px" colspan="5">no snapshots yet</td></tr>'}</tbody>
  </table>
  <p style="font-size:11.5px;color:#647386">Each entry embeds the SHA-256 of the
- previous entry; re-verify anytime with <code>safecadence evidencewatch verify</code>.
+ previous entry; re-verify anytime with <code>safecadence {'campuswatch' if prof is PROFILES['campus'] else 'evidencewatch'} verify</code>.
  Point-in-time monitoring support material — not an audit, attestation, or certification.</p>
 </div></body></html>"""

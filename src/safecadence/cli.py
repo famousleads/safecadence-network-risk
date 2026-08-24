@@ -245,6 +245,63 @@ def evidencewatch_cmd(action: str, agency: str, out: str) -> None:
             raise SystemExit(1)
 
 
+@cli.command("campuswatch")
+@click.argument("action", type=click.Choice(
+    ["report", "snapshot", "audit", "verify"]), default="report")
+@click.option("--district", default="", help="District name on the report.")
+@click.option("--demo", is_flag=True,
+               help="Render from the synthetic demo district.")
+@click.option("--out", default="", help="Output HTML path (default: data dir).")
+def campuswatch_cmd(action: str, district: str, demo: bool, out: str) -> None:
+    """CampusWatch — every camera, every door, every school, weekly.
+
+    \b
+      safecadence campuswatch report [--demo]   write this week's one-pager
+      safecadence campuswatch snapshot          record into the audit chain
+      safecadence campuswatch audit             auditor-ready history pack
+      safecadence campuswatch verify            verify the snapshot chain
+    """
+    try:
+        from safecadence import evidencewatch as ew
+    except ImportError:
+        _print("CampusWatch ships with the Public Safety add-on:\n"
+                "    pip install safecadence-publicsafety")
+        return
+    from pathlib import Path as _P
+    assets = None
+    if demo:
+        from safecadence.demo_campus import build_campus_fleet
+        assets = build_campus_fleet()
+    if action == "report":
+        r = ew.build_report(assets, profile="campus")
+        html = ew.render_report_html(r, agency=district, profile="campus")
+        p = _P(out) if out else (ew._data_dir("campus") / "onepager-latest.html")
+        p.write_text(html, encoding="utf-8")
+        _print(f"CampusWatch {r['week']}: {r['overall'].upper()} — "
+                f"{r['dark_count']}/{r['sense_total']} devices dark across "
+                f"{len(r['sites'])} school(s)")
+        _print(f"One-pager written: {p}")
+    elif action == "snapshot":
+        e = ew.snapshot(ew.build_report(assets, profile="campus"),
+                         profile="campus")
+        _print(f"Snapshot {e['week']} recorded — {e['overall']} "
+                f"(hash {e['entry_hash'][:16]}…)")
+    elif action == "audit":
+        html = ew.audit_export(agency=district, profile="campus")
+        p = _P(out) if out else (ew._data_dir("campus") / "audit-pack.html")
+        p.write_text(html, encoding="utf-8")
+        v = ew.verify_history("campus")
+        _print(f"Audit pack ({v['weeks']} weeks, "
+                f"{'VERIFIED' if v['ok'] else 'CHAIN BROKEN'}): {p}")
+    elif action == "verify":
+        v = ew.verify_history("campus")
+        if v["ok"]:
+            _print(f"VERIFIED — {v['weeks']} weekly snapshot(s).")
+        else:
+            _print(f"CHAIN BROKEN at {v.get('failed_at')}: {v.get('reason')}")
+            raise SystemExit(1)
+
+
 @cli.command("scan")
 @click.argument("source", type=click.Path(exists=True, readable=True))
 @click.option("--vendor", default=None, help="Force a vendor adapter (e.g. cisco-ios).")
