@@ -78,6 +78,8 @@ def ingest_video_event(payload: dict) -> dict[str, Any]:
         "linecrossing": "line_cross", "line_crossing": "line_cross",
         "loitering": "loiter", "crowding": "crowd", "crowd_density": "crowd",
         "gun": "weapon", "gun_detected": "weapon", "firearm": "weapon",
+        "gunshot": "weapon", "shots_fired": "weapon",
+        "shotspotter": "weapon", "audio_gunshot": "weapon",
         "camera_tamper": "tamper", "tampering": "tamper",
         "forced_entry": "door_forced", "door_prop": "door_held",
         "glassbreak": "glass_break", "aggression": "audio_aggression",
