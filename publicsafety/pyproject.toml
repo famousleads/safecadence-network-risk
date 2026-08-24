@@ -49,3 +49,4 @@ bypass-selection = true
 "../src/safecadence/safecheck.py" = "safecadence/safecheck.py"
 "../src/safecadence/custody.py" = "safecadence/custody.py"
 "../src/safecadence/rollcall.py" = "safecadence/rollcall.py"
+"../src/safecadence/watches.py" = "safecadence/watches.py"

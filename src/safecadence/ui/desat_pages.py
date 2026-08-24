@@ -875,6 +875,23 @@ _SITUATION_BODY = """
 </p>
 <div id="st-note" class="card" style="font-size:13px;margin-bottom:12px">Loading…</div>
 <div id="st-cards" style="display:grid;gap:10px"></div>
+<div class="card" style="margin-top:14px">
+  <h2 style="font-size:15px;margin:0 0 4px">👁️ Standing watches <span id="sw-count" class="muted" style="font-size:11px"></span></h2>
+  <p class="muted" style="margin:0 0 8px;font-size:12px">
+    Tell the platform what to watch for, in plain English. Your name makes
+    it a standing authorization; it fires at most once per window.</p>
+  <div style="display:grid;gap:6px;font-size:12.5px">
+   <input id="sw-query" placeholder='e.g. "Tell me whenever a door is forced at any school after hours"'>
+   <div id="sw-preview" class="muted" style="font-size:12px"></div>
+   <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <input id="sw-by" placeholder="Your name (required)" style="flex:1;min-width:140px">
+    <input id="sw-group" placeholder="Notify group (optional)" style="flex:1;min-width:140px">
+    <button style="width:auto" onclick="swPreview()">Preview</button>
+    <button style="width:auto" onclick="swCreate()">Create watch</button>
+   </div>
+   <div id="sw-list" style="font-size:12px"></div>
+  </div>
+</div>
 <details class="card" style="margin-top:14px">
   <summary style="cursor:pointer;font-size:13px">Recent analytics events + AI use policy</summary>
   <div id="st-summary" class="muted" style="font-size:12px;margin-top:8px"></div>
@@ -911,6 +928,51 @@ async function stLoad(){
 }
 stLoad();
 setInterval(stLoad, 20000);
+async function swLoad(){
+  try{
+    const j=await (await fetch("/api/v1/desat/watches")).json();
+    document.getElementById("sw-count").textContent=
+      j.summary.enabled+" active · "+j.summary.total_fires+" fire(s) · chain "+(j.summary.log_ok?"verified":"BROKEN");
+    document.getElementById("sw-list").innerHTML=(j.watches||[]).map(w=>
+      `<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08);${w.enabled?"":"opacity:.5"}">
+        <b>${esc(w.name)}</b> <span class="muted">· by ${esc(w.created_by)} · fired ${esc(w.fire_count)}x</span><br>
+        <span class="muted">${esc(w.interpretation)}</span>
+        <button style="width:auto;padding:1px 8px;font-size:11px;margin-left:6px" onclick="swToggle('${esc(w.id)}',${!w.enabled})">${w.enabled?"Pause":"Resume"}</button>
+        <button style="width:auto;padding:1px 8px;font-size:11px" onclick="swDelete('${esc(w.id)}')">Delete</button>
+      </div>`).join("")||'<span class="muted">No standing watches yet.</span>';
+  }catch(e){}
+}
+async function swPreview(){
+  const q=document.getElementById("sw-query").value;
+  const r=await fetch("/api/v1/desat/watches/preview",{method:"POST",
+    headers:{"Content-Type":"application/json"},body:JSON.stringify({query:q})});
+  const j=await r.json();
+  document.getElementById("sw-preview").textContent=j.interpretation||"";
+}
+async function swCreate(){
+  const r=await fetch("/api/v1/desat/watches",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({query:document.getElementById("sw-query").value,
+      created_by:document.getElementById("sw-by").value,
+      notify_group:document.getElementById("sw-group").value})});
+  const j=await r.json();
+  document.getElementById("sw-preview").textContent=r.ok
+    ? "Watch created: "+j.interpretation : (j.detail||"failed");
+  swLoad();
+}
+async function swToggle(id,en){
+  await fetch("/api/v1/desat/watches/toggle",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({id:id,enabled:en})});
+  swLoad();
+}
+async function swDelete(id){
+  await fetch("/api/v1/desat/watches/delete",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({id:id})});
+  swLoad();
+}
+swLoad();
 """
 
 # ============================================================ notify page
@@ -1405,8 +1467,59 @@ def register(app) -> None:                              # pragma: no cover
         _api_gate()
         from safecadence import situation
         cards = situation.assess(window)
+        try:
+            from safecadence import watches as _w
+            cards = _w.check_watches() + cards
+        except Exception:
+            pass
         return {"summary": situation.summary(window), "situations": cards,
                  "note": situation.situation_note(cards)}
+
+    # ---- Standing Watches (plain-English saved alerts) ---------------
+    @app.get("/api/v1/desat/watches")
+    def watches_list():
+        _api_gate()
+        from safecadence import watches as _w
+        return {"summary": _w.summary(), "watches": _w.list_watches()}
+
+    @app.post("/api/v1/desat/watches/preview")
+    def watches_preview(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence import watches as _w
+        return _w.interpret(str(payload.get("query", "")))
+
+    @app.post("/api/v1/desat/watches")
+    def watches_create(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence import watches as _w
+        try:
+            return _w.create_watch(
+                query=str(payload.get("query", "")),
+                created_by=str(payload.get("created_by", "")),
+                name=str(payload.get("name", "")),
+                notify_group=str(payload.get("notify_group", "")),
+                severity=str(payload.get("severity", "high")))
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.post("/api/v1/desat/watches/toggle")
+    def watches_toggle(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence import watches as _w
+        try:
+            return _w.set_enabled(str(payload.get("id", "")),
+                                    bool(payload.get("enabled", True)))
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+
+    @app.post("/api/v1/desat/watches/delete")
+    def watches_delete(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence import watches as _w
+        try:
+            return _w.delete_watch(str(payload.get("id", "")))
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
 
     @app.post("/api/v1/desat/video-event")
     def video_event_ingest(payload: dict = Body(...)):

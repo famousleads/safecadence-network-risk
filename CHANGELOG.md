@@ -1,6 +1,20 @@
 # Changelog
 
-## [16.7.0] — 2026-08-24 — Daily operations: SafeCheck, Roll-Call, Evidence Custody
+## [16.7.0] — 2026-08-24 — Daily operations + Standing Watches
+
+**Standing Watches** — tell the platform what to watch for, in plain
+English: "tell me whenever a door is forced at any school after hours"
+becomes a named, pre-authorized rule that raises a situation card when
+it matches and (optionally) sends the alert through Mass Notification
+carrying its creator's recorded pre-authorization. The parser echoes
+its interpretation before anything is saved; AI parsing (grounded to
+the fixed event vocabulary, strictly validated) is used when a key is
+configured, and the deterministic parser always works offline. Watches
+fire at most once per window — no alert storms — and every fire lands
+in a hash-chained, verifiable log. `safecadence watches`, standing-
+watch panel on `/situations`.
+
+### Daily operations: SafeCheck, Roll-Call, Evidence Custody
 
 **SafeCheck** — check-in timers that watch the watcher. An officer on a
 solo building check starts a timer; if it isn't cleared in time, Mass

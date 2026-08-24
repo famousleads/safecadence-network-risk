@@ -366,6 +366,52 @@ def facilitywatch_cmd(action: str, facility_name: str, out: str) -> None:
         _print(f"send: {out2}")
 
 
+@cli.command("watches")
+@click.argument("action", type=click.Choice(
+    ["list", "create", "check", "preview", "verify"]), default="list")
+@click.option("--query", default="", help="Plain-English watch request.")
+@click.option("--by", "created_by", default="", help="Your name (required to create).")
+@click.option("--group", default="", help="Notify group when it fires.")
+def watches_cmd(action, query, created_by, group):
+    """Standing Watches — plain-English saved alerts.
+
+    \b
+      safecadence watches create --query "door forced at any school after hours" --by "Lt Ruiz"
+      safecadence watches list | check | verify
+    """
+    try:
+        from safecadence import watches as sw
+    except ImportError:
+        _print("Standing Watches ship with the Public Safety add-on:\n"
+                "    pip install safecadence-publicsafety")
+        return
+    if action == "list":
+        for w in sw.list_watches():
+            _print(f"[{'ON ' if w['enabled'] else 'off'}] {w['name']} "
+                    f"(by {w['created_by']}, fired {w['fire_count']}x)")
+            _print(f"      {w['interpretation']}")
+        if not sw.list_watches():
+            _print("No standing watches. Create one:\n"
+                    "  safecadence watches create --query \"...\" --by \"Your Name\"")
+    elif action == "preview":
+        _print(sw.interpret(query)["interpretation"])
+    elif action == "create":
+        w = sw.create_watch(query=query, created_by=created_by,
+                             notify_group=group)
+        _print(f"Created {w['id']}: {w['interpretation']}")
+    elif action == "check":
+        cards = sw.check_watches()
+        for c in cards:
+            _print(f"FIRED: {c['headline']}")
+            for ev in c["evidence"]:
+                _print(f"   - {ev}")
+        if not cards:
+            _print("No watches fired in their windows.")
+    elif action == "verify":
+        v = sw.verify_log()
+        _print("VERIFIED - chain intact." if v["ok"] else f"BROKEN: {v}")
+
+
 @cli.command("safecheck")
 @click.argument("action", type=click.Choice(
     ["status", "start", "clear", "sweep", "verify"]), default="status")
