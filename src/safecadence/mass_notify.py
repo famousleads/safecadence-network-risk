@@ -447,11 +447,13 @@ def send_notification(*, group: str, subject: str = "", body: str = "",
                        template: str = "", site: str = "",
                        channels: list[str] | None = None,
                        initiated_by: str, approved_by: str,
-                       incident_id: str = "",
+                       incident_id: str = "", force: bool = False,
                        live: bool | None = None) -> dict[str, Any]:
     """The one send path. A NAMED approver is mandatory — this is the
     human-approval gate, and it is not optional. `live` defaults to the
-    SC_NOTIFY_LIVE env (off = test mode: full pipeline, no delivery)."""
+    SC_NOTIFY_LIVE env (off = test mode: full pipeline, no delivery).
+    A duplicate guard blocks the same group+subject within 2 minutes
+    (double-clicks, radio confusion) unless force=True."""
     if not (initiated_by or "").strip():
         raise ValueError("initiated_by is required")
     if not (approved_by or "").strip():
@@ -479,6 +481,20 @@ def send_notification(*, group: str, subject: str = "", body: str = "",
         if bad:
             raise ValueError("community group has members without "
                               "recorded consent: " + ", ".join(bad[:5]))
+    if not force:
+        now_ts = datetime.now(timezone.utc).timestamp()
+        cutoff = now_ts - 120
+        for e in alert_log(10):
+            try:
+                ts = datetime.fromisoformat(e["at"]).timestamp()
+            except Exception:
+                continue
+            if (ts >= cutoff and e.get("group") == grp["name"]
+                    and e.get("subject") == subject):
+                raise ValueError(
+                    "duplicate guard: the same alert went to this group "
+                    f"{int(now_ts - ts)}s ago (id {e['id']}). "
+                    "Pass force=True to send it again anyway.")
     if live is None:
         live = os.environ.get("SC_NOTIFY_LIVE") == "1"
     use = channels if channels is not None else grp.get("channels") or ["email"]

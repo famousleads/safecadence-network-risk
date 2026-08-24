@@ -734,7 +734,8 @@ async function stLoad(){
         <div style="font-size:14px;font-weight:700">${esc(c.headline)}
           <span class="muted" style="font-size:11px">· confidence ${esc(c.confidence)}</span></div>
         <div class="muted" style="font-size:12px;margin:4px 0">${(c.evidence||[]).map(e=>"• "+esc(e)).join("<br>")}</div>
-        <div style="font-size:12.5px;color:#0e7c86;font-weight:600">→ ${esc(c.recommended_action)}</div>
+        <div style="font-size:12.5px;color:#0e7c86;font-weight:600">→ ${esc(c.recommended_action)}
+          <a style="margin-left:8px;font-size:11.5px" href="/notify?subject=${encodeURIComponent(c.headline)}&body=${encodeURIComponent(c.recommended_action)}&site=${encodeURIComponent(c.site||"")}&incident=${encodeURIComponent(c.id)}">Prepare notification →</a></div>
       </div>`).join("")
       ||'<div class="card" style="font-size:13px">No correlated situations in the window — quiet is the goal. ✅</div>';
     const s=j.summary;
@@ -788,6 +789,23 @@ _NOTIFY_BODY = """
   <div class="card">
    <h2 style="font-size:15px;margin:0 0 6px">Groups <span id="nf-gcount" class="muted" style="font-size:11px"></span></h2>
    <div id="nf-groups" style="font-size:12.5px"></div>
+   <details style="margin-top:10px"><summary style="cursor:pointer;font-size:12.5px">Add or update a group</summary>
+    <div style="display:grid;gap:6px;margin-top:8px;font-size:12px">
+     <input id="ng-name" placeholder="Group name (e.g. B Shift)">
+     <textarea id="ng-members" rows="3" placeholder="One member per line:&#10;Name, email, phone, extension, sms-gateway-address&#10;Dep. Cruz, cruz@agency.gov, +18135550101, 1102, 8135550101@vtext.com"></textarea>
+     <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:12px">
+      <label><input type="checkbox" id="ng-ch-email" checked> email</label>
+      <label><input type="checkbox" id="ng-ch-sms"> sms gateway</label>
+      <label><input type="checkbox" id="ng-ch-call"> phone calls</label>
+      <label><input type="checkbox" id="ng-ch-page"> cisco paging</label>
+     </div>
+     <label style="font-size:12px"><input type="checkbox" id="ng-community">
+       Community group - every member listed has <b>explicitly consented</b>
+       to receive alerts. Required for public-facing groups.</label>
+     <button onclick="nfAddGroup()">Save group</button>
+     <div id="ng-result" class="muted" style="font-size:11.5px"></div>
+    </div>
+   </details>
   </div>
   <div class="card">
    <h2 style="font-size:15px;margin:0 0 6px">Alert log <span id="nf-chain" style="font-size:11px"></span></h2>
@@ -831,19 +849,54 @@ async function nfLoad(){
       ||'<span class="muted">No alerts sent yet.</span>';
   }catch(e){}
 }
-async function nfSend(){
+async function nfSend(forceSend){
   const v=id=>document.getElementById(id).value;
   const r=await fetch("/api/v1/desat/notify/send",{method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({group:v("nf-group"),template:v("nf-template"),
       site:v("nf-site"),subject:v("nf-subject"),body:v("nf-body"),
-      initiated_by:v("nf-by"),approved_by:v("nf-approved")})});
+      initiated_by:v("nf-by"),approved_by:v("nf-approved"),
+      incident_id:(new URLSearchParams(location.search)).get("incident")||"",
+      force:!!forceSend})});
   const j=await r.json();
-  document.getElementById("nf-result").textContent = r.ok
-    ? "Sent ("+j.mode+") - logged as "+j.id
-    : (j.detail||"failed");
+  const box=document.getElementById("nf-result");
+  if(r.ok){box.textContent="Sent ("+j.mode+") - logged as "+j.id;}
+  else if(String(j.detail||"").indexOf("duplicate guard")>=0){
+    box.innerHTML=esc(j.detail)+' <button style="width:auto;padding:2px 10px;font-size:11px" onclick="nfSend(true)">Send anyway</button>';
+  } else { box.textContent=j.detail||"failed"; }
   nfLoad();
 }
+async function nfAddGroup(){
+  const v=id=>document.getElementById(id).value;
+  const community=document.getElementById("ng-community").checked;
+  const members=v("ng-members").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{
+    const p=l.split(",").map(x=>x.trim());
+    const m={name:p[0]||"",email:p[1]||"",phone:p[2]||"",
+              extension:p[3]||"",sms_gateway:p[4]||""};
+    if(community){m.consent_confirmed=true;}
+    return m;});
+  const channels=[];
+  if(document.getElementById("ng-ch-email").checked)channels.push("email");
+  if(document.getElementById("ng-ch-sms").checked)channels.push("sms_gateway");
+  if(document.getElementById("ng-ch-call").checked)channels.push("asterisk");
+  if(document.getElementById("ng-ch-page").checked)channels.push("informacast");
+  const r=await fetch("/api/v1/desat/notify/groups",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({name:v("ng-name"),members:members,
+      community:community,channels:channels.length?channels:["email"]})});
+  const j=await r.json();
+  document.getElementById("ng-result").textContent =
+    r.ok ? "Saved \""+j.name+"\" with "+j.members.length+" member(s)."
+         : (j.detail||"failed");
+  nfLoad();
+}
+(function(){
+  const q=new URLSearchParams(location.search);
+  if(q.get("subject")){document.getElementById("nf-subject").value=q.get("subject");}
+  if(q.get("body")){document.getElementById("nf-body").value=q.get("body");}
+  if(q.get("template")){document.getElementById("nf-template").value=q.get("template");}
+  if(q.get("site")){document.getElementById("nf-site").value=q.get("site");}
+})();
 nfLoad();
 """
 
@@ -1144,6 +1197,7 @@ def register(app) -> None:                              # pragma: no cover
                 initiated_by=str(payload.get("initiated_by", "")),
                 approved_by=str(payload.get("approved_by", "")),
                 incident_id=str(payload.get("incident_id", "")),
+                force=bool(payload.get("force")),
                 live=bool(payload.get("live")) or None)
         except KeyError as exc:
             raise HTTPException(404, str(exc)) from exc

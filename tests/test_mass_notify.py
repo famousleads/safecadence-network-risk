@@ -145,3 +145,44 @@ def test_routes_gated_and_serving(_iso):
         "group": "B Shift", "subject": "x", "body": "y",
         "initiated_by": "web", "approved_by": ""})
     assert r.status_code == 400
+
+
+def test_duplicate_guard_and_force():
+    from safecadence import mass_notify as mn
+    _grp()
+    mn.send_notification(group="B Shift", subject="Lockdown drill",
+                          body="x", initiated_by="a", approved_by="b")
+    with pytest.raises(ValueError, match="duplicate guard"):
+        mn.send_notification(group="B Shift", subject="Lockdown drill",
+                              body="x", initiated_by="a", approved_by="b")
+    out = mn.send_notification(group="B Shift", subject="Lockdown drill",
+                                body="x", initiated_by="a", approved_by="b",
+                                force=True)
+    assert out["ok"]
+    # different subject is not blocked
+    out2 = mn.send_notification(group="B Shift", subject="All clear",
+                                 body="y", initiated_by="a", approved_by="b")
+    assert out2["ok"]
+
+
+def test_group_form_api_and_notify_prefill_page(_iso):
+    fastapi = pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+    from safecadence.license import start_trial
+    from safecadence.ui.desat_pages import register
+    start_trial("public_safety")
+    app = fastapi.FastAPI()
+    register(app)
+    c = TestClient(app)
+    r = c.post("/api/v1/desat/notify/groups", json={
+        "name": "Detention", "channels": ["email", "asterisk"],
+        "members": [{"name": "Ofc. A", "email": "a@agency.gov",
+                      "extension": "2201"}]})
+    assert r.status_code == 200 and r.json()["name"] == "Detention"
+    # community group without consent rejected at the API
+    r = c.post("/api/v1/desat/notify/groups", json={
+        "name": "Neighbors", "community": True,
+        "members": [{"name": "Jane", "email": "j@x.example"}]})
+    assert r.status_code == 400
+    page = c.get("/notify?subject=Test&incident=sit-abc")
+    assert page.status_code == 200 and "Add or update a group" in page.text
