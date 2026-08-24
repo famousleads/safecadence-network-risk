@@ -1,5 +1,11 @@
 <div align="center">
 
+> **[The Community Trust Charter](TRUST_CHARTER.md)** — seven verifiable
+> commitments for trustworthy public safety technology. SafeCadence is
+> self-certified against every one; the adoption language is free for any
+> community to use.
+
+
 # SafeCadence
 
 **Free, open-source, local-first security posture management for hybrid networks and identity.**
