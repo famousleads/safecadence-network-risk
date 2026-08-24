@@ -366,6 +366,72 @@ def facilitywatch_cmd(action: str, facility_name: str, out: str) -> None:
         _print(f"send: {out2}")
 
 
+@cli.command("notify")
+@click.argument("action", type=click.Choice(
+    ["status", "send", "groups", "log", "verify", "test"]),
+    default="status")
+@click.option("--group", default="", help="Notification group name.")
+@click.option("--template", default="",
+               help="lockdown | evacuation | shelter | all_clear")
+@click.option("--site", default="", help="Site name for the template.")
+@click.option("--subject", default="", help="Custom subject.")
+@click.option("--body", default="", help="Custom message body.")
+@click.option("--by", "initiated_by", default="", help="Who is sending.")
+@click.option("--approved-by", default="",
+               help="Named human approver (REQUIRED to send).")
+@click.option("--live", is_flag=True,
+               help="Actually deliver (default: test mode, no delivery).")
+def notify_cmd(action: str, group: str, template: str, site: str,
+                subject: str, body: str, initiated_by: str,
+                approved_by: str, live: bool) -> None:
+    """Mass Notification — trigger, approve, deliver, prove.
+
+    \b
+      safecadence notify status                     integration + log summary
+      safecadence notify groups                     list notification groups
+      safecadence notify send --group "B Shift" --template lockdown
+          --site "County Jail" --by "Sgt Vega" --approved-by "Lt Ruiz"
+      safecadence notify test ...                   same as send (test mode)
+      safecadence notify log                        recent alerts
+      safecadence notify verify                     verify the audit chain
+    """
+    try:
+        from safecadence import mass_notify as mn
+    except ImportError:
+        _print("Mass Notification ships with the Public Safety add-on:\n"
+                "    pip install safecadence-publicsafety")
+        return
+    if action == "status":
+        _print(json.dumps(mn.summary(), indent=1))
+    elif action == "groups":
+        for g in mn.list_groups():
+            _print(f"{g['name']}: {len(g.get('members', []))} member(s) "
+                    f"/ channels {','.join(g.get('channels', []))}"
+                    + (" / COMMUNITY (consent recorded)" if g.get("community")
+                       else ""))
+        if not mn.list_groups():
+            _print("No groups yet - create one from the /notify page or "
+                    "mass_notify.save_group().")
+    elif action in ("send", "test"):
+        out = mn.send_notification(
+            group=group, template=template, site=site, subject=subject,
+            body=body, initiated_by=initiated_by or "cli",
+            approved_by=approved_by,
+            live=live if action == "send" else False)
+        _print(json.dumps(out, indent=1))
+    elif action == "log":
+        for e in mn.alert_log(20):
+            _print(f"{e['at'][:16]} [{e['mode']}] {e['group']}: "
+                    f"{e['subject']} (approved by {e['approved_by']})")
+    elif action == "verify":
+        v = mn.verify_log()
+        if v["ok"]:
+            _print(f"VERIFIED - {v['entries']} alert(s), chain intact.")
+        else:
+            _print(f"CHAIN BROKEN at {v.get('failed_at')}: {v.get('reason')}")
+            raise SystemExit(1)
+
+
 @cli.command("scan")
 @click.argument("source", type=click.Path(exists=True, readable=True))
 @click.option("--vendor", default=None, help="Force a vendor adapter (e.g. cisco-ios).")

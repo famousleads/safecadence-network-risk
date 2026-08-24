@@ -63,6 +63,7 @@ _PS_PAGES = {
     "/campuswatch": "CampusWatch weekly report",
     "/facilitywatch": "FacilityWatch weekly report",
     "/community": "Community programs",
+    "/notify": "Mass Notification",
 }
 
 

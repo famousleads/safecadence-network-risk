@@ -1,5 +1,26 @@
 # Changelog
 
+## [16.6.0] — 2026-08-24 — Mass Notification: trigger, approve, deliver, prove
+
+New Mass Notification layer (ships with the Public Safety add-on).
+SafeCadence is the intelligence and accountability layer — every alert
+is approved by a NAMED human before anything sends, and every send
+lands in a tamper-evident hash-chained audit log. Delivery rides the
+systems the agency already owns, across three tiers: staff alerting
+built in (agency SMTP email, email-to-SMS carrier gateways, generic
+HTTP SMS with Twilio-compatible mode, Slack/Teams/signed webhooks);
+local telephony (Asterisk/FreePBX AMI outbound announcement calls to
+any SIP fleet, Singlewire InformaCast for Cisco IP phone text/audio
+and overhead paging); and an alert bridge that triggers pre-built
+scenarios in the agency's existing community alerting platform
+(Everbridge, Rave, OnSolve) — community opt-in lists and IPAWS/WEA
+authority stay with the system authorized to hold them. Community
+groups require recorded consent on every member. Templates for
+lockdown, evacuation, shelter-in-place, and all-clear. Test mode by
+default (`SC_NOTIFY_LIVE=1` to deliver). CLI `safecadence notify
+status|send|groups|log|verify`; hosted `/notify` page + APIs.
+
+
 ## [16.5.0] — 2026-08-23 — Watch Intelligence, FacilityWatch & Community layer
 
 **Watch Intelligence — the platform now connects the dots.** New

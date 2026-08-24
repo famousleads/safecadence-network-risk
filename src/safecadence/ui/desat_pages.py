@@ -700,6 +700,103 @@ async function cmCheck(id){
 cmLoad();
 """
 
+# ============================================================ notify page
+
+_NOTIFY_BODY = """
+<h1 style="margin:0 0 4px">📢 Mass Notification</h1>
+<p class="muted" style="margin:0 0 6px;font-size:12.5px">
+  Trigger, approve, deliver, <b>prove</b>. Alerts ride the systems you
+  already own — your email relay, carrier SMS gateways, your own phone
+  system (Asterisk/FreePBX, Cisco via InformaCast), and your existing
+  community alerting platform (Everbridge, Rave, OnSolve). Every send
+  requires a <b>named human approver</b> and lands in a tamper-evident
+  audit log.
+</p>
+<p id="nf-mode" style="margin:0 0 14px;font-size:12px;font-weight:700"></p>
+<div style="display:grid;grid-template-columns:1.15fr 1fr;gap:14px">
+ <div class="card">
+  <h2 style="font-size:15px;margin:0 0 8px">Send an alert</h2>
+  <div style="display:grid;gap:6px;font-size:12.5px">
+   <select id="nf-group"></select>
+   <select id="nf-template">
+     <option value="">Custom message...</option>
+     <option value="lockdown">Lockdown</option>
+     <option value="evacuation">Evacuation</option>
+     <option value="shelter">Shelter in place</option>
+     <option value="all_clear">All clear</option>
+   </select>
+   <input id="nf-site" placeholder="Site / building (for templates)">
+   <input id="nf-subject" placeholder="Subject (custom messages)">
+   <textarea id="nf-body" rows="3" placeholder="Message (custom)"></textarea>
+   <input id="nf-by" placeholder="Your name (initiated by)">
+   <input id="nf-approved" placeholder="Approver name - REQUIRED">
+   <button onclick="nfSend()">Send (test mode unless live is enabled)</button>
+   <div id="nf-result" class="muted" style="font-size:12px"></div>
+  </div>
+ </div>
+ <div style="display:grid;gap:14px;align-content:start">
+  <div class="card">
+   <h2 style="font-size:15px;margin:0 0 6px">Groups <span id="nf-gcount" class="muted" style="font-size:11px"></span></h2>
+   <div id="nf-groups" style="font-size:12.5px"></div>
+  </div>
+  <div class="card">
+   <h2 style="font-size:15px;margin:0 0 6px">Alert log <span id="nf-chain" style="font-size:11px"></span></h2>
+   <div id="nf-log" style="font-size:12px"></div>
+  </div>
+ </div>
+</div>
+"""
+
+_NOTIFY_SCRIPT = r"""
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+async function nfLoad(){
+  try{
+    const s=await (await fetch("/api/v1/desat/notify")).json();
+    document.getElementById("nf-mode").textContent = s.live_mode
+      ? "LIVE MODE - alerts will really deliver."
+      : "TEST MODE - full pipeline runs, nothing is delivered (set SC_NOTIFY_LIVE=1 to go live).";
+    document.getElementById("nf-mode").style.color = s.live_mode ? "#d93b3b" : "#0e7c86";
+  }catch(e){}
+  try{
+    const g=(await (await fetch("/api/v1/desat/notify/groups")).json()).groups;
+    document.getElementById("nf-gcount").textContent=g.length+" group(s)";
+    document.getElementById("nf-group").innerHTML =
+      g.map(x=>`<option>${esc(x.name)}</option>`).join("")||"<option value=''>No groups yet</option>";
+    document.getElementById("nf-groups").innerHTML =
+      g.map(x=>`<div style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,.08)">
+        <b>${esc(x.name)}</b> · ${x.members.length} member(s) · ${esc((x.channels||[]).join(", "))}
+        ${x.community?'<span style="color:#0e7c86"> · community (consent recorded)</span>':""}</div>`).join("")
+      ||'<span class="muted">No groups yet - create them via the API or CLI.</span>';
+  }catch(e){}
+  try{
+    const l=await (await fetch("/api/v1/desat/notify/log")).json();
+    document.getElementById("nf-chain").textContent =
+      l.verify.ok?"chain verified ("+l.verify.entries+")":"CHAIN BROKEN";
+    document.getElementById("nf-chain").style.color=l.verify.ok?"#0e7c86":"#d93b3b";
+    document.getElementById("nf-log").innerHTML =
+      (l.log||[]).slice(0,8).map(e=>`<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)">
+        <b>${esc(e.subject)}</b> · ${esc(e.group)} · ${esc(e.mode)}
+        <span class="muted">· approved by ${esc(e.approved_by)} · ${esc((e.at||"").slice(0,16))}</span></div>`).join("")
+      ||'<span class="muted">No alerts sent yet.</span>';
+  }catch(e){}
+}
+async function nfSend(){
+  const v=id=>document.getElementById(id).value;
+  const r=await fetch("/api/v1/desat/notify/send",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({group:v("nf-group"),template:v("nf-template"),
+      site:v("nf-site"),subject:v("nf-subject"),body:v("nf-body"),
+      initiated_by:v("nf-by"),approved_by:v("nf-approved")})});
+  const j=await r.json();
+  document.getElementById("nf-result").textContent = r.ok
+    ? "Sent ("+j.mode+") - logged as "+j.id
+    : (j.detail||"failed");
+  nfLoad();
+}
+nfLoad();
+"""
+
 # ============================================================ licensing gate
 
 _UPSELL_BODY = """
@@ -919,6 +1016,64 @@ def register(app) -> None:                              # pragma: no cover
         _api_gate()
         from safecadence import evidencewatch as ew
         return ew.build_report(profile="campus")
+
+    # ---- Mass Notification (trigger + approve + prove) ---------------
+    @app.get("/api/v1/desat/notify")
+    def notify_summary():
+        _api_gate()
+        from safecadence import mass_notify
+        return mass_notify.summary()
+
+    @app.get("/api/v1/desat/notify/groups")
+    def notify_groups():
+        _api_gate()
+        from safecadence import mass_notify
+        return {"groups": mass_notify.list_groups()}
+
+    @app.post("/api/v1/desat/notify/groups")
+    def notify_group_save(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence import mass_notify
+        try:
+            return mass_notify.save_group(
+                name=str(payload.get("name", "")),
+                members=payload.get("members") or [],
+                community=bool(payload.get("community")),
+                channels=payload.get("channels") or ["email"])
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.get("/api/v1/desat/notify/log")
+    def notify_log():
+        _api_gate()
+        from safecadence import mass_notify
+        return {"log": mass_notify.alert_log(50),
+                 "verify": mass_notify.verify_log()}
+
+    @app.post("/api/v1/desat/notify/send")
+    def notify_send(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence import mass_notify
+        try:
+            return mass_notify.send_notification(
+                group=str(payload.get("group", "")),
+                subject=str(payload.get("subject", "")),
+                body=str(payload.get("body", "")),
+                template=str(payload.get("template", "")),
+                site=str(payload.get("site", "")),
+                channels=payload.get("channels"),
+                initiated_by=str(payload.get("initiated_by", "")),
+                approved_by=str(payload.get("approved_by", "")),
+                incident_id=str(payload.get("incident_id", "")),
+                live=bool(payload.get("live")) or None)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.get("/notify", response_class=HTMLResponse)
+    def notify_page():
+        return _page("Mass Notification", _NOTIFY_BODY, _NOTIFY_SCRIPT)
 
     @app.get("/facilitywatch", response_class=HTMLResponse)
     def facilitywatch_page(name: str = ""):
