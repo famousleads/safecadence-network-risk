@@ -700,6 +700,168 @@ async function cmCheck(id){
 cmLoad();
 """
 
+# ============================================================ safecheck page
+
+_SAFECHECK_BODY = """
+<h1 style="margin:0 0 4px">⏱️ SafeCheck</h1>
+<p class="muted" style="margin:0 0 14px;font-size:12.5px">
+  Solo building check? Late-night evidence run? Start a timer. If you
+  don't clear it in time, your shift gets alerted automatically — with
+  your location — <b>pre-authorized by you</b> the moment you started
+  it. Every start, extend, clear, and alert is hash-chain logged.
+</p>
+<div style="display:grid;grid-template-columns:1fr 1.2fr;gap:14px">
+ <div class="card">
+  <h2 style="font-size:15px;margin:0 0 8px">Start a check</h2>
+  <div style="display:grid;gap:6px;font-size:12.5px">
+   <input id="sk-officer" placeholder="Your name">
+   <input id="sk-location" placeholder="Location (e.g. Warehouse row 3, north door)">
+   <input id="sk-minutes" type="number" value="15" min="1" max="240">
+   <input id="sk-group" placeholder="Notify group if overdue (e.g. B Shift)">
+   <input id="sk-note" placeholder="Note (optional)">
+   <button onclick="skStart()">Start timer</button>
+   <div id="sk-result" class="muted" style="font-size:12px"></div>
+  </div>
+ </div>
+ <div class="card">
+  <h2 style="font-size:15px;margin:0 0 8px">Active checks <span id="sk-count" class="muted" style="font-size:11px"></span></h2>
+  <div id="sk-active" style="font-size:12.5px"></div>
+ </div>
+</div>
+"""
+
+_SAFECHECK_SCRIPT = r"""
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+async function skLoad(){
+  try{
+    const j=await (await fetch("/api/v1/desat/safecheck")).json();
+    document.getElementById("sk-count").textContent=
+      j.summary.active+" active"+(j.summary.overdue?" / "+j.summary.overdue+" OVERDUE":"");
+    document.getElementById("sk-active").innerHTML=(j.active||[]).map(r=>
+      `<div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,.08)${r.overdue?';color:#d93b3b':''}">
+        <b>${esc(r.officer)}</b> · ${esc(r.location)}
+        <span class="muted" style="font-size:11px">· due ${esc((r.due_at||"").slice(11,16))}Z${r.overdue?" · OVERDUE":""}</span>
+        <button style="width:auto;padding:2px 8px;font-size:11px;margin-left:6px" onclick="skClear('${esc(r.check_id)}')">Clear</button>
+        <button style="width:auto;padding:2px 8px;font-size:11px" onclick="skExtend('${esc(r.check_id)}')">+10 min</button>
+      </div>`).join("")||'<span class="muted">No active checks.</span>';
+  }catch(e){}
+}
+async function skStart(){
+  const v=id=>document.getElementById(id).value;
+  const r=await fetch("/api/v1/desat/safecheck/start",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({officer:v("sk-officer"),location:v("sk-location"),
+      minutes:parseInt(v("sk-minutes")||"15"),notify_group:v("sk-group"),
+      note:v("sk-note")})});
+  const j=await r.json();
+  document.getElementById("sk-result").textContent=r.ok
+    ? "Timer running - clear it when you're safe." : (j.detail||"failed");
+  skLoad();
+}
+async function skClear(id){
+  await fetch("/api/v1/desat/safecheck/clear",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({check_id:id})});
+  skLoad();
+}
+async function skExtend(id){
+  await fetch("/api/v1/desat/safecheck/extend",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({check_id:id,minutes:10})});
+  skLoad();
+}
+skLoad();
+setInterval(skLoad, 15000);
+"""
+
+# ============================================================ custody page
+
+_CUSTODY_BODY = """
+<h1 style="margin:0 0 4px">🔐 Evidence Custody</h1>
+<p class="muted" style="margin:0 0 14px;font-size:12.5px">
+  Who touched what, when, and why — provably. Every action is
+  hash-chained; <b>verify</b> recomputes the chain so an auditor or a
+  courtroom can confirm nothing was rewritten. Custody metadata only:
+  no item contents, no photos, nothing leaves your network.
+</p>
+<p id="cu-chain" style="margin:0 0 12px;font-size:12px;font-weight:700"></p>
+<div style="display:grid;grid-template-columns:1fr 1.3fr;gap:14px">
+ <div class="card">
+  <h2 style="font-size:15px;margin:0 0 8px">Log in an item</h2>
+  <div style="display:grid;gap:6px;font-size:12.5px">
+   <input id="cu-case" placeholder="Case number">
+   <input id="cu-desc" placeholder="Description (no contents/narrative)">
+   <select id="cu-cat"><option>physical</option><option>digital_media</option>
+    <option>firearm</option><option>narcotics</option><option>currency</option>
+    <option>biological</option><option>document</option><option>other</option></select>
+   <input id="cu-loc" placeholder="Storage location (e.g. Shelf B-14)">
+   <input id="cu-by" placeholder="Logged in by (officer)">
+   <button onclick="cuAdd()">Log item in</button>
+   <div id="cu-result" class="muted" style="font-size:12px"></div>
+  </div>
+ </div>
+ <div class="card">
+  <h2 style="font-size:15px;margin:0 0 8px">Items <span id="cu-count" class="muted" style="font-size:11px"></span></h2>
+  <div id="cu-items" style="font-size:12.5px"></div>
+ </div>
+</div>
+"""
+
+_CUSTODY_SCRIPT = r"""
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+async function cuLoad(){
+  try{
+    const j=await (await fetch("/api/v1/desat/custody")).json();
+    const ch=document.getElementById("cu-chain");
+    ch.textContent=j.verify.ok
+      ? "Custody chain VERIFIED ("+j.verify.entries+" entries)"
+      : "CUSTODY CHAIN BROKEN - investigate before the next hearing";
+    ch.style.color=j.verify.ok?"#0e7c86":"#d93b3b";
+    document.getElementById("cu-count").textContent=
+      j.summary.items+" tracked / "+j.summary.checked_out+" out";
+    document.getElementById("cu-items").innerHTML=(j.items||[]).slice(0,20).map(i=>
+      `<div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,.08)">
+        <b>${esc(i.item_id)}</b> · ${esc(i.case_number)} · ${esc(i.description)}
+        <span class="muted" style="font-size:11px">· ${esc(i.status.replace("_"," "))}
+        ${i.custodian?("· out to "+esc(i.custodian)):("· "+esc(i.storage_location))}</span><br>
+        ${i.status==="in_storage"?`<button style="width:auto;padding:2px 8px;font-size:11px" onclick="cuOut('${esc(i.item_id)}')">Check out</button>`:""}
+        ${i.status==="checked_out"?`<button style="width:auto;padding:2px 8px;font-size:11px" onclick="cuIn('${esc(i.item_id)}')">Check in</button>`:""}
+      </div>`).join("")||'<span class="muted">No items yet.</span>';
+  }catch(e){}
+}
+async function cuAdd(){
+  const v=id=>document.getElementById(id).value;
+  const r=await fetch("/api/v1/desat/custody/items",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({case_number:v("cu-case"),description:v("cu-desc"),
+      category:v("cu-cat"),storage_location:v("cu-loc"),entered_by:v("cu-by")})});
+  const j=await r.json();
+  document.getElementById("cu-result").textContent=r.ok
+    ? "Logged in as "+j.item_id : (j.detail||"failed");
+  cuLoad();
+}
+async function cuOut(id){
+  const officer=prompt("Officer checking out:"); if(!officer)return;
+  const purpose=prompt("Purpose (court / lab / viewing):"); if(!purpose)return;
+  const r=await fetch("/api/v1/desat/custody/checkout",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({item_id:id,officer:officer,purpose:purpose})});
+  if(!r.ok){alert((await r.json()).detail||"failed");}
+  cuLoad();
+}
+async function cuIn(id){
+  const officer=prompt("Officer checking in:"); if(!officer)return;
+  const r=await fetch("/api/v1/desat/custody/checkin",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({item_id:id,officer:officer})});
+  if(!r.ok){alert((await r.json()).detail||"failed");}
+  cuLoad();
+}
+cuLoad();
+"""
+
 # ============================================================ situations page
 
 _SITUATION_BODY = """
@@ -1119,6 +1281,123 @@ def register(app) -> None:                              # pragma: no cover
         _api_gate()
         from safecadence import evidencewatch as ew
         return ew.build_report(profile="campus")
+
+    # ---- Roll-call brief --------------------------------------------
+    @app.get("/rollcall", response_class=HTMLResponse)
+    def rollcall_page(agency: str = "", shift: str = ""):
+        _api_gate()
+        from safecadence import rollcall
+        return HTMLResponse(rollcall.render_brief_html(agency=agency,
+                                                         shift=shift))
+
+    @app.get("/api/v1/desat/rollcall")
+    def rollcall_api():
+        _api_gate()
+        from safecadence import rollcall
+        return rollcall.build_brief()
+
+    # ---- SafeCheck (check-in timers) ---------------------------------
+    @app.get("/api/v1/desat/safecheck")
+    def safecheck_list():
+        _api_gate()
+        from safecadence import safecheck
+        safecheck.sweep()
+        return {"summary": safecheck.summary(),
+                 "active": safecheck.list_active()}
+
+    @app.post("/api/v1/desat/safecheck/start")
+    def safecheck_start(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence import safecheck
+        try:
+            return safecheck.start_check(
+                officer=str(payload.get("officer", "")),
+                location=str(payload.get("location", "")),
+                minutes=int(payload.get("minutes", 15)),
+                notify_group=str(payload.get("notify_group", "")),
+                note=str(payload.get("note", "")))
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.post("/api/v1/desat/safecheck/clear")
+    def safecheck_clear(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence import safecheck
+        try:
+            return safecheck.clear_check(str(payload.get("check_id", "")),
+                                           str(payload.get("officer", "")))
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+
+    @app.post("/api/v1/desat/safecheck/extend")
+    def safecheck_extend(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence import safecheck
+        try:
+            return safecheck.extend_check(str(payload.get("check_id", "")),
+                                            int(payload.get("minutes", 10)))
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+
+    @app.get("/safecheck", response_class=HTMLResponse)
+    def safecheck_page():
+        return _page("SafeCheck", _SAFECHECK_BODY, _SAFECHECK_SCRIPT)
+
+    # ---- Evidence custody --------------------------------------------
+    @app.get("/api/v1/desat/custody")
+    def custody_list(status: str = ""):
+        _api_gate()
+        from safecadence import custody
+        return {"summary": custody.summary(),
+                 "items": custody.list_items(status),
+                 "verify": custody.verify_log()}
+
+    @app.post("/api/v1/desat/custody/items")
+    def custody_add(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence import custody
+        try:
+            return custody.add_item(
+                case_number=str(payload.get("case_number", "")),
+                description=str(payload.get("description", "")),
+                category=str(payload.get("category", "physical")),
+                storage_location=str(payload.get("storage_location", "")),
+                entered_by=str(payload.get("entered_by", "")))
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.post("/api/v1/desat/custody/checkout")
+    def custody_checkout(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence import custody
+        try:
+            return custody.checkout(
+                str(payload.get("item_id", "")),
+                officer=str(payload.get("officer", "")),
+                purpose=str(payload.get("purpose", "")))
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.post("/api/v1/desat/custody/checkin")
+    def custody_checkin(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence import custody
+        try:
+            return custody.checkin(
+                str(payload.get("item_id", "")),
+                officer=str(payload.get("officer", "")),
+                note=str(payload.get("note", "")),
+                storage_location=str(payload.get("storage_location", "")))
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.get("/custody", response_class=HTMLResponse)
+    def custody_page():
+        return _page("Evidence Custody", _CUSTODY_BODY, _CUSTODY_SCRIPT)
 
     # ---- Situation Analytics (events in, situations out) -------------
     @app.get("/api/v1/desat/situations")

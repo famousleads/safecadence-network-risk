@@ -1,5 +1,36 @@
 # Changelog
 
+## [16.7.0] — 2026-08-24 — Daily operations: SafeCheck, Roll-Call, Evidence Custody
+
+**SafeCheck** — check-in timers that watch the watcher. An officer on a
+solo building check starts a timer; if it isn't cleared in time, Mass
+Notification alerts their shift with the last known location —
+pre-authorized by that officer at the moment they started it, so the
+named-approver rule holds even when the officer can't respond. Start /
+extend / clear / overdue-alert all hash-chain logged. `safecadence
+safecheck`, `/safecheck`.
+
+**Roll-Call Brief** — the morning one-pager: overnight situations, open
+incidents, dark cameras, active SafeChecks, alerts sent, evidence-room
+activity — printable, plain-language, with an AI-written spoken opening
+when a key is configured (grounded in the gathered facts; deterministic
+otherwise). `safecadence rollcall`, `/rollcall`.
+
+**Evidence Custody** — who touched what, when, and why, provably.
+Check-in/check-out/transfer/disposal with mandatory officer + purpose,
+disposal requiring a named authority, per-item history, and a
+hash-chained log with re-verification. Complements EvidenceWatch:
+infrastructure health + handling integrity = the full evidence story.
+`safecadence custody`, `/custody`.
+
+**Situation Analytics additions** — environmental alarms (temperature,
+humidity, water leak, power loss) become situation cards, escalating to
+critical for evidence/server rooms; ALPR hits (Flock-style webhooks
+normalize automatically) become verify-first "vehicle of interest"
+cards whose recommended action states plainly that a plate alert is a
+lead, not probable cause.
+
+
 ## [16.6.1] — 2026-08-24 — Situation Analytics
 
 **Situation Analytics** (Public Safety add-on): the layer above video

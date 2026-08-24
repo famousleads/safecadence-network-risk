@@ -47,7 +47,8 @@ AI_USE_POLICY = (
 EVENT_TYPES = (
     "person", "vehicle", "motion", "line_cross", "loiter", "crowd",
     "weapon", "tamper", "left_object", "door_forced", "door_held",
-    "glass_break", "audio_aggression", "other")
+    "glass_break", "audio_aggression", "alpr_hit", "temp_high",
+    "humidity_high", "water_leak", "power_loss", "other")
 
 _AFTER_HOURS = (22, 6)      # 10pm-6am local server time
 
@@ -81,6 +82,11 @@ def ingest_video_event(payload: dict) -> dict[str, Any]:
         "forced_entry": "door_forced", "door_prop": "door_held",
         "glassbreak": "glass_break", "aggression": "audio_aggression",
         "abandoned_object": "left_object",
+        "lpr": "alpr_hit", "alpr": "alpr_hit", "plate_hit": "alpr_hit",
+        "hotlist": "alpr_hit", "temperature": "temp_high",
+        "high_temp": "temp_high", "humidity": "humidity_high",
+        "flood": "water_leak", "leak": "water_leak",
+        "power_failure": "power_loss", "ups_on_battery": "power_loss",
     }
     etype = aliases.get(etype, etype)
     if etype not in EVENT_TYPES:
@@ -275,6 +281,40 @@ def assess(window_minutes: int = 30, assets: list[dict] | None = None,
                 [_fmt(e) for e in evs[:4]],
                 "Review the feed; consider a walk-through or a courtesy "
                 "contact."))
+
+    # 7 — environmental threat to evidence / server rooms ---------------
+    for e in events:
+        if e["event_type"] in ("temp_high", "humidity_high", "water_leak",
+                                 "power_loss"):
+            sensitive = "evidence" in (e.get("site") or "").lower() or                          "server" in (e.get("site") or "").lower() or                          "evidence" in (e.get("note") or "").lower()
+            label = e["event_type"].replace("_", " ")
+            cards.append(_card(
+                "environment", "critical" if sensitive else "medium",
+                f"Environmental alarm at {e.get('site') or 'a site'}: "
+                f"{label}"
+                + (" - evidence integrity at risk" if sensitive else ""),
+                e.get("site") or "", e.get("confidence", 0.9),
+                [_fmt(e)] + ([e["note"]] if e.get("note") else []),
+                "Send someone now - heat, water, and power loss destroy "
+                "recordings and evidence faster than any intruder."
+                if sensitive else
+                "Check the space and the HVAC/UPS behind the alarm."))
+
+    # 8 — ALPR hit: a lead to VERIFY, never probable cause on its own ---
+    for e in events:
+        if e["event_type"] == "alpr_hit":
+            note = (e.get("note") or "").lower()
+            hot = any(k in note for k in ("hotlist", "stolen", "wanted",
+                                            "amber", "felony"))
+            cards.append(_card(
+                "vehicle_of_interest", "high" if hot else "medium",
+                f"ALPR alert at {e.get('site') or 'a site'} "
+                f"({e.get('vendor')})",
+                e.get("site") or "", e.get("confidence", 0.7),
+                [_fmt(e)] + ([e["note"]] if e.get("note") else []),
+                "VERIFY in your ALPR console before acting - plate reads "
+                "misfire; an alert is a lead, not probable cause. Confirm "
+                "plate, state, and vehicle description match."))
 
     sev_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3}
     cards.sort(key=lambda c: (sev_rank.get(c["severity"], 9),

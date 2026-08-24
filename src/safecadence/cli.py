@@ -366,6 +366,98 @@ def facilitywatch_cmd(action: str, facility_name: str, out: str) -> None:
         _print(f"send: {out2}")
 
 
+@cli.command("safecheck")
+@click.argument("action", type=click.Choice(
+    ["status", "start", "clear", "sweep", "verify"]), default="status")
+@click.option("--officer", default="", help="Officer name.")
+@click.option("--location", default="", help="Where you are.")
+@click.option("--minutes", default=15, help="Timer length.")
+@click.option("--group", default="", help="Notify group if overdue.")
+@click.option("--id", "check_id", default="", help="Check id for clear.")
+def safecheck_cmd(action, officer, location, minutes, group, check_id):
+    """SafeCheck — check-in timers with pre-authorized overdue alerts."""
+    try:
+        from safecadence import safecheck as sk
+    except ImportError:
+        _print("SafeCheck ships with the Public Safety add-on:\n"
+                "    pip install safecadence-publicsafety")
+        return
+    if action == "status":
+        sk.sweep()
+        _print(json.dumps(sk.summary(), indent=1))
+        for r in sk.list_active():
+            _print(f"{r['check_id']}: {r['officer']} @ {r['location']} "
+                    f"due {r['due_at'][11:16]}Z"
+                    + (" OVERDUE" if r.get("overdue") else ""))
+    elif action == "start":
+        r = sk.start_check(officer=officer, location=location,
+                            minutes=minutes, notify_group=group)
+        _print(f"Timer {r['check_id']} running - due {r['due_at'][11:16]}Z. "
+                "Clear it when you're safe.")
+    elif action == "clear":
+        sk.clear_check(check_id, officer)
+        _print("Cleared. Stay safe out there.")
+    elif action == "sweep":
+        _print(json.dumps(sk.sweep(), indent=1))
+    elif action == "verify":
+        v = sk.verify_log()
+        _print("VERIFIED" if v["ok"] else f"CHAIN BROKEN: {v}")
+
+
+@cli.command("rollcall")
+@click.option("--agency", default="", help="Agency name on the brief.")
+@click.option("--shift", default="", help="Shift label (e.g. day).")
+@click.option("--out", default="", help="Output HTML path.")
+def rollcall_cmd(agency, shift, out):
+    """Roll-Call Brief — the morning one-pager, printed or spoken."""
+    try:
+        from safecadence import rollcall as rc
+    except ImportError:
+        _print("Roll-call ships with the Public Safety add-on:\n"
+                "    pip install safecadence-publicsafety")
+        return
+    from pathlib import Path as _P
+    b = rc.build_brief()
+    _print(b["note"]["text"])
+    html = rc.render_brief_html(b, agency=agency, shift=shift)
+    p = _P(out) if out else _P.home() / ".safecadence" / "rollcall-latest.html"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(html, encoding="utf-8")
+    _print(f"Brief written: {p}")
+
+
+@cli.command("custody")
+@click.argument("action", type=click.Choice(
+    ["status", "verify", "history"]), default="status")
+@click.option("--id", "item_id", default="", help="Item id for history.")
+def custody_cmd(action, item_id):
+    """Evidence Custody — provable handling records."""
+    try:
+        from safecadence import custody as cu
+    except ImportError:
+        _print("Evidence Custody ships with the Public Safety add-on:\n"
+                "    pip install safecadence-publicsafety")
+        return
+    if action == "status":
+        _print(json.dumps(cu.summary(), indent=1))
+    elif action == "verify":
+        v = cu.verify_log()
+        if v["ok"]:
+            _print(f"VERIFIED - {v['entries']} custody action(s), "
+                    "chain intact.")
+        else:
+            _print(f"CHAIN BROKEN at {v.get('failed_at')}: {v.get('reason')}")
+            raise SystemExit(1)
+    elif action == "history":
+        item = cu.item_history(item_id)
+        _print(f"{item['item_id']} - {item['description']} "
+                f"[{item['status']}]")
+        for ev in item["history"]:
+            _print(f"  {ev['at'][:16]} {ev['action']} - {ev['officer']}"
+                    + (f" ({ev.get('purpose', ev.get('note', ''))})"
+                       if ev.get('purpose') or ev.get('note') else ""))
+
+
 @cli.command("situations")
 @click.argument("action", type=click.Choice(
     ["assess", "status", "demo", "ingest"]), default="assess")

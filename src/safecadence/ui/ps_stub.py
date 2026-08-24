@@ -65,6 +65,9 @@ _PS_PAGES = {
     "/community": "Community programs",
     "/notify": "Mass Notification",
     "/situations": "Situation Analytics",
+    "/rollcall": "Roll-Call Brief",
+    "/safecheck": "SafeCheck timers",
+    "/custody": "Evidence Custody",
 }
 
 
