@@ -64,6 +64,7 @@ _PS_PAGES = {
     "/facilitywatch": "FacilityWatch weekly report",
     "/community": "Community programs",
     "/notify": "Mass Notification",
+    "/situations": "Situation Analytics",
 }
 
 

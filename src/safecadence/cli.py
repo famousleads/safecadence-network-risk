@@ -366,6 +366,54 @@ def facilitywatch_cmd(action: str, facility_name: str, out: str) -> None:
         _print(f"send: {out2}")
 
 
+@cli.command("situations")
+@click.argument("action", type=click.Choice(
+    ["assess", "status", "demo", "ingest"]), default="assess")
+@click.option("--window", default=30, help="Correlation window (minutes).")
+@click.option("--json", "json_payload", default="",
+               help="Event JSON for `ingest` (one analytics event).")
+def situations_cmd(action: str, window: int, json_payload: str) -> None:
+    """Situation Analytics — events from your cameras, connected.
+
+    \b
+      safecadence situations assess          correlate the recent window
+      safecadence situations status          events + policy summary
+      safecadence situations demo            seed labeled sample events
+      safecadence situations ingest --json '{"event_type":"person",...}'
+    """
+    try:
+        from safecadence import situation as st
+    except ImportError:
+        _print("Situation Analytics ships with the Public Safety add-on:\n"
+                "    pip install safecadence-publicsafety")
+        return
+    if action == "assess":
+        cards = st.assess(window)
+        note = st.situation_note(cards)
+        _print(note["note"])
+        for c in cards:
+            _print(f"[{c['severity'].upper()}] {c['headline']} "
+                    f"(conf {c['confidence']})")
+            for ev in c["evidence"]:
+                _print(f"    - {ev}")
+            _print(f"    -> {c['recommended_action']}")
+        if not cards:
+            _print("(no correlated situations in the window)")
+    elif action == "status":
+        _print(json.dumps(st.summary(window), indent=1))
+    elif action == "demo":
+        out = st.seed_demo()
+        _print(f"Seeded {out['seeded']} sample events -> "
+                f"{out['situations']} situation(s). "
+                "Run `safecadence situations assess`.")
+    elif action == "ingest":
+        if not json_payload:
+            _print("Pass --json '{...}' with one analytics event.")
+            raise SystemExit(1)
+        rec = st.ingest_video_event(json.loads(json_payload))
+        _print(json.dumps(rec, indent=1))
+
+
 @cli.command("notify")
 @click.argument("action", type=click.Choice(
     ["status", "send", "groups", "log", "verify", "test"]),

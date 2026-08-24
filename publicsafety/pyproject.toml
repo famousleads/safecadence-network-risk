@@ -45,3 +45,4 @@ bypass-selection = true
 "../src/safecadence/community.py" = "safecadence/community.py"
 "../src/safecadence/watch_intel.py" = "safecadence/watch_intel.py"
 "../src/safecadence/mass_notify.py" = "safecadence/mass_notify.py"
+"../src/safecadence/situation.py" = "safecadence/situation.py"

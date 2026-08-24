@@ -1,6 +1,27 @@
 # Changelog
 
-## [16.6.0] — 2026-08-24 — Mass Notification: trigger, approve, deliver, prove
+## [16.6.0] — 2026-08-24 — Mass Notification + Situation Analytics
+
+**Situation Analytics** (Public Safety add-on): the layer above video
+analytics. SafeCadence ingests analytics EVENTS from the cameras,
+VMSes, and certified detection vendors the agency already owns (ONVIF
+edge analytics, VMS event bridges, gun-detection webhooks — loose
+vendor shapes normalized automatically) and correlates them across
+cameras, doors, incidents, and time into situation cards with
+confidence, evidence, and one recommended action: possible break-in
+(door forced + person), weapon detected (always critical; recommends
+preparing the lockdown notification — named approver required),
+after-hours activity clusters, camera tampering (escalates when a
+neighboring camera is already dark), crowd building, persistent
+loitering. Plain-language watch note (AI-written when a key is
+configured, grounded only in the cards; deterministic otherwise).
+Explicit AI-use policy shipped in-product: no video content ingestion,
+no facial recognition, no biometric identification, no autonomous
+action — metadata events only, on the agency's hardware. CLI
+`safecadence situations assess|status|demo|ingest`; hosted
+`/situations` page + `/api/v1/desat/video-event` ingestion endpoint.
+
+## Mass Notification — trigger, approve, deliver, prove
 
 New Mass Notification layer (ships with the Public Safety add-on).
 SafeCadence is the intelligence and accountability layer — every alert

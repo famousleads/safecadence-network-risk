@@ -700,6 +700,56 @@ async function cmCheck(id){
 cmLoad();
 """
 
+# ============================================================ situations page
+
+_SITUATION_BODY = """
+<h1 style="margin:0 0 4px">🧿 Situation Analytics</h1>
+<p class="muted" style="margin:0 0 10px;font-size:12.5px">
+  Your cameras and detection systems already raise events — person,
+  vehicle, door forced, weapon, crowd, tamper. SafeCadence connects
+  them across cameras, doors, and time into <b>situations</b> a
+  dispatcher can act on. Detection stays with your certified vendors;
+  we never watch video, never identify faces, never act on our own.
+</p>
+<div id="st-note" class="card" style="font-size:13px;margin-bottom:12px">Loading…</div>
+<div id="st-cards" style="display:grid;gap:10px"></div>
+<details class="card" style="margin-top:14px">
+  <summary style="cursor:pointer;font-size:13px">Recent analytics events + AI use policy</summary>
+  <div id="st-summary" class="muted" style="font-size:12px;margin-top:8px"></div>
+  <p id="st-policy" class="muted" style="font-size:11.5px;margin-top:8px"></p>
+</details>
+"""
+
+_SITUATION_SCRIPT = r"""
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+var ST_SEV={critical:"#d93b3b",high:"#b87513",medium:"#0e7c86",low:"#647386"};
+async function stLoad(){
+  try{
+    const j=await (await fetch("/api/v1/desat/situations?window=45")).json();
+    document.getElementById("st-note").innerHTML=
+      "<b>Watch note"+(j.note.ai_generated?" (AI, grounded)":"")+":</b> "+esc(j.note.note);
+    document.getElementById("st-cards").innerHTML=(j.situations||[]).map(c=>
+      `<div class="card" style="border-left:5px solid ${ST_SEV[c.severity]||"#647386"};border-radius:0">
+        <div style="font-size:14px;font-weight:700">${esc(c.headline)}
+          <span class="muted" style="font-size:11px">· confidence ${esc(c.confidence)}</span></div>
+        <div class="muted" style="font-size:12px;margin:4px 0">${(c.evidence||[]).map(e=>"• "+esc(e)).join("<br>")}</div>
+        <div style="font-size:12.5px;color:#0e7c86;font-weight:600">→ ${esc(c.recommended_action)}</div>
+      </div>`).join("")
+      ||'<div class="card" style="font-size:13px">No correlated situations in the window — quiet is the goal. ✅</div>';
+    const s=j.summary;
+    document.getElementById("st-summary").textContent=
+      s.events_in_window+" analytics event(s) in the last "+s.window_minutes+
+      " min ("+(s.event_types||[]).join(", ")+") from your cameras, VMS, and detection vendors.";
+    document.getElementById("st-policy").textContent=s.ai_use_policy;
+  }catch(e){
+    document.getElementById("st-note").textContent="Could not load situations.";
+  }
+}
+stLoad();
+setInterval(stLoad, 20000);
+"""
+
 # ============================================================ notify page
 
 _NOTIFY_BODY = """
@@ -1016,6 +1066,35 @@ def register(app) -> None:                              # pragma: no cover
         _api_gate()
         from safecadence import evidencewatch as ew
         return ew.build_report(profile="campus")
+
+    # ---- Situation Analytics (events in, situations out) -------------
+    @app.get("/api/v1/desat/situations")
+    def situations_get(window: int = 30):
+        _api_gate()
+        from safecadence import situation
+        cards = situation.assess(window)
+        return {"summary": situation.summary(window), "situations": cards,
+                 "note": situation.situation_note(cards)}
+
+    @app.post("/api/v1/desat/video-event")
+    def video_event_ingest(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence import situation
+        try:
+            return situation.ingest_video_event(payload)
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.post("/api/v1/desat/situations/demo")
+    def situations_demo():
+        _api_gate()
+        from safecadence import situation
+        return situation.seed_demo()
+
+    @app.get("/situations", response_class=HTMLResponse)
+    def situations_page():
+        return _page("Situation Analytics", _SITUATION_BODY,
+                      _SITUATION_SCRIPT)
 
     # ---- Mass Notification (trigger + approve + prove) ---------------
     @app.get("/api/v1/desat/notify")

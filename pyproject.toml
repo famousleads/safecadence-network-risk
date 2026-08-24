@@ -102,6 +102,7 @@ exclude = [
     "src/safecadence/community.py",
     "src/safecadence/watch_intel.py",
     "src/safecadence/mass_notify.py",
+    "src/safecadence/situation.py",
 ]
 
 # YAML rule packs / CVE / EOL data live under src/safecadence/data and are
@@ -130,6 +131,7 @@ exclude = [
     "src/safecadence/community.py",
     "src/safecadence/watch_intel.py",
     "src/safecadence/mass_notify.py",
+    "src/safecadence/situation.py",
     # PS-dependent tests ship with the add-on's repo view, not the
     # core sdist (they import the excluded modules).
     "tests/test_public_safety.py",
@@ -142,6 +144,7 @@ exclude = [
     "tests/test_community.py",
     "tests/test_watch_intel.py",
     "tests/test_mass_notify.py",
+    "tests/test_situation.py",
 ]
 
 [tool.ruff]
