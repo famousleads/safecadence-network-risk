@@ -1,6 +1,6 @@
 # Changelog
 
-## [16.6.0] — 2026-08-24 — Mass Notification + Situation Analytics
+## [16.6.1] — 2026-08-24 — Situation Analytics
 
 **Situation Analytics** (Public Safety add-on): the layer above video
 analytics. SafeCadence ingests analytics EVENTS from the cameras,
@@ -21,7 +21,7 @@ action — metadata events only, on the agency's hardware. CLI
 `safecadence situations assess|status|demo|ingest`; hosted
 `/situations` page + `/api/v1/desat/video-event` ingestion endpoint.
 
-## Mass Notification — trigger, approve, deliver, prove
+## [16.6.0] — 2026-08-24 — Mass Notification: trigger, approve, deliver, prove
 
 New Mass Notification layer (ships with the Public Safety add-on).
 SafeCadence is the intelligence and accountability layer — every alert
