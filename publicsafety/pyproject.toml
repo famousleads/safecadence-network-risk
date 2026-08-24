@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "safecadence-publicsafety"
-version = "1.1.0"
+version = "1.2.0"
 description = "SafeCadence Public Safety — situational awareness for law-enforcement agencies: asset map, evidence-infrastructure health, incidents, events, CJIS Security Policy mapping. Add-on for safecadence-netrisk; free 90-day trial starts on first use. Local-first: your data never leaves your network."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Security",
 ]
 dependencies = [
-    "safecadence-netrisk>=16.4.0",
+    "safecadence-netrisk>=16.5.0",
 ]
 
 [project.urls]
@@ -42,3 +42,5 @@ bypass-selection = true
 "../src/safecadence/demo_sheriff.py" = "safecadence/demo_sheriff.py"
 "../src/safecadence/evidencewatch.py" = "safecadence/evidencewatch.py"
 "../src/safecadence/demo_campus.py" = "safecadence/demo_campus.py"
+"../src/safecadence/community.py" = "safecadence/community.py"
+"../src/safecadence/watch_intel.py" = "safecadence/watch_intel.py"

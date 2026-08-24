@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "safecadence-netrisk"
-version = "16.4.0"
+version = "16.5.0"
 description = "Free, open-source infrastructure + identity platform — 45 adapters (40 infra + 5 identity), 22 controls, 16 multi-vendor translators, AI policy intelligence, attack-path graph, KEV+EPSS-prioritized CVEs, cross-system drift detection, local-first, BYO-AI, never executes."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -99,6 +99,8 @@ exclude = [
     "src/safecadence/demo_sheriff.py",
     "src/safecadence/evidencewatch.py",
     "src/safecadence/demo_campus.py",
+    "src/safecadence/community.py",
+    "src/safecadence/watch_intel.py",
 ]
 
 # YAML rule packs / CVE / EOL data live under src/safecadence/data and are
@@ -124,6 +126,8 @@ exclude = [
     "src/safecadence/demo_sheriff.py",
     "src/safecadence/evidencewatch.py",
     "src/safecadence/demo_campus.py",
+    "src/safecadence/community.py",
+    "src/safecadence/watch_intel.py",
     # PS-dependent tests ship with the add-on's repo view, not the
     # core sdist (they import the excluded modules).
     "tests/test_public_safety.py",
@@ -133,6 +137,8 @@ exclude = [
     "tests/test_ps_trial.py",
     "tests/test_evidencewatch.py",
     "tests/test_campuswatch.py",
+    "tests/test_community.py",
+    "tests/test_watch_intel.py",
 ]
 
 [tool.ruff]

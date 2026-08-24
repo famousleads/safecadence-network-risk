@@ -507,5 +507,10 @@ def create_app(*, db_url: Optional[str] = None, jwt_secret: Optional[str] = None
             start_listeners()
     except Exception:                              # pragma: no cover
         pass
+    try:
+        from safecadence.evidencewatch import start_weekly_scheduler
+        start_weekly_scheduler()                   # no-op unless SC_WATCH_WEEKLY=1
+    except Exception:                              # pragma: no cover
+        pass
 
     return app

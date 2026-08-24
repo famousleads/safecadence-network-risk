@@ -198,7 +198,7 @@ def retention_cmd(action: str, dry_run: bool, name: str, actor: str) -> None:
 
 @cli.command("evidencewatch")
 @click.argument("action", type=click.Choice(
-    ["report", "snapshot", "audit", "verify"]), default="report")
+    ["report", "snapshot", "audit", "verify", "send"]), default="report")
 @click.option("--agency", default="", help="Agency name on the report.")
 @click.option("--out", default="", help="Output HTML path (default: data dir).")
 def evidencewatch_cmd(action: str, agency: str, out: str) -> None:
@@ -247,7 +247,7 @@ def evidencewatch_cmd(action: str, agency: str, out: str) -> None:
 
 @cli.command("campuswatch")
 @click.argument("action", type=click.Choice(
-    ["report", "snapshot", "audit", "verify"]), default="report")
+    ["report", "snapshot", "audit", "verify", "send"]), default="report")
 @click.option("--district", default="", help="District name on the report.")
 @click.option("--demo", is_flag=True,
                help="Render from the synthetic demo district.")
@@ -300,6 +300,70 @@ def campuswatch_cmd(action: str, district: str, demo: bool, out: str) -> None:
         else:
             _print(f"CHAIN BROKEN at {v.get('failed_at')}: {v.get('reason')}")
             raise SystemExit(1)
+    elif action == "send":
+        out2 = ew.send_report(profile="campus", agency=district)
+        _print(f"send: {out2}")
+
+
+@cli.command("facilitywatch")
+@click.argument("action", type=click.Choice(
+    ["report", "snapshot", "audit", "verify", "send"]), default="report")
+@click.option("--name", "facility_name", default="",
+               help="Facility/organization name on the report.")
+@click.option("--out", default="", help="Output HTML path (default: data dir).")
+def facilitywatch_cmd(action: str, facility_name: str, out: str) -> None:
+    """FacilityWatch — malls, universities, hospitals, office towers.
+
+    Every camera, every door, every building, weekly — with the audit
+    trail your insurer and counsel will ask for after an incident.
+
+    \b
+      safecadence facilitywatch report     write this week's one-pager
+      safecadence facilitywatch snapshot   record into the audit chain
+      safecadence facilitywatch audit      auditor-ready history pack
+      safecadence facilitywatch verify     verify the snapshot chain
+      safecadence facilitywatch send       email this week's report (SMTP env)
+    """
+    try:
+        from safecadence import evidencewatch as ew
+    except ImportError:
+        _print("FacilityWatch ships with the Public Safety add-on:\n"
+                "    pip install safecadence-publicsafety")
+        return
+    from pathlib import Path as _P
+    if action == "report":
+        r = ew.build_report(None, profile="facility")
+        html = ew.render_report_html(r, agency=facility_name,
+                                       profile="facility")
+        p = _P(out) if out else (ew._data_dir("facility")
+                                   / "onepager-latest.html")
+        p.write_text(html, encoding="utf-8")
+        _print(f"FacilityWatch {r['week']}: {r['overall'].upper()} — "
+                f"{r['dark_count']}/{r['sense_total']} devices dark across "
+                f"{len(r['sites'])} building(s)")
+        _print(f"One-pager written: {p}")
+    elif action == "snapshot":
+        e = ew.snapshot(ew.build_report(None, profile="facility"),
+                         profile="facility")
+        _print(f"Snapshot {e['week']} recorded — {e['overall']} "
+                f"(hash {e['entry_hash'][:16]}…)")
+    elif action == "audit":
+        html = ew.audit_export(agency=facility_name, profile="facility")
+        p = _P(out) if out else (ew._data_dir("facility") / "audit-pack.html")
+        p.write_text(html, encoding="utf-8")
+        v = ew.verify_history("facility")
+        _print(f"Audit pack ({v['weeks']} weeks, "
+                f"{'VERIFIED' if v['ok'] else 'CHAIN BROKEN'}): {p}")
+    elif action == "verify":
+        v = ew.verify_history("facility")
+        if v["ok"]:
+            _print(f"VERIFIED — {v['weeks']} weekly snapshot(s).")
+        else:
+            _print(f"CHAIN BROKEN at {v.get('failed_at')}: {v.get('reason')}")
+            raise SystemExit(1)
+    elif action == "send":
+        out2 = ew.send_report(profile="facility", agency=facility_name)
+        _print(f"send: {out2}")
 
 
 @cli.command("scan")

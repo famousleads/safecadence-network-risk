@@ -1,5 +1,44 @@
 # Changelog
 
+## [16.5.0] — 2026-08-23 — Watch Intelligence, FacilityWatch & Community layer
+
+**Watch Intelligence — the platform now connects the dots.** New
+`watch_intel` engine (ships with the Public Safety add-on) correlates
+across every silo the platform watches and puts a "Connecting the
+dots" section at the top of each weekly report: co-located failures
+traced to a shared switch (fix one device, restore four), recorder
+capacity + dark cameras as combined evidence exposure, open incidents
+at sites with no working video, storage pressure relieved by
+legally-due retention purges, community canvass leads, and chronic
+devices that keep going dark across weekly snapshots (replace, don't
+re-repair). Correlations are computed deterministically from device
+records — every one carries its evidence. With an Anthropic/OpenAI
+key configured the analyst's note is AI-written and grounded strictly
+in those computed facts (`SC_WATCH_AI=0` disables); without a key the
+note is generated deterministically. Nothing leaves your network
+either way.
+
+**FacilityWatch** — third skin of the weekly-watch engine for malls,
+universities, hospitals, office towers, and property portfolios:
+per-building rollup, doors + cameras first-class, commercial
+liability framing. `safecadence facilitywatch report|snapshot|audit|
+verify|send`, hosted at `/facilitywatch`.
+
+**Community layer** (add-on) — consent-based Camera Registry
+(volunteered "you may contact me" entries; consent is a mandatory
+recorded field; owners can withdraw anytime) and Watch Requests
+(vacation/business checks with attributable per-officer logs and
+auto-expiry). Agency-entered only — no public intake, no feeds, no
+monitoring. `/community` page + APIs; registry/watch pins on the
+Command overview map.
+
+**Weekly delivery** — `SC_WATCH_WEEKLY=1` emails the Monday report
+for the profiles in `SC_WATCH_PROFILES` via your own SMTP relay
+(`SC_SMTP_*`, `SC_WATCH_EMAIL_TO`), and every send is recorded into
+the tamper-evident audit chain. New `send` action on all three watch
+CLIs.
+
+
 ## [16.4.0] — 2026-08-23 — Public Safety split into its own package + free 90-day trial
 
 **The Public Safety module now ships as a separate distribution:**

@@ -59,6 +59,10 @@ _PS_PAGES = {
     "/evidence-infrastructure": "Evidence infrastructure",
     "/incidents": "Incidents",
     "/events": "Events",
+    "/evidencewatch": "EvidenceWatch weekly report",
+    "/campuswatch": "CampusWatch weekly report",
+    "/facilitywatch": "FacilityWatch weekly report",
+    "/community": "Community programs",
 }
 
 

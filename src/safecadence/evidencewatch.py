@@ -81,6 +81,30 @@ PROFILES: dict[str, dict[str, Any]] = {
                     "data is touched, nothing leaves your network. "
                     "SafeCadence CampusWatch."),
     },
+    # FacilityWatch — the commercial skin: malls, universities, hospitals,
+    # office towers, warehouses, stadiums, property portfolios. Same
+    # engine; buildings instead of schools, liability/insurance framing
+    # instead of evidence-chain framing.
+    "facility": {
+        "title": "FACILITYWATCH",
+        "watched_types": _SENSE_TYPES | _DOOR_TYPES,
+        "dark_heading": "DARK CAMERAS, DOORS & DEVICES",
+        "site_word": "building",
+        "include_chain": False,
+        "per_site_block": True,
+        "storage_heading": "VIDEO STORAGE & RECORDING",
+        "dark_action": ("Restore '{name}' at {site} — offline {days} day(s). "
+                          "When something happens, the first question is "
+                          "'was it on camera?' — make the answer yes."),
+        "storage_action": ("Video storage '{name}' is at {pct}% "
+                             "(replication '{repl}') — recordings may stop or "
+                             "overwrite before a claim is filed. Add capacity "
+                             "this week."),
+        "dir": "facilitywatch",
+        "footer": ("Computed entirely on your own hardware from your device "
+                    "inventory — no video content is read, nothing leaves "
+                    "your network. SafeCadence FacilityWatch."),
+    },
 }
 
 
@@ -226,7 +250,7 @@ def build_report(assets: list[dict] | None = None,
     elif chain.get("overall_status") == "warning":
         overall = "warning"
 
-    return {
+    report = {
         "generated_at": _now().isoformat(),
         "week": _now().strftime("%G-W%V"),
         "profile": profile,
@@ -244,6 +268,15 @@ def build_report(assets: list[dict] | None = None,
         "action": action,
         "asset_count": len(assets or []),
     }
+
+    # --- Watch Intelligence: connect the dots across silos ----------
+    try:
+        from safecadence.watch_intel import build_intel
+        report["intel"] = build_intel(report, assets, profile)
+    except Exception:
+        report["intel"] = {"correlations": [], "correlation_count": 0,
+                            "note": "", "ai_generated": False}
+    return report
 
 
 # ------------------------------------------------------------------ history (the Audit Button)
@@ -353,11 +386,12 @@ def render_report_html(report: dict | None = None,
             for x in r["sites"])
         school_block = (
             "<p style='margin:0 0 4px;font-size:12px;color:#647386;"
-            "font-weight:800;letter-spacing:.06em'>PER-SCHOOL COVERAGE</p>"
+            "font-weight:800;letter-spacing:.06em'>PER-"
+            f"{_e(prof['site_word'].upper())} COVERAGE</p>"
             "<table style='width:100%;border-collapse:collapse;font-size:13px;"
             "margin-bottom:16px;border:1px solid #e4ede8'>"
             "<tr style='background:#eef4f1;text-align:left'>"
-            "<th style='padding:6px 10px'>School</th>"
+            f"<th style='padding:6px 10px'>{_e(prof['site_word'].title())}</th>"
             "<th style='padding:6px 10px'>Devices</th>"
             "<th style='padding:6px 10px'>Dark</th></tr>"
             f"{rows2}</table>")
@@ -368,6 +402,31 @@ def render_report_html(report: dict | None = None,
             "font-weight:800;letter-spacing:.06em'>EVIDENCE CHAIN</p>"
             f"<p style='margin:0 0 4px;font-size:13.5px'>{_e(r['chain']['headline'] or '')}</p>"
             f"<p style='margin:0 0 16px;font-size:12.5px;color:#40556a'>{stages}</p>")
+    intel = r.get("intel") or {}
+    intel_block = ""
+    if intel.get("note"):
+        sev_c = {"critical": "#dc2626", "high": "#d97706",
+                  "medium": "#0e7c86", "low": "#64748b"}
+        corr_rows = "".join(
+            "<div style='padding:8px 12px;border-left:3px solid "
+            f"{sev_c.get(cr.get('severity'), '#64748b')};background:#f8fafb;"
+            "margin-bottom:6px;border-radius:0 6px 6px 0'>"
+            f"<div style='font-size:13px;font-weight:700'>{_e(cr.get('headline'))}</div>"
+            f"<div style='font-size:12px;color:#40556a;margin-top:2px'>→ {_e(cr.get('recommendation'))}</div>"
+            "</div>"
+            for cr in (intel.get("correlations") or [])[:4])
+        tag = ("AI-assisted · grounded in device records"
+                if intel.get("ai_generated")
+                else "computed from device records")
+        intel_block = (
+            "<p style='margin:0 0 4px;font-size:12px;color:#647386;"
+            "font-weight:800;letter-spacing:.06em'>🧠 CONNECTING THE DOTS "
+            f"<span style='font-weight:600;text-transform:none;"
+            f"letter-spacing:0'>· {tag}</span></p>"
+            "<p style='margin:0 0 10px;font-size:13.5px;font-style:italic;"
+            f"color:#173d42'>{_e(intel.get('note'))}</p>"
+            f"{corr_rows}"
+            "<div style='margin-bottom:14px'></div>")
     return f"""<!doctype html><html><head><meta charset="utf-8">
 <title>{_e(title)} — week {_e(r['week'])}</title></head>
 <body style="margin:0;background:#f4f6f5;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#102033">
@@ -381,6 +440,8 @@ def render_report_html(report: dict | None = None,
   <div style="padding:16px 18px">
    <p style="margin:0 0 4px;font-size:12px;color:#647386;font-weight:800;letter-spacing:.06em">THIS WEEK'S ONE ACTION</p>
    <p style="margin:0 0 16px;font-size:14.5px;font-weight:650;border-left:4px solid {c};padding:8px 12px;background:#f7fbf8">{_e(r['action'])}</p>
+
+   {intel_block}
 
    <p style="margin:0 0 4px;font-size:12px;color:#647386;font-weight:800;letter-spacing:.06em">{prof['dark_heading']} ({_e(r['dark_count'])} of {_e(r['sense_total'])})</p>
    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;border:1px solid #e4ede8">{dark_rows}</table>
@@ -437,6 +498,99 @@ def audit_export(agency: str = "", profile: str = "agency") -> str:
   <tbody>{''.join(rows) or '<tr><td style="padding:8px" colspan="5">no snapshots yet</td></tr>'}</tbody>
  </table>
  <p style="font-size:11.5px;color:#647386">Each entry embeds the SHA-256 of the
- previous entry; re-verify anytime with <code>safecadence {'campuswatch' if prof is PROFILES['campus'] else 'evidencewatch'} verify</code>.
+ previous entry; re-verify anytime with <code>safecadence {prof['dir']} verify</code>.
  Point-in-time monitoring support material — not an audit, attestation, or certification.</p>
 </div></body></html>"""
+
+
+# ------------------------------------------------------------------ delivery
+
+def smtp_configured() -> bool:
+    return bool(os.environ.get("SC_SMTP_HOST"))
+
+
+def send_report(profile: str = "agency", agency: str = "",
+                 to: str = "") -> dict[str, Any]:
+    """Email this week's one-pager. Env-gated SMTP (SC_SMTP_HOST/_PORT/
+    _USER/_PASS/_FROM, recipients in SC_WATCH_EMAIL_TO or `to`).
+    Local-first stays true: mail goes to the agency's OWN relay."""
+    to = to or os.environ.get("SC_WATCH_EMAIL_TO", "")
+    if not smtp_configured() or not to:
+        return {"sent": False, "reason": "SMTP or recipient not configured "
+                 "(set SC_SMTP_HOST + SC_WATCH_EMAIL_TO)"}
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    r = build_report(profile=profile)
+    prof = PROFILES.get(profile, PROFILES["agency"])
+    html = render_report_html(r, agency=agency, profile=profile)
+    name = prof["title"].title().replace("watch", "Watch")
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = (f"{name} — {r['overall'].upper()} — week {r['week']}"
+                       + (f" — {agency}" if agency else ""))
+    msg["From"] = os.environ.get("SC_SMTP_FROM", "watch@localhost")
+    msg["To"] = to
+    msg.attach(MIMEText(
+        f"{name} weekly report. Overall: {r['overall']}. "
+        f"{r['dark_count']} of {r['sense_total']} devices dark. "
+        f"Action: {r['action']}", "plain"))
+    msg.attach(MIMEText(html, "html"))
+    host = os.environ["SC_SMTP_HOST"]
+    port = int(os.environ.get("SC_SMTP_PORT", "587"))
+    user = os.environ.get("SC_SMTP_USER", "")
+    pw = os.environ.get("SC_SMTP_PASS", "")
+    with smtplib.SMTP(host, port, timeout=20) as s:
+        s.ehlo()
+        try:
+            s.starttls(); s.ehlo()
+        except smtplib.SMTPException:
+            pass                                   # internal relay w/o TLS
+        if user:
+            s.login(user, pw)
+        s.sendmail(msg["From"], [a.strip() for a in to.split(",")],
+                    msg.as_string())
+    snapshot(r, profile=profile)                   # sent week = recorded week
+    return {"sent": True, "to": to, "week": r["week"],
+             "overall": r["overall"]}
+
+
+_SCHED = {"thread": None}
+
+
+def start_weekly_scheduler() -> bool:
+    """Env-gated (SC_WATCH_WEEKLY=1): hourly check; each Monday (UTC),
+    snapshot + email the profiles in SC_WATCH_PROFILES (default: agency;
+    districts set `campus`, property/commercial set `facility`).
+    Idempotent per week via the snapshot history."""
+    if os.environ.get("SC_WATCH_WEEKLY") != "1" or _SCHED["thread"]:
+        return False
+    import threading
+    import time as _time
+
+    def _loop() -> None:
+        while True:
+            try:
+                now = _now()
+                if now.weekday() == 0:             # Monday
+                    week = now.strftime("%G-W%V")
+                    wanted = [p.strip() for p in os.environ.get(
+                        "SC_WATCH_PROFILES", "agency").split(",")
+                        if p.strip() in PROFILES]
+                    for profile in wanted:
+                        done = any(f.name == f"week-{week}.json"
+                                    for f in _hist_files(profile))
+                        if done:
+                            continue
+                        agency = os.environ.get("SC_WATCH_AGENCY", "")
+                        out = send_report(profile=profile, agency=agency)
+                        if not out.get("sent"):
+                            snapshot(build_report(profile=profile),
+                                      profile=profile)   # record even unmailed
+            except Exception:
+                pass                               # never kill the loop
+            _time.sleep(3600)
+
+    t = threading.Thread(target=_loop, name="sc-watch-weekly", daemon=True)
+    t.start()
+    _SCHED["thread"] = t
+    return True

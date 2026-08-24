@@ -85,3 +85,46 @@ def test_ui_routes(_iso):
     assert r.status_code == 200 and r.json()["sense_total"] > 0
     r = c.get("/evidencewatch/audit")
     assert r.status_code == 200 and "Audit Pack" in r.text
+
+
+def test_send_report_smtp_mocked(_iso, monkeypatch):
+    """Delivery loop: send_report builds the mail, sends via SMTP env,
+    and records the sent week into the audit chain."""
+    import smtplib
+    from safecadence import evidencewatch as ew
+
+    sent = {}
+
+    class _FakeSMTP:
+        def __init__(self, host, port, timeout=0):
+            sent["host"], sent["port"] = host, port
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+        def ehlo(self):
+            pass
+        def starttls(self):
+            raise smtplib.SMTPException("no tls on internal relay")
+        def login(self, u, p):
+            sent["login"] = u
+        def sendmail(self, frm, to, msg):
+            sent["from"], sent["to"], sent["msg"] = frm, to, msg
+
+    monkeypatch.setattr(smtplib, "SMTP", _FakeSMTP)
+    # unconfigured → honest no-send
+    monkeypatch.delenv("SC_SMTP_HOST", raising=False)
+    out = ew.send_report(profile="agency")
+    assert out["sent"] is False and "not configured" in out["reason"]
+
+    monkeypatch.setenv("SC_SMTP_HOST", "relay.local")
+    monkeypatch.setenv("SC_SMTP_FROM", "watch@agency.local")
+    monkeypatch.setenv("SC_WATCH_EMAIL_TO", "sheriff@agency.local, it@agency.local")
+    out = ew.send_report(profile="agency", agency="Test SO")
+    assert out["sent"] is True
+    assert sent["host"] == "relay.local"
+    assert sent["to"] == ["sheriff@agency.local", "it@agency.local"]
+    assert "EvidenceWatch" in sent["msg"]
+    # sent week == recorded week (audit chain got the snapshot)
+    v = ew.verify_history("agency")
+    assert v["ok"] and v["weeks"] == 1

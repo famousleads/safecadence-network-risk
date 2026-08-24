@@ -48,6 +48,8 @@ _MAP_BODY = """
   border-left:4px solid #2dd4bf;border-radius:999px;padding:3px 9px;
   font-size:11px;font-weight:700;color:#bff2e7;cursor:default}
 .sc-unit small{font-weight:600;color:#7fae9a;text-transform:uppercase;font-size:8.5px;letter-spacing:.05em}
+.sc-com{position:absolute;transform:translate(-50%,-50%);z-index:2;font-size:11px;
+  opacity:.85;cursor:default;filter:drop-shadow(0 0 3px rgba(0,0,0,.7))}
 .sc-chip{position:absolute;left:10px;top:10px;z-index:6;font-size:9.5px;font-weight:800;
   letter-spacing:.07em;color:#9fe8dc;background:rgba(10,25,28,.85);
   border:1px solid rgba(45,212,191,.35);border-radius:20px;padding:3px 9px}
@@ -108,6 +110,9 @@ _MAP_BODY = """
     </div>
   </div>
 </div>
+<p class="muted" style="margin:6px 2px 0;font-size:11.5px">
+  🤝 Community layer: <span id="sc-com-line">—</span> ·
+  <a href="/community" style="color:inherit">manage</a></p>
 <div class="sc-strip">
   <div class="hd"><h2>Open incidents &amp; alerts</h2><span>highest severity first</span></div>
   <div id="sc-strip-rows"><span class="muted" style="font-size:12px">loading…</span></div>
@@ -228,6 +233,26 @@ async function mapLoad(){
     el.className="sc-unit";el.style.left=u.x.toFixed(2)+"%";el.style.top=u.y.toFixed(2)+"%";
     u.el=el;setUnit(u);tac.appendChild(el);
   }
+  /* community layer: consent-based registry cameras + active watches */
+  try{
+    const cr=await fetch("/api/v1/desat/community");
+    if(cr.ok){
+      const com=await cr.json();
+      for(const pt of (com.map_points||[]).slice(0,60)){
+        let [cx,cy]=pr(pt.lon,pt.lat);
+        cx=Math.max(2,Math.min(97,cx));cy=Math.max(3,Math.min(95,cy));
+        const el=document.createElement("span");
+        el.className="sc-com";el.style.left=cx.toFixed(2)+"%";el.style.top=cy.toFixed(2)+"%";
+        el.title=(pt.kind==="watch"?"Watch request: ":"Registered camera: ")+
+          (pt.label||"")+" · "+(pt.meta||"");
+        el.textContent=pt.kind==="watch"?"🏠":"📷";
+        tac.appendChild(el);
+      }
+      const cs=document.getElementById("sc-com-line");
+      if(cs)cs.textContent=(com.registered_cameras||0)+" registered cameras · "+
+        (com.active_watches||0)+" active watch requests";
+    }
+  }catch(e){}
   const crit=feats.filter(function(f){return f.properties.risk_band==="critical"||f.properties.risk_band==="high";}).length;
   document.getElementById("scp-n").textContent=feats.length;
   document.getElementById("scp-s").textContent="assets on the county map";
@@ -570,6 +595,111 @@ evtLoad();
 """
 
 
+# ============================================================ community page
+
+_COMMUNITY_BODY = """
+<h1 style="margin:0 0 4px">🤝 Community</h1>
+<p class="muted" style="margin:0 0 14px;font-size:12.5px">
+  Consent-based programs, agency-controlled. The Camera Registry lists
+  residents who <b>volunteered</b> to be contacted — no feeds, no access,
+  no monitoring. Watch Requests digitize vacation/business checks.
+  No social feeds, no public reporting, nothing leaves your network.
+</p>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" class="cm-grid">
+ <div class="card">
+  <h2 style="font-size:15px;margin:0 0 4px">📷 Camera Registry <span class="muted" id="cm-cam-count" style="font-size:11px"></span></h2>
+  <div id="cm-cams" style="font-size:12.5px"></div>
+  <details style="margin-top:10px"><summary style="cursor:pointer;font-size:12.5px">Register a camera (staff entry)</summary>
+   <div style="display:grid;gap:6px;margin-top:8px;font-size:12px">
+    <input id="cm-owner" placeholder="Owner name">
+    <input id="cm-contact" placeholder="Contact (phone or email)">
+    <input id="cm-address" placeholder="Address">
+    <div style="display:flex;gap:6px"><input id="cm-lat" placeholder="Latitude"><input id="cm-lon" placeholder="Longitude"></div>
+    <select id="cm-kind"><option>residential</option><option>doorbell</option><option>business</option><option>hoa</option><option>other</option></select>
+    <label style="font-size:12px"><input type="checkbox" id="cm-consent">
+      Owner has explicitly consented to be listed and contacted. <b>Required.</b></label>
+    <button onclick="cmAddCam()">Add to registry</button>
+   </div>
+  </details>
+ </div>
+ <div class="card">
+  <h2 style="font-size:15px;margin:0 0 4px">🏠 Watch Requests <span class="muted" id="cm-watch-count" style="font-size:11px"></span></h2>
+  <div id="cm-watches" style="font-size:12.5px"></div>
+  <details style="margin-top:10px"><summary style="cursor:pointer;font-size:12.5px">New watch request (staff entry)</summary>
+   <div style="display:grid;gap:6px;margin-top:8px;font-size:12px">
+    <input id="wr-name" placeholder="Requester name">
+    <input id="wr-contact" placeholder="Contact">
+    <input id="wr-address" placeholder="Address">
+    <div style="display:flex;gap:6px"><input id="wr-lat" placeholder="Latitude"><input id="wr-lon" placeholder="Longitude"></div>
+    <div style="display:flex;gap:6px"><input id="wr-start" type="date"><input id="wr-end" type="date"></div>
+    <button onclick="cmAddWatch()">Create watch</button>
+   </div>
+  </details>
+ </div>
+</div>
+"""
+
+_COMMUNITY_SCRIPT = r"""
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+async function cmLoad(){
+  try{
+    const r=await fetch("/api/v1/desat/community/cameras");
+    if(r.ok){const cams=(await r.json()).cameras;
+      document.getElementById("cm-cam-count").textContent=cams.length+" registered";
+      document.getElementById("cm-cams").innerHTML=cams.slice(0,25).map(c=>
+        `<div style="padding:6px 0;border-bottom:1px solid var(--line,rgba(255,255,255,.08))">
+          <b>${esc(c.owner_name)}</b> · ${esc(c.camera_kind)} · ${esc(c.address)}
+          <span class="muted" style="font-size:11px">· ${esc(c.contact)}</span></div>`).join("")
+        ||'<span class="muted">No cameras registered yet.</span>';}
+  }catch(e){}
+  try{
+    const r=await fetch("/api/v1/desat/community/watches");
+    if(r.ok){const ws=(await r.json()).watches;
+      const act=ws.filter(w=>w.status==="active");
+      document.getElementById("cm-watch-count").textContent=act.length+" active";
+      document.getElementById("cm-watches").innerHTML=ws.slice(0,25).map(w=>
+        `<div style="padding:6px 0;border-bottom:1px solid var(--line,rgba(255,255,255,.08))">
+          <b>${esc(w.requester_name)}</b> · ${esc(w.address)}
+          <span class="muted" style="font-size:11px">· ${esc(w.start_date)} → ${esc(w.end_date)}
+          · ${esc(w.status)} · ${(w.checks||[]).length} check(s)</span>
+          ${w.status==="active"?`<button style="width:auto;padding:2px 8px;font-size:11px;margin-left:6px"
+            onclick="cmCheck('${esc(w.id)}')">Log check</button>`:""}</div>`).join("")
+        ||'<span class="muted">No watch requests.</span>';}
+  }catch(e){}
+}
+async function cmAddCam(){
+  const v=id=>document.getElementById(id).value;
+  const r=await fetch("/api/v1/desat/community/cameras",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({owner_name:v("cm-owner"),contact:v("cm-contact"),
+      address:v("cm-address"),latitude:parseFloat(v("cm-lat")),
+      longitude:parseFloat(v("cm-lon")),camera_kind:v("cm-kind"),
+      consent_confirmed:document.getElementById("cm-consent").checked})});
+  if(!r.ok){alert((await r.json()).detail||"failed");return;}
+  cmLoad();
+}
+async function cmAddWatch(){
+  const v=id=>document.getElementById(id).value;
+  const r=await fetch("/api/v1/desat/community/watches",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({requester_name:v("wr-name"),contact:v("wr-contact"),
+      address:v("wr-address"),latitude:parseFloat(v("wr-lat")),
+      longitude:parseFloat(v("wr-lon")),start_date:v("wr-start"),end_date:v("wr-end")})});
+  if(!r.ok){alert((await r.json()).detail||"failed");return;}
+  cmLoad();
+}
+async function cmCheck(id){
+  const officer=prompt("Officer name for this check:");
+  if(!officer)return;
+  await fetch("/api/v1/desat/community/watches/check",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({id:id,officer:officer})});
+  cmLoad();
+}
+cmLoad();
+"""
+
 # ============================================================ licensing gate
 
 _UPSELL_BODY = """
@@ -789,6 +919,118 @@ def register(app) -> None:                              # pragma: no cover
         _api_gate()
         from safecadence import evidencewatch as ew
         return ew.build_report(profile="campus")
+
+    @app.get("/facilitywatch", response_class=HTMLResponse)
+    def facilitywatch_page(name: str = ""):
+        _api_gate()
+        from safecadence import evidencewatch as ew
+        r = ew.build_report(None, profile="facility")
+        return HTMLResponse(ew.render_report_html(r, agency=name,
+                                                    profile="facility"))
+
+    @app.get("/facilitywatch/audit", response_class=HTMLResponse)
+    def facilitywatch_audit(name: str = ""):
+        _api_gate()
+        from safecadence import evidencewatch as ew
+        return HTMLResponse(ew.audit_export(agency=name,
+                                              profile="facility"))
+
+    @app.get("/api/v1/desat/facilitywatch")
+    def facilitywatch_api():
+        _api_gate()
+        from safecadence import evidencewatch as ew
+        return ew.build_report(profile="facility")
+
+    # ---- Community layer (consent-based; agency-entered) -------------
+    @app.get("/api/v1/desat/community")
+    def community_summary():
+        _api_gate()
+        from safecadence import community
+        return community.summary()
+
+    @app.get("/api/v1/desat/community/cameras")
+    def community_cameras(status: str = "active"):
+        _api_gate()
+        from safecadence import community
+        return {"cameras": community.list_cameras(status)}
+
+    @app.get("/api/v1/desat/community/cameras/near")
+    def community_cameras_near(lat: float, lon: float, radius_m: float = 500):
+        _api_gate()
+        from safecadence import community
+        return {"radius_m": radius_m,
+                 "cameras": community.cameras_near(lat, lon, radius_m)}
+
+    @app.post("/api/v1/desat/community/cameras")
+    def community_camera_add(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence import community
+        try:
+            return community.register_camera(
+                owner_name=str(payload.get("owner_name", "")),
+                contact=str(payload.get("contact", "")),
+                address=str(payload.get("address", "")),
+                latitude=float(payload.get("latitude", 999)),
+                longitude=float(payload.get("longitude", 999)),
+                camera_kind=str(payload.get("camera_kind", "residential")),
+                notes=str(payload.get("notes", "")),
+                consent_confirmed=bool(payload.get("consent_confirmed")),
+                entered_by=str(payload.get("entered_by", "staff")))
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.post("/api/v1/desat/community/cameras/remove")
+    def community_camera_remove(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence import community
+        try:
+            return community.remove_camera(
+                str(payload.get("id", "")),
+                reason=str(payload.get("reason", "owner request")))
+        except KeyError as exc:
+            raise HTTPException(404, "not found") from exc
+
+    @app.get("/api/v1/desat/community/watches")
+    def community_watches(status: str = ""):
+        _api_gate()
+        from safecadence import community
+        return {"watches": community.list_watches(status)}
+
+    @app.post("/api/v1/desat/community/watches")
+    def community_watch_add(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence import community
+        try:
+            return community.request_watch(
+                requester_name=str(payload.get("requester_name", "")),
+                contact=str(payload.get("contact", "")),
+                address=str(payload.get("address", "")),
+                latitude=float(payload.get("latitude", 999)),
+                longitude=float(payload.get("longitude", 999)),
+                start_date=str(payload.get("start_date", "")),
+                end_date=str(payload.get("end_date", "")),
+                notes=str(payload.get("notes", "")),
+                entered_by=str(payload.get("entered_by", "staff")))
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.post("/api/v1/desat/community/watches/check")
+    def community_watch_check(payload: dict = Body(...)):
+        _api_gate()
+        from safecadence import community
+        try:
+            return community.log_check(
+                str(payload.get("id", "")),
+                officer=str(payload.get("officer", "")),
+                note=str(payload.get("note", "")))
+        except KeyError as exc:
+            raise HTTPException(404, "not found") from exc
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.get("/community", response_class=HTMLResponse)
+    def community_page():
+        return _page("Community", _COMMUNITY_BODY, _COMMUNITY_SCRIPT)
 
     # ---- pages -------------------------------------------------------
     @app.get("/map", response_class=HTMLResponse)
