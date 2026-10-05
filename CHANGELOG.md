@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] — 2026-10-05
+## [16.7.1] — 2026-10-05 — compliance wording guardrails
 
 - **Compliance wording guardrails.** Report statuses now read "No gaps indicated / Partial evidence / Gaps indicated" (HTML, Word, PowerPoint) instead of PASS/FAIL. Every compliance section carries a "Human review required — readiness evidence, not an audit/attestation/certification" note and `human_review_required: true` in its JSON. Data keys (`pass/partial/fail`) are unchanged.
 - **Post-scan tip.** After an interactive `scan`, one line (max once a day, never when Cloud Sync is on) explains that Cloud Sync is optional and off by default. No network call; hide with `SC_NO_TIPS=1`.
