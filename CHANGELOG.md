@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased] — 2026-10-05
+
+- **Compliance wording guardrails.** Report statuses now read "No gaps indicated / Partial evidence / Gaps indicated" (HTML, Word, PowerPoint) instead of PASS/FAIL. Every compliance section carries a "Human review required — readiness evidence, not an audit/attestation/certification" note and `human_review_required: true` in its JSON. Data keys (`pass/partial/fail`) are unchanged.
+- **Post-scan tip.** After an interactive `scan`, one line (max once a day, never when Cloud Sync is on) explains that Cloud Sync is optional and off by default. No network call; hide with `SC_NO_TIPS=1`.
+- **Security:** `github-recovery-codes.txt` removed from the repository and ignored.
+
 ## [16.7.0] — 2026-08-24 — Daily operations + Standing Watches
 
 **Standing Watches** — tell the platform what to watch for, in plain

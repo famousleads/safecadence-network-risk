@@ -1080,3 +1080,19 @@ def test_ticketing_token_obfuscated_at_rest(tk_dir):
     raw = (tk_dir / "reports" / "ticketing.json").read_text(encoding="utf-8")
     assert "raw-secret" not in raw
     assert "b64:" in raw
+
+
+def test_compliance_sections_are_hedged_and_carry_human_review_disclaimer():
+    """C2/C3 guardrail (2026-10-05): evidence, never certification."""
+    from safecadence.reports.builder import compose_report
+    from safecadence.reports.sections import COMPLIANCE_SECTION_KEYS, STATUS_LABELS
+    rep = compose_report(sections=["compliance_executive_summary", "compliance_control_matrix", "kpi_summary"], scope={})
+    secs = {s["key"]: s for s in rep["sections"]}
+    for key in ("compliance_executive_summary", "compliance_control_matrix"):
+        s = secs[key]
+        assert s["human_review_required"] is True
+        if s["html_fragment"]:
+            assert "not an audit" in s["html_fragment"].lower() or "NOT a formal audit" in s["html_fragment"]
+            assert ">PASS<" not in s["html_fragment"] and ">FAIL<" not in s["html_fragment"]
+    assert "human_review_required" not in secs["kpi_summary"]
+    assert STATUS_LABELS["pass"] == "No gaps indicated" and "compliance_gap_analysis" in COMPLIANCE_SECTION_KEYS

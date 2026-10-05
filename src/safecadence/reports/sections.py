@@ -44,6 +44,35 @@ except Exception:  # pragma: no cover
 # --------------------------------------------------------------------------
 
 
+
+# Compliance language guardrails (C2/C3, 2026-10-05): NetRisk produces technical
+# EVIDENCE that supports a readiness review. It never certifies compliance.
+# Status labels are hedged; the data keys stay pass/partial/fail for compatibility.
+STATUS_LABELS = {
+    "pass": "No gaps indicated",
+    "partial": "Partial evidence",
+    "fail": "Gaps indicated",
+    "na": "N/A",
+}
+COMPLIANCE_DISCLAIMER = (
+    "Readiness evidence, not an audit. Statuses are derived automatically from "
+    "NetRisk findings at a point in time and indicate where evidence suggests gaps. "
+    "This is NOT a formal audit, attestation, or certification. Final compliance "
+    "opinions require qualified human review (e.g. a CPA firm for SOC 2, a QSA for "
+    "PCI DSS, your Security Risk Analysis for HIPAA) plus policies, procedures and "
+    "interviews outside this scan."
+)
+COMPLIANCE_SECTION_KEYS = frozenset({
+    "compliance_posture", "compliance_executive_summary", "compliance_control_matrix",
+    "compliance_evidence_pack", "compliance_gap_analysis",
+})
+
+
+def compliance_disclaimer_html() -> str:
+    return ('<p class="sc-compliance-disclaimer" style="font-size:11px;color:#64748b;'
+            'border-top:1px solid #e2e8f0;margin-top:12px;padding-top:8px">'
+            '<strong>Human review required.</strong> ' + COMPLIANCE_DISCLAIMER + '</p>')
+
 def _now_iso() -> str:
     return _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -1684,9 +1713,9 @@ def compliance_executive_summary(store: Any, scope: dict) -> dict:
     rows_html = []
     for fw in frameworks:
         score = int(fw.get("score") or 0)
-        band = "PASS" if score >= 85 else "PARTIAL" if score >= 65 else "FAIL"
-        pill = ("sc-pill-green" if band == "PASS"
-                else "sc-pill-medium" if band == "PARTIAL" else "sc-pill-red")
+        band = STATUS_LABELS["pass"] if score >= 85 else STATUS_LABELS["partial"] if score >= 65 else STATUS_LABELS["fail"]
+        pill = ("sc-pill-green" if score >= 85
+                else "sc-pill-medium" if score >= 65 else "sc-pill-red")
         rows_html.append(
             f'<tr><td><strong>{_esc(fw.get("framework",""))}</strong></td>'
             f'<td>{score}%</td>'
@@ -1792,9 +1821,9 @@ def compliance_control_matrix(store: Any, scope: dict) -> dict:
             }
             all_rows.append(row)
             pill = {
-                "pass":    ('sc-pill-green',   "PASS"),
-                "partial": ('sc-pill-medium',  "PARTIAL"),
-                "fail":    ('sc-pill-red',     "FAIL"),
+                "pass":    ('sc-pill-green',   STATUS_LABELS["pass"]),
+                "partial": ('sc-pill-medium',  STATUS_LABELS["partial"]),
+                "fail":    ('sc-pill-red',     STATUS_LABELS["fail"]),
                 "na":      ('sc-pill',         "N/A"),
             }[status]
             sla_pill_class = {
@@ -1829,10 +1858,10 @@ def compliance_control_matrix(store: Any, scope: dict) -> dict:
     by_status = Counter(r["status"] for r in all_rows)
     tiles = (
         '<div class="sc-row" style="margin-bottom:14px">'
-        f'<span class="sc-pill sc-pill-green">PASS: {by_status.get("pass",0)}</span>'
+        f'<span class="sc-pill sc-pill-green">{STATUS_LABELS["pass"]}: {by_status.get("pass",0)}</span>'
         f'<span class="sc-pill" style="background:#fef3c7;color:#854d0e">'
-        f'PARTIAL: {by_status.get("partial",0)}</span>'
-        f'<span class="sc-pill sc-pill-red">FAIL: {by_status.get("fail",0)}</span>'
+        f'{STATUS_LABELS["partial"]}: {by_status.get("partial",0)}</span>'
+        f'<span class="sc-pill sc-pill-red">{STATUS_LABELS["fail"]}: {by_status.get("fail",0)}</span>'
         f'<span class="sc-pill">N/A: {by_status.get("na",0)}</span>'
         f'<span class="sc-pill" style="background:#dbeafe;color:#1e40af">'
         f'Total controls: {len(all_rows)}</span>'
@@ -2356,7 +2385,7 @@ SECTION_REGISTRY: list[dict] = [
      "category": "Compliance", "default_enabled": True,
      "fn": compliance_executive_summary},
     {"key": "compliance_control_matrix", "name": "Compliance control matrix",
-     "description": "Per-control PASS/PARTIAL/FAIL with evidence note (audit-style).",
+     "description": "Per-control evidence status (no gaps / partial / gaps indicated) with evidence note.",
      "category": "Compliance", "default_enabled": True,
      "fn": compliance_control_matrix},
     {"key": "compliance_evidence_pack", "name": "Compliance evidence pack",

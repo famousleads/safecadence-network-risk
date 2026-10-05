@@ -718,6 +718,7 @@ def scan(source, vendor, as_dir, workers, out_dir, output, json_path, html_path,
 
     if not quiet:
         _print_summary(result)
+        _post_scan_tip()
 
     if output:
         Path(output).write_text(to_markdown(result), encoding="utf-8")
@@ -757,6 +758,33 @@ def scan(source, vendor, as_dir, workers, out_dir, output, json_path, html_path,
                     _print(f"Cloud Sync push skipped: {res.get('reason')}")
         except Exception:
             pass
+
+
+def _post_scan_tip() -> None:
+    """One quiet line after a scan, at most once a day, never when Cloud Sync is on.
+
+    Purely local: no network call, nothing is sent. Silence with SC_NO_TIPS=1.
+    """
+    import os
+    from datetime import date
+
+    if os.environ.get("SC_NO_TIPS", "").strip() in {"1", "true", "yes"}:
+        return
+    try:
+        from safecadence import cloud_sync
+        if cloud_sync.is_enabled():
+            return
+        stamp = cloud_sync._config_dir() / ".last_tip"
+        today = date.today().isoformat()
+        if stamp.exists() and stamp.read_text().strip() == today:
+            return
+        stamp.parent.mkdir(parents=True, exist_ok=True)
+        stamp.write_text(today)
+    except Exception:
+        return
+    _print("Tip: want this tracked over time with a what-changed digest? Cloud Sync is optional "
+           "and off by default; nothing leaves this machine unless you connect. "
+           "See `safecadence cloud connect --help`. (Hide tips: SC_NO_TIPS=1)")
 
 
 def _bulk_scan(source, *, workers, out_dir, vendor, criticality, save_history, quiet):

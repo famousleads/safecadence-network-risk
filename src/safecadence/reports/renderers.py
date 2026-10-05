@@ -1457,11 +1457,11 @@ def _docx_compliance_scorecard(report: dict,
     for fw in frameworks:
         score = int(fw.get("score") or 0)
         if score >= 85:
-            status = "PASS";    pill_color = _DOCX_GREEN
+            status = "NO GAPS";    pill_color = _DOCX_GREEN
         elif score >= 65:
             status = "PARTIAL"; pill_color = _DOCX_AMBER
         else:
-            status = "FAIL";    pill_color = _DOCX_RED
+            status = "GAPS";    pill_color = _DOCX_RED
         top = fw.get("top_failures") or fw.get("top_failing") or []
         top_str = ", ".join(
             (c.get("id") or c.get("control") or "") for c in top[:3]
@@ -1519,6 +1519,19 @@ def _docx_action_plan(report: dict) -> str:
 
 
 def _docx_section_block(s: dict, report: dict, idx: int) -> str:
+    """Section block + the human-review disclaimer on every compliance section."""
+    out = _docx_section_block_inner(s, report, idx)
+    try:
+        from safecadence.reports.sections import COMPLIANCE_DISCLAIMER, COMPLIANCE_SECTION_KEYS
+    except Exception:  # pragma: no cover
+        return out
+    if s.get("key") in COMPLIANCE_SECTION_KEYS and not s.get("empty"):
+        out += _docx_para([_docx_run("Human review required. ", bold=True, size_pt=9, color=_DOCX_INK_SOFT),
+                           _docx_run(COMPLIANCE_DISCLAIMER, size_pt=9, color=_DOCX_INK_SOFT)], space_after=160)
+    return out
+
+
+def _docx_section_block_inner(s: dict, report: dict, idx: int) -> str:
     """Render a generic non-flagship section as heading + small table or prose."""
     title = s.get("title") or s.get("key") or ""
     key = s.get("key")
@@ -1602,11 +1615,11 @@ def _docx_section_block(s: dict, report: dict, idx: int) -> str:
             for fw in frameworks:
                 score = int(fw.get("score") or 0)
                 if score >= 85:
-                    status = "PASS"; pc = _DOCX_GREEN
+                    status = "NO GAPS"; pc = _DOCX_GREEN
                 elif score >= 65:
                     status = "PARTIAL"; pc = _DOCX_AMBER
                 else:
-                    status = "FAIL"; pc = _DOCX_RED
+                    status = "GAPS"; pc = _DOCX_RED
                 rows.append([
                     {"text": fw.get("framework") or "", "bold": True},
                     {"text": f"{score}%", "align": "center", "bold": True, "color": pc},
@@ -1625,13 +1638,13 @@ def _docx_section_block(s: dict, report: dict, idx: int) -> str:
         # Tile counts at top
         by_status = data.get("by_status") or {}
         parts.append(_docx_para([
-            _docx_run(f"  PASS {by_status.get('pass',0)}  ", bold=True, size_pt=10,
+            _docx_run(f"  NO GAPS {by_status.get('pass',0)}  ", bold=True, size_pt=10,
                       color=_DOCX_GREEN),
             _docx_run("  ·  ", color=_DOCX_INK_FAINT),
             _docx_run(f"  PARTIAL {by_status.get('partial',0)}  ", bold=True,
                       size_pt=10, color=_DOCX_AMBER),
             _docx_run("  ·  ", color=_DOCX_INK_FAINT),
-            _docx_run(f"  FAIL {by_status.get('fail',0)}  ", bold=True, size_pt=10,
+            _docx_run(f"  GAPS {by_status.get('fail',0)}  ", bold=True, size_pt=10,
                       color=_DOCX_RED),
             _docx_run("  ·  ", color=_DOCX_INK_FAINT),
             _docx_run(f"  Total {len(rows_data)}  ", bold=True, size_pt=10,
@@ -3437,11 +3450,11 @@ def _pptx_compliance_scorecard_slide(report: dict, slide_no: str,
         name = fw.get("framework") or fw.get("name") or ""
         score = int(fw.get("score") or 0)
         if score >= 85:
-            status = "PASS"; col = _PPTX_GREEN
+            status = "NO GAPS"; col = _PPTX_GREEN
         elif score >= 65:
             status = "PARTIAL"; col = _PPTX_AMBER
         else:
-            status = "FAIL"; col = _PPTX_RED
+            status = "GAPS"; col = _PPTX_RED
 
         # Framework name
         shapes.append(_pptx_text_box(
@@ -3856,9 +3869,9 @@ def _pptx_control_matrix_slide(s: dict, report: dict, idx: int,
     # 4 status tiles
     sid = 300
     tiles = [
-        ("PASS",    by_status.get("pass", 0),    _PPTX_GREEN),
+        ("NO GAPS", by_status.get("pass", 0),    _PPTX_GREEN),
         ("PARTIAL", by_status.get("partial", 0), _PPTX_AMBER),
-        ("FAIL",    by_status.get("fail", 0),    _PPTX_RED),
+        ("GAPS",    by_status.get("fail", 0),    _PPTX_RED),
         ("N/A",     by_status.get("na", 0),      _PPTX_INK_FAINT),
     ]
     total_w = _PPTX_W - 2 * _PPTX_MARGIN_X

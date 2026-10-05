@@ -26,6 +26,7 @@ import datetime as _dt
 from typing import Any, Iterable
 
 from safecadence.reports.sections import SECTION_REGISTRY, get_section
+from safecadence.reports.sections import COMPLIANCE_DISCLAIMER, COMPLIANCE_SECTION_KEYS, compliance_disclaimer_html
 
 
 def list_section_keys() -> list[dict]:
@@ -149,14 +150,20 @@ def _compose_report_impl(
                     f'<br><small>Section failed to render: {exc}</small></div>'),
                 "empty": True,
             }
-        out_sections.append({
+        section = {
             "key": key,
             "title": res.get("title") or meta["name"],
             "category": meta.get("category"),
             "data": res.get("data") or {},
             "html_fragment": res.get("html_fragment") or "",
             "empty": bool(res.get("empty")),
-        })
+        }
+        if key in COMPLIANCE_SECTION_KEYS:
+            section["human_review_required"] = True
+            section["disclaimer"] = COMPLIANCE_DISCLAIMER
+            if section["html_fragment"] and "sc-compliance-disclaimer" not in section["html_fragment"]:
+                section["html_fragment"] += compliance_disclaimer_html()
+        out_sections.append(section)
 
     if own_store and store is not None:
         try:
