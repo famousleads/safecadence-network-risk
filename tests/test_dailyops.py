@@ -116,8 +116,10 @@ def test_rollcall_brief_gathers_and_renders():
     assert "Vandalism at gym" in html
 
 
-def test_rollcall_quiet_morning_is_honest():
+def test_rollcall_quiet_morning_is_honest(monkeypatch):
     from safecadence import rollcall
+    # A quiet-morning fixture must not inherit assets from earlier API tests.
+    monkeypatch.setattr("safecadence.server.platform_api.list_assets", lambda: [])
     b = rollcall.build_brief()
     assert "Quiet overnight" in b["note"]["text"]
 

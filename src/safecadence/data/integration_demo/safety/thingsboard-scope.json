@@ -1,0 +1,11 @@
+{
+  "devices": {
+    "equipment-room": {
+      "telemetry": {
+        "temperature": {"kind": "temperature", "unit": "C"},
+        "leak": {"kind": "moisture", "unit": null}
+      },
+      "alarm_types": ["high-temperature"]
+    }
+  }
+}

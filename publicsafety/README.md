@@ -15,6 +15,22 @@ open-source core keeps working and your data stays yours.
 
 ## What it adds
 
+- **Offline safety integration explorer** (`/safety-integrations`, alpha):
+  fictional Frigate, Home Assistant, ThingsBoard and authorized organization-brand
+  Sherlock/Maigret exports. Click evidence, inspect scoped source status, audit
+  failures and download a sample report. No live connector or upstream engine
+  is installed. Sensor health remains unknown; brand evidence requires human review.
+
+For the integration prerelease, install both pinned versions:
+
+```sh
+pip install 'safecadence-netrisk[server]==17.0.0a1' 'safecadence-publicsafety==1.5.0a1'
+```
+
+Source builds: `python -m build publicsafety`. The build hook includes only the
+add-on's explicit module list; the resulting source archive rebuilds without
+the parent NetRisk checkout.
+
 - **Asset map** (`/map`) — GeoJSON, risk-banded, vendor-neutral
 - **Evidence-infrastructure health** (`/evidence-infrastructure`) —
   capture → transfer → store → access → preserve chain scoring

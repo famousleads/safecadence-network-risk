@@ -122,3 +122,4 @@ MONETIZATION_SETUP_CHECKLIST*.md
 # Never commit account recovery codes (removed 2026-10-05)
 github-recovery-codes.txt
 *recovery-codes*
+publicsafety/package/

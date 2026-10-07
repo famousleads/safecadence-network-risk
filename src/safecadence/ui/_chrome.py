@@ -454,6 +454,7 @@ th { color: var(--muted); font-weight: 500; }
     <a class="sub" id="nav-findings" href="/findings">Findings</a>
     <a class="sub" id="nav-drift" href="/drift">Drift</a>
     <a class="sub" id="nav-evidence" href="/evidence">Evidence</a>
+    <a class="sub" id="nav-security-integrations" href="/security-integrations">Security integrations</a>
     <a class="sub" id="nav-compliance" href="/compliance">Compliance</a>
     <a class="sub" id="nav-risks" href="/risks">Risk register</a>
     <a class="sub" id="nav-vendors" href="/vendors">Vendor risk</a>
@@ -465,6 +466,7 @@ th { color: var(--muted); font-weight: 500; }
     <a class="sub" id="nav-evidence-infra" href="/evidence-infrastructure">🎥 Evidence infrastructure</a>
     <a class="sub" id="nav-incidents" href="/incidents">🚨 Incidents</a>
     <a class="sub" id="nav-events" href="/events">📡 Events</a>
+    <a class="sub" id="nav-safety-integrations" href="/safety-integrations">Safety integrations</a>
   </div>
 
   <div class="group">
@@ -840,6 +842,8 @@ function scHighlightNav() {
     "/findings": "nav-findings",
     "/drift": "nav-drift",
     "/evidence": "nav-evidence",
+    "/security-integrations": "nav-security-integrations",
+    "/safety-integrations": "nav-safety-integrations",
     "/map": "nav-map",
     "/evidence-infrastructure": "nav-evidence-infra",
     "/incidents": "nav-incidents",

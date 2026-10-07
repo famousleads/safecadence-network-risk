@@ -477,6 +477,8 @@ def create_app(*, db_url: Optional[str] = None, jwt_secret: Optional[str] = None
             app.include_router(_v16_router)
     except Exception:                              # pragma: no cover
         pass
+    from safecadence.ui.integration_pages import register as _reg_integrations
+    _reg_integrations(app)
     _ps_registered = False
     try:
         from safecadence.ui.desat_pages import register as _reg_desat

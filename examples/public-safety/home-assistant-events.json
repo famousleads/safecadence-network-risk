@@ -1,0 +1,35 @@
+[
+  {
+    "type": "event",
+    "event": {
+      "event_type": "state_changed",
+      "time_fired": "2026-10-06T12:00:00Z",
+      "data": {
+        "entity_id": "binary_sensor.door",
+        "new_state": {
+          "entity_id": "binary_sensor.door",
+          "state": "on",
+          "attributes": {"device_class": "door"}
+        }
+      }
+    }
+  },
+  {
+    "type": "event",
+    "event": {
+      "event_type": "state_changed",
+      "time_fired": "2026-10-06T12:00:00Z",
+      "data": {
+        "entity_id": "sensor.room",
+        "new_state": {
+          "entity_id": "sensor.room",
+          "state": "24.5",
+          "attributes": {
+            "device_class": "temperature",
+            "unit_of_measurement": "C"
+          }
+        }
+      }
+    }
+  }
+]

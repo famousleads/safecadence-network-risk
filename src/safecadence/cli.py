@@ -4546,5 +4546,12 @@ def cmd_mcp_server(org_id, user):
     _sys.exit(serve_stdio())
 
 
+from safecadence.integrations.security_cli import ecosystem
+from safecadence.integrations.public_safety_cli import safety
+
+cli.add_command(ecosystem)
+cli.add_command(safety)
+
+
 if __name__ == "__main__":   # pragma: no cover
     cli()

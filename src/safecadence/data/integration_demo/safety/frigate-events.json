@@ -1,0 +1,26 @@
+[
+  {
+    "topic": "frigate/available",
+    "captured_at": "2026-10-06T12:00:00Z",
+    "retained": false,
+    "payload": "online"
+  },
+  {
+    "topic": "frigate/events",
+    "captured_at": "2026-10-06T12:00:00Z",
+    "retained": false,
+    "payload": {
+      "type": "new",
+      "after": {
+        "id": "synthetic-1",
+        "camera": "entry",
+        "label": "person",
+        "frame_time": 1791288000,
+        "score": 0.8,
+        "false_positive": false,
+        "current_zones": ["restricted"],
+        "entered_zones": ["restricted"]
+      }
+    }
+  }
+]

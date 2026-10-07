@@ -1,0 +1,6 @@
+{
+  "entities": {
+    "binary_sensor.door": "door",
+    "sensor.room": "temperature"
+  }
+}

@@ -1449,6 +1449,8 @@ h1{{margin:0 0 6px;font-size:18px}}small{{color:#8b95b1}}</style></head><body>
         _reg_v9(app)
     except Exception:                          # pragma: no cover
         pass
+    from safecadence.ui.integration_pages import register as _reg_integrations
+    _reg_integrations(app)
     # DESAT — public-safety pages ship in the separate
     # safecadence-publicsafety distribution; core falls back to stub
     # pages so the chrome's sidebar links never dead-end.

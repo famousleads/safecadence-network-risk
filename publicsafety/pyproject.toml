@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "safecadence-publicsafety"
-version = "1.4.0"
+version = "1.5.0a1"
 description = "SafeCadence Public Safety — situational awareness for law-enforcement agencies: asset map, evidence-infrastructure health, incidents, events, CJIS Security Policy mapping. Add-on for safecadence-netrisk; free 90-day trial starts on first use. Local-first: your data never leaves your network."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Security",
 ]
 dependencies = [
-    "safecadence-netrisk>=16.7.0",
+    "safecadence-netrisk>=17.0.0a1,<18",
 ]
 
 [project.urls]
@@ -30,23 +30,15 @@ Homepage = "https://safecadence.com/public-safety-command"
 Demo = "https://analyzer.safecadence.com/netrisk/public-safety"
 
 # The add-on installs its modules INTO the `safecadence` package the
-# core wheel owns; the file sets are disjoint (core excludes exactly
-# these four), so the two distributions coexist cleanly.
+# core wheel owns; the file sets are disjoint. The build hook assembles
+# only the explicitly listed add-on modules, including them in the sdist.
+[tool.hatch.build.hooks.custom]
+
 [tool.hatch.build.targets.wheel]
 bypass-selection = true
 
 [tool.hatch.build.targets.wheel.force-include]
-"../src/safecadence/ui/desat_pages.py" = "safecadence/ui/desat_pages.py"
-"../src/safecadence/platform/public_safety.py" = "safecadence/platform/public_safety.py"
-"../src/safecadence/platform/evidence_health.py" = "safecadence/platform/evidence_health.py"
-"../src/safecadence/demo_sheriff.py" = "safecadence/demo_sheriff.py"
-"../src/safecadence/evidencewatch.py" = "safecadence/evidencewatch.py"
-"../src/safecadence/demo_campus.py" = "safecadence/demo_campus.py"
-"../src/safecadence/community.py" = "safecadence/community.py"
-"../src/safecadence/watch_intel.py" = "safecadence/watch_intel.py"
-"../src/safecadence/mass_notify.py" = "safecadence/mass_notify.py"
-"../src/safecadence/situation.py" = "safecadence/situation.py"
-"../src/safecadence/safecheck.py" = "safecadence/safecheck.py"
-"../src/safecadence/custody.py" = "safecadence/custody.py"
-"../src/safecadence/rollcall.py" = "safecadence/rollcall.py"
-"../src/safecadence/watches.py" = "safecadence/watches.py"
+"package/safecadence" = "safecadence"
+
+[tool.hatch.build.targets.sdist]
+include = ["pyproject.toml", "README.md", "hatch_build.py", "package/safecadence/**"]

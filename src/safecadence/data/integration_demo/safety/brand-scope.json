@@ -1,0 +1,10 @@
+{
+  "subject_type": "organization-brand",
+  "authorization_ref": "fictional-demo-approval",
+  "brands": {
+    "demo-agency": {
+      "usernames": ["demo_agency_official"],
+      "platform_hosts": ["example.com"]
+    }
+  }
+}

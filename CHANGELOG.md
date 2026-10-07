@@ -1,5 +1,46 @@
 # Changelog
 
+## [17.0.0a1] - 2026-10-07 - local security ecosystem foundation (prerelease)
+
+- Added a 32-project evaluation catalog with explicit planned/deferred versus
+  implemented file-import status; no automatic upstream installation.
+- Added bounded Wazuh alerts, CrowdSec alerts, Zeek JSON connection logs and
+  Suricata EVE imports, local SQLite evidence, tenant/instance scoping,
+  hash-based replay handling, redaction, atomic batches and hash-chained audit.
+- Added `ecosystem` commands for catalog, imports, events, source receipt status,
+  audit verification and evidence projection into the existing local graph.
+- Added the read-only `safety` pilot: explicit tenant/site/purpose and camera-zone
+  or sensor-entity registration, bounded Frigate/Home Assistant event imports,
+  minimized evidence, lifecycle replay, per-source/entity export freshness and
+  shared mutation/read audit. No live health claims, subscriptions, media fetch,
+  threshold alarms, identity recognition, dispatch or physical controls.
+  See `docs/public-safety-local-pilot.md`.
+- Extended the offline Public Safety pilot with scoped ThingsBoard telemetry
+  and alarm export envelopes, per-channel freshness/conflicts and minimized
+  evidence. Engine licensing and live/native API adapters remain pending.
+- Added optional authorized organization-brand Sherlock/Maigret CSV imports
+  and evidence-version-bound human review with optimistic revisions and audit
+  history. No live public searches, people profiling, account actions or
+  automatic identity/impersonation determinations. Local operator attestations
+  are not multi-user authentication. Added 31 synthetic expansion tests.
+- Added the `safecadence-local` guarded launcher. It blocks unapproved Python
+  network/DNS calls, datagram/raw sockets and subprocesses; permits loopback and
+  explicitly configured internal numeric TCP destinations. It is not an OS
+  sandbox and does not govern browser/native-code traffic or legacy launchers.
+- Added a separate, explicit download-only security-update exception for NIST
+  NVD and Cisco PSIRT. Downloads are staged, bounded and audited; no customer
+  data is sent, no redirects/proxies are followed and no fixes are executed.
+- Added read-only synthetic integration workspaces at `/security-integrations`
+  and `/safety-integrations`, with source filters, clickable evidence, status,
+  real importer rejection examples, audit records and downloadable sample reports.
+  No customer database or live upstream service is accessed by these demos.
+- Public Safety 1.5.0a1 requires NetRisk 17 and bundles its owned modules in its
+  source archive so both the source archive and wheel rebuild independently.
+- This is an alpha prerelease, not completion of the 32 integrations. Live
+  connectors, probe enrollment/hardware qualification, remaining playbooks,
+  operational multi-user graphical workflows, full offline packaging and OS/browser egress controls
+  remain pending. See `docs/security-ecosystem-next.md`.
+
 ## [16.7.1] — 2026-10-05 — compliance wording guardrails
 
 - **Compliance wording guardrails.** Report statuses now read "No gaps indicated / Partial evidence / Gaps indicated" (HTML, Word, PowerPoint) instead of PASS/FAIL. Every compliance section carries a "Human review required — readiness evidence, not an audit/attestation/certification" note and `human_review_required: true` in its JSON. Data keys (`pass/partial/fail`) are unchanged.
