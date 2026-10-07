@@ -1,6 +1,6 @@
 # NetRisk 17 Local Security Ecosystem Alpha
 
-Status: 17.0.0a1 alpha prerelease. This is the first working increment, not full
+Status: 17.0.0a2 alpha prerelease. This is the first working increment, not full
 integration of all 32 projects. Existing scan/history functionality is retained.
 
 ## Working Now

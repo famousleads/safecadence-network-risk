@@ -153,6 +153,10 @@ class EvidenceTests(unittest.TestCase):
                 decode(payload)
 
     def test_limits_and_schema(self):
+        for fraction in ("1", "12", "123", "1234", "12345", "123456"):
+            value = timestamp("2026-10-06T12:00:00." + fraction + "Z")
+            self.assertEqual(datetime.fromisoformat(value).microsecond, int(fraction.ljust(6, "0")))
+        self.assertEqual(timestamp("2026-10-06T14:00:00.1+02:00"), "2026-10-06T12:00:00.100000+00:00")
         with self.assertRaises(ImportRejected):
             decode(json.dumps([{}] * 10001).encode())
         nested = "value"

@@ -1,6 +1,6 @@
 # Public Safety Local Import Pilot
 
-Status: 17.0.0a1 alpha prerelease. PS-INT-01/02/03 have scoped offline
+Status: 17.0.0a2 alpha prerelease. PS-INT-01/02/03 have scoped offline
 event adapters; PS-INT-14 has organization-brand CSV imports and human review.
 All use local audit and export-freshness reporting. Live connectors,
 operator GUI, policy-driven alert generation and field validation remain pending.

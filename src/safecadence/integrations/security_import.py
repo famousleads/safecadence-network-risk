@@ -52,7 +52,13 @@ def timestamp(value):
         if isinstance(value, (float, int)) and not isinstance(value, bool):
             parsed = datetime.fromtimestamp(value, timezone.utc)
         else:
-            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            text = str(value).replace("Z", "+00:00")
+            try:
+                parsed = datetime.fromisoformat(text)
+            except ValueError:
+                # Python 3.9/3.10 only accept 3 or 6 fractional digits in
+                # fromisoformat; strptime supports the full 1-6 digit range.
+                parsed = datetime.strptime(text, "%Y-%m-%dT%H:%M:%S.%f%z")
             if parsed.tzinfo is None:
                 raise ValueError("timezone required")
         return parsed.astimezone(timezone.utc).isoformat()

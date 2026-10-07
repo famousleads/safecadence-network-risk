@@ -1,5 +1,12 @@
 # Changelog
 
+## [17.0.0a2] - 2026-10-07 - Python 3.10 timestamp compatibility
+
+- Fixed one-to-six-digit fractional-second timestamp parsing on Python 3.9/3.10
+  using the standard datetime parser fallback. Added precision and offset checks.
+- Supersedes the first alpha, whose CI exposed this edge case on Python 3.10.
+- Public Safety 1.5.0a2 requires this corrected NetRisk alpha.
+
 ## [17.0.0a1] - 2026-10-07 - local security ecosystem foundation (prerelease)
 
 - Added a 32-project evaluation catalog with explicit planned/deferred versus

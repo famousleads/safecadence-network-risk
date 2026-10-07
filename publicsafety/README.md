@@ -24,7 +24,7 @@ open-source core keeps working and your data stays yours.
 For the integration prerelease, install both pinned versions:
 
 ```sh
-pip install 'safecadence-netrisk[server]==17.0.0a1' 'safecadence-publicsafety==1.5.0a1'
+pip install 'safecadence-netrisk[server]==17.0.0a2' 'safecadence-publicsafety==1.5.0a2'
 ```
 
 Source builds: `python -m build publicsafety`. The build hook includes only the
