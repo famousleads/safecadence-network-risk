@@ -44,6 +44,8 @@ def catalog():
         status="file-import" if key in IMPORT_SOURCES else
                "deferred" if key == "ghosttrack" else "planned",
         live_connector=False, engine_installed=False, license_cleared=False,
+        local_polling_available=key in {"wazuh", "crowdsec", "frigate", "home-assistant", "thingsboard"},
+        passive_log_forwarder_available=key in {"zeek", "suricata"},
         external_egress=False, actions="read-only",
         public_safety_status="scoped-file-import" if key in {"frigate", "home-assistant", "thingsboard"}
                              else "scoped-csv-review" if key in {"sherlock", "maigret"}

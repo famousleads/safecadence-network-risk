@@ -1,0 +1,30 @@
+[Unit]
+Description=NetRisk local passive-log spool and forward cycle
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=netrisk-probe
+Group=netrisk-probe
+EnvironmentFile=/etc/netrisk-probe/local.env
+ExecStart=/usr/local/bin/safecadence-local probe follow zeek --config /etc/netrisk-probe/probe.json
+ExecStart=/usr/local/bin/safecadence-local probe follow suricata --config /etc/netrisk-probe/probe.json
+ExecStart=/usr/local/bin/safecadence-local probe heartbeat --config /etc/netrisk-probe/probe.json
+ExecStart=/usr/local/bin/safecadence-local probe deliver --config /etc/netrisk-probe/probe.json
+UMask=0077
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths=/var/lib/netrisk-probe/spool
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+IPAddressDeny=any
+# MUST replace with the approved collector's exact IP before installation.
+IPAddressAllow=127.0.0.1/32
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LimitCORE=0
+TimeoutStartSec=120

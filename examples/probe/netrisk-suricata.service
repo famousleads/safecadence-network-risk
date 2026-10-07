@@ -1,0 +1,35 @@
+[Unit]
+Description=NetRisk separately provisioned passive Suricata IDS worker
+After=local-fs.target
+ConditionPathExists=/etc/netrisk-probe/capture-approved
+
+[Service]
+Type=simple
+User=netrisk-capture
+Group=netrisk-capture
+WorkingDirectory=/var/lib/netrisk-probe/suricata
+ExecStartPre=/usr/local/bin/safecadence-local probe verify-engine --manifest /etc/netrisk-probe/suricata-engine.json
+ExecStart=/opt/netrisk-engines/suricata/bin/suricata -i capture0 -c /etc/netrisk-probe/suricata.yaml
+Restart=on-failure
+RestartSec=10
+UMask=0077
+NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_NET_RAW
+AmbientCapabilities=CAP_NET_RAW
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths=/var/lib/netrisk-probe/suricata
+RestrictAddressFamilies=AF_PACKET AF_UNIX
+IPAddressDeny=any
+RestrictNamespaces=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+LimitCORE=0
+TasksMax=128
+
+[Install]
+WantedBy=multi-user.target

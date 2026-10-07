@@ -1,6 +1,6 @@
 # NetRisk 17 Local Security Ecosystem Alpha
 
-Status: 17.0.0a2 alpha prerelease. This is the first working increment, not full
+Status: 17.0.0a3 alpha prerelease. This is a working pilot, not full
 integration of all 32 projects. Existing scan/history functionality is retained.
 
 ## Working Now
@@ -38,6 +38,14 @@ controls or public-site searches are implemented. ThingsBoard engine adoption
 remains license-gated. The catalog exposes their separate
 `public_safety_status` without claiming upstream engines are installed.
 
+The [local monitoring software pilot](local-monitoring-pilot.md) adds read-only,
+verified local HTTPS polling for Wazuh, CrowdSec, Frigate, Home Assistant and
+ThingsBoard, plus an encrypted passive-log queue and certificate-bound collector
+for separately installed Zeek/Suricata engines. These are available adapters, not
+connected installations. No capture engine is bundled, launched or installed by
+the product. Polling is bounded and may miss intermediate events; coverage and
+sensor health remain unknown until independently qualified.
+
 ## Run Locally
 
 After installing from an approved local wheel/dependency bundle:
@@ -65,7 +73,9 @@ increment; use encrypted storage and appropriate local access controls.
 
 The irreversible Python guard is installed by `safecadence-local` before CLI
 imports. It blocks external connections/DNS, subprocesses and UDP/raw sockets.
-Only loopback listeners are permitted. To approve an exact internal TCP target:
+Loopback listeners are permitted by default. The probe collector can bind one
+explicit internal IP/port via `SC_LOCAL_INTERNAL_LISTENERS`; it still requires
+mutual TLS and enrollment. To approve an exact internal TCP target:
 
 ```sh
 export SC_LOCAL_INTERNAL_TARGETS='[{"ip":"192.168.4.15","port":8444}]'
@@ -117,9 +127,11 @@ Heuristic redaction is not a substitute for reviewing sensitive source exports.
 - OS/browser egress isolation and a full inventory of legacy network paths.
 - Offline installer, signed intelligence/rule bundles, activation/rollback and
   source freshness checks; more vendor PSIRT adapters and NIST reference packs.
-- Authenticated, read-only internal Wazuh/CrowdSec connectors and enrollment.
-- Passive probe packaging, authenticated health/spooling, coverage maps and
-  hardware/failure benchmarks. No probe has been deployed by this alpha.
+- Live installation compatibility and field qualification for the available
+  read-only connectors; unattended credential renewal and stream subscriptions.
+- Passive probe offline installer, signed engine/rule activation, automated PKI
+  rotation, coverage maps and hardware/failure benchmarks. Software spooling,
+  enrollment and heartbeat freshness are implemented, not appliance qualification.
 - Reviewed defensive playbooks and remaining catalog integrations, following
   licensing, pinned-version, privacy and no-egress admission checks.
 - User-facing workspaces, evidence review and separate approval/rollback paths

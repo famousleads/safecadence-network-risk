@@ -1,5 +1,24 @@
 # Changelog
 
+## [17.0.0a3] - 2026-10-07 - local monitoring software pilot (prerelease)
+
+- Explicitly approved read-only local HTTPS polling for Wazuh indexer alerts,
+  CrowdSec alerts, Frigate historical events, Home Assistant scoped states and
+  ThingsBoard scoped latest telemetry. Verified TLS, no redirects, numeric local
+  targets, bounded snapshots, source timestamps, atomic scope-checked imports.
+- Passive Zeek/Suricata JSONL forwarding with encrypted bounded queues, durable
+  checkpoints, rotation review, signed mTLS ingestion and enrollment revocation.
+- Atomic receipts/replay protection, tenant/site/segment binding, health-report
+  freshness, deterministic failure recommendations and storage-failure handling.
+- Offline provisioning and engine hash checks; optional `local-monitoring` extra.
+  No engine download/start, remote commands, public-site searches or actuators.
+- Read-only demos distinguish available polling adapters from connected sensors.
+- Native offline Zeek/Suricata lab and local TLS/mTLS tests; Linux service templates
+  remain unqualified on real hardware. This does not complete the upstream-tool
+  roadmap or certify capture coverage, sensor health, licenses or site safety.
+- Public Safety 1.5.0a3 requires this NetRisk alpha. Stable Docker aliases are not
+  moved by prerelease tags.
+
 ## [17.0.0a2] - 2026-10-07 - Python 3.10 timestamp compatibility
 
 - Fixed one-to-six-digit fractional-second timestamp parsing on Python 3.9/3.10

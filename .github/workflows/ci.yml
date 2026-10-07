@@ -31,7 +31,7 @@ jobs:
           # are available — many v9+ tests import fastapi directly without
           # pytest.importorskip, and v10.5+ added more server-side endpoints.
           # Pin pydantic <2.13 (2.13 broke FastAPI's OpenAPI generation).
-          pip install -e ".[ai,server]" "pydantic<2.13"
+          pip install -e ".[ai,server,local-monitoring]" "pydantic<2.13"
           # Pillow is needed by the v10.4+ PIL chart engine in
           # safecadence.reports.chart_png.
           # The Python SDK contract tests import its requests transport.

@@ -1,9 +1,12 @@
 # Public Safety Local Import Pilot
 
-Status: 17.0.0a2 alpha prerelease. PS-INT-01/02/03 have scoped offline
+Status: NetRisk 17.0.0a3 / Public Safety 1.5.0a3 alpha prerelease. PS-INT-01/02/03 have scoped offline
 event adapters; PS-INT-14 has organization-brand CSV imports and human review.
-All use local audit and export-freshness reporting. Live connectors,
-operator GUI, policy-driven alert generation and field validation remain pending.
+All use local audit and export-freshness reporting. Optional scoped local HTTPS
+polling for Frigate, Home Assistant and ThingsBoard is now available in the
+[local monitoring software pilot](local-monitoring-pilot.md). No customer feed is
+connected by default. Live stream subscriptions, connected-source operator GUI,
+policy-driven alert generation and field validation remain pending.
 ThingsBoard engine adoption remains license-gated; supplied-report support does
 not bundle or install its software. No upstream engine is installed.
 

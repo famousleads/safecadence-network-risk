@@ -4551,6 +4551,10 @@ from safecadence.integrations.public_safety_cli import safety
 
 cli.add_command(ecosystem)
 cli.add_command(safety)
+from safecadence.integrations.connection_cli import connections
+from safecadence.integrations.probe_cli import probe
+cli.add_command(connections)
+cli.add_command(probe)
 
 
 if __name__ == "__main__":   # pragma: no cover

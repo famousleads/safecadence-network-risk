@@ -24,12 +24,17 @@ open-source core keeps working and your data stays yours.
 For the integration prerelease, install both pinned versions:
 
 ```sh
-pip install 'safecadence-netrisk[server]==17.0.0a2' 'safecadence-publicsafety==1.5.0a2'
+pip install 'safecadence-netrisk[server,local-monitoring]==17.0.0a3' 'safecadence-publicsafety==1.5.0a3'
 ```
 
 Source builds: `python -m build publicsafety`. The build hook includes only the
 add-on's explicit module list; the resulting source archive rebuilds without
 the parent NetRisk checkout.
+
+The alpha also offers optional scoped, read-only local HTTPS polling for Frigate,
+Home Assistant and ThingsBoard. It does not connect customer devices by default,
+subscribe to live streams, recognize identities, control devices or certify site
+safety. See [local monitoring setup and limits](https://github.com/famousleads/safecadence-network-risk/blob/main/docs/local-monitoring-pilot.md).
 
 - **Asset map** (`/map`) — GeoJSON, risk-banded, vendor-neutral
 - **Evidence-infrastructure health** (`/evidence-infrastructure`) —

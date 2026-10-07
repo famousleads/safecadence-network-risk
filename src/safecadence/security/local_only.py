@@ -15,14 +15,15 @@ class EgressDenied(PermissionError):
 @dataclass(frozen=True)
 class LocalPolicy:
     internal_targets: tuple = ()
+    internal_listeners: tuple = ()
 
     def __post_init__(self):
-        for host, port in self.internal_targets:
+        for host, port in self.internal_targets + self.internal_listeners:
             address = ipaddress.ip_address(host)
             internal = any(address in ipaddress.ip_network(block) for block in (
                 "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"
             ) if address.version == ipaddress.ip_network(block).version)
-            if not internal or not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535:
+            if not (internal or address.is_loopback) or not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535:
                 raise ValueError("Internal targets require an RFC1918/ULA IP and exact port")
 
     def permits(self, host, port) -> bool:
@@ -58,7 +59,7 @@ def install_guard(policy=None):
                     local = ipaddress.ip_address(address[0]).is_loopback
                 except ValueError:
                     local = False
-                if not local:
+                if not local and tuple(address[:2]) not in policy.internal_listeners:
                     raise EgressDenied("Local launcher listeners must bind to loopback")
         elif event == "socket.connect":
             sock, address = args
@@ -90,7 +91,11 @@ def main():
         targets = json.loads(os.environ.get("SC_LOCAL_INTERNAL_TARGETS", "[]"))
         if not isinstance(targets, list):
             raise ValueError("Expected a list")
-        policy = LocalPolicy(tuple((item["ip"], item["port"]) for item in targets))
+        listeners = json.loads(os.environ.get("SC_LOCAL_INTERNAL_LISTENERS", "[]"))
+        if not isinstance(listeners, list):
+            raise ValueError("Expected listener list")
+        policy = LocalPolicy(tuple((item["ip"], item["port"]) for item in targets),
+                             tuple((item["ip"], item["port"]) for item in listeners))
     except (ValueError, TypeError, KeyError):
         sys.stderr.write("Invalid SC_LOCAL_INTERNAL_TARGETS; refusing startup.\n")
         return 2

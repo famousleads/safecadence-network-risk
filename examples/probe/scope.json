@@ -1,0 +1,9 @@
+{
+  "probe_id": "replace-with-unique-probe-id",
+  "tenant": "replace-with-tenant",
+  "site": "replace-with-site",
+  "segment": "replace-with-approved-segment",
+  "instance": "replace-with-unique-engine-instance",
+  "source_version": "replace-with-approved-engine-version",
+  "sources": ["zeek", "suricata"]
+}

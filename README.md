@@ -42,6 +42,12 @@ Prefer to clone the repo? `git clone https://github.com/famousleads/safecadence-
 
 ## Public Safety add-on (for law-enforcement agencies)
 
+**Local monitoring alpha:** NetRisk 17.0.0a3 / Public Safety 1.5.0a3 add scoped
+local read-only source polling and encrypted passive-log forwarding. These are
+software pilots, not connected sensors or qualified appliances. Setup, offline
+provisioning, native-engine test evidence and remaining field gates are documented
+in [Local Monitoring Software Pilot](docs/local-monitoring-pilot.md).
+
 The agency layer ships as a separate package built on this core:
 
 ```bash

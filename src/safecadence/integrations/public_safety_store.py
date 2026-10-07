@@ -97,13 +97,25 @@ class PublicSafetyEvidenceStore(SecurityEvidenceStore):
         raise ImportRejected(reason) from None
 
     def import_file(self, path, *, source, tenant, site, instance, actor="local-operator", observed_at=None):
+        try:
+            with Path(path).open("rb") as stream:
+                data = stream.read(MAX_BYTES + 1)
+        except OSError:
+            data = None
+        return self.import_bytes(data, source=source, tenant=tenant, site=site,
+                                 instance=instance, actor=actor, observed_at=observed_at)
+
+    def import_bytes(self, data, *, source, tenant, site, instance, actor="local-operator",
+                     observed_at=None, collection_mode="supplied-file", expected_scope_hash=None):
         tenant, site, source, instance, actor = map(_identifier, (tenant, site, source, instance, actor))
         file_hash = None
         try:
             if source not in SOURCES:
                 raise ImportRejected("unsupported_safety_source")
-            with Path(path).open("rb") as stream:
-                data = stream.read(MAX_BYTES + 1)
+            if not isinstance(data, bytes) or collection_mode not in {"supplied-file", "local-api"}:
+                raise ImportRejected("file_or_schema_error")
+            if source in EXPOSURE_SOURCES and collection_mode != "supplied-file":
+                raise ImportRejected("live_brand_collection_forbidden")
             file_hash = hashlib.sha256(data).hexdigest()
             if source in EXPOSURE_SOURCES:
                 rows = decode_exposure_csv(data, source, observed_at)
@@ -119,8 +131,15 @@ class PublicSafetyEvidenceStore(SecurityEvidenceStore):
             if row is None:
                 raise ImportRejected("source_not_registered")
             config = json.loads(row[0])
+            if expected_scope_hash is not None and config["scope_hash"] != expected_scope_hash:
+                raise ImportRejected("collection_scope_changed")
             imported_at = now()
             events = [normalize(source, item, config=config, imported_at=imported_at) for item in rows]
+            for event in events:
+                event["collection_mode"] = collection_mode
+                event["live_connector"] = collection_mode == "local-api"
+                if collection_mode == "local-api":
+                    event["limitations"][0] = "Polled local snapshot; not a complete event stream or verified sensor health."
             inserted = 0
             for event in events:
                 event["id"] = digest([tenant, site, source, instance, config["scope_hash"],
@@ -137,10 +156,12 @@ class PublicSafetyEvidenceStore(SecurityEvidenceStore):
                               (tenant, site, source, instance, imported_at, file_hash, len(events), inserted))
             self._audit(tenant, "safety_import", "accepted", actor=actor, site=site,
                         source=source, instance=instance, scope_hash=config["scope_hash"],
-                        file_hash=file_hash, records=len(events), inserted=inserted)
+                        file_hash=file_hash, records=len(events), inserted=inserted,
+                        collection_mode=collection_mode)
             self.conn.commit()
             return dict(records=len(events), inserted=inserted, duplicates=len(events) - inserted,
-                        file_hash=file_hash, status="imported", sensor_health="unknown", live_connector=False)
+                        file_hash=file_hash, status="imported", sensor_health="unknown",
+                        live_connector=collection_mode == "local-api")
         except (ImportRejected, OSError, TypeError, ValueError) as error:
             self._rejected(tenant, "safety_import", error, site=site, source=source,
                            instance=instance, actor=actor, file_hash=file_hash)
@@ -257,10 +278,10 @@ class PublicSafetyEvidenceStore(SecurityEvidenceStore):
                                purpose=config["purpose"], scope_hash=config["scope_hash"],
                                latest_observation=latest["observed_at"] if latest else None,
                                freshness=freshness, reported_source_state=reported,
-                               sensor_health="unknown", coverage="unknown; scoped supplied exports only",
+                               sensor_health="unknown", coverage="unknown; scoped observations only",
                                live_connector=False, control_allowed=False,
                                assets=assets,
-                               limitation="Fresh exports or online messages do not verify live health; availability can be connection-driven rather than periodic."))
+                               limitation="Fresh observations or online messages do not verify a current connection or live health; availability can be connection-driven rather than periodic."))
         self._read_audit(tenant, "safety_status_read", site=site, sources=len(result))
         return result
 

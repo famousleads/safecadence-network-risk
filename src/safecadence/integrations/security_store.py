@@ -71,19 +71,33 @@ class SecurityEvidenceStore:
         )
 
     def import_file(self, path, *, source, tenant, instance, source_version, actor="local-operator"):
+        try:
+            with Path(path).open("rb") as stream:
+                data = stream.read(MAX_BYTES + 1)
+        except OSError:
+            data = None
+        return self.import_bytes(data, source=source, tenant=tenant, instance=instance,
+                                 source_version=source_version, actor=actor)
+
+    def import_bytes(self, data, *, source, tenant, instance, source_version,
+                     actor="local-operator", collection_mode="supplied-file"):
         tenant, instance = _identifier(tenant), _identifier(instance)
         source, source_version, actor = map(_identifier, (source, source_version, actor))
         file_hash = None
         try:
             if source not in IMPORT_SOURCES:
                 raise ImportRejected("unsupported_source")
-            with Path(path).open("rb") as stream:
-                data = stream.read(MAX_BYTES + 1)
+            if not isinstance(data, bytes) or collection_mode not in {"supplied-file", "local-api", "probe"}:
+                raise ImportRejected("file_or_schema_error")
             file_hash = hashlib.sha256(data).hexdigest()
             imported_at = now()
             rows = decode(data)
             events = [normalize(source, row, source_version=source_version,
                                 instance=instance, imported_at=imported_at) for row in rows]
+            for event in events:
+                event["collection_mode"] = collection_mode
+                if collection_mode != "supplied-file":
+                    event["limitations"][0] = "Local collection; not verified compromise or complete coverage."
             # Validate the full batch before any writes; serialize writers for the audit chain.
             self.conn.execute("BEGIN IMMEDIATE")
             inserted = 0
@@ -103,7 +117,8 @@ class SecurityEvidenceStore:
                 (tenant, source, instance, imported_at, file_hash, len(events), inserted),
             )
             self._audit(tenant, "import", "accepted", source=source, instance=instance,
-                        actor=actor, file_hash=file_hash, records=len(events), inserted=inserted)
+                        actor=actor, file_hash=file_hash, records=len(events), inserted=inserted,
+                        collection_mode=collection_mode)
             self.conn.commit()
             return dict(records=len(events), inserted=inserted, duplicates=len(events) - inserted,
                         file_hash=file_hash, status="imported", sensor_health="unknown")
@@ -157,7 +172,8 @@ class SecurityEvidenceStore:
                      last_import=row["imported_at"], records=row["record_count"],
                      receipt_stale=datetime.fromisoformat(row["imported_at"]) < cutoff,
                      sensor_health="unknown", live_connector=False,
-                     coverage="unknown; supplied exports only") for row in rows]
+                     coverage="unknown; bounded local evidence only",
+                     limitation="Import receipts do not establish a currently connected or healthy sensor.") for row in rows]
 
     def export_graph(self, *, tenant, graph_path):
         from safecadence.graph.schema import Node, Edge

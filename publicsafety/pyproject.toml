@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "safecadence-publicsafety"
-version = "1.5.0a2"
+version = "1.5.0a3"
 description = "SafeCadence Public Safety — situational awareness for law-enforcement agencies: asset map, evidence-infrastructure health, incidents, events, CJIS Security Policy mapping. Add-on for safecadence-netrisk; free 90-day trial starts on first use. Local-first: your data never leaves your network."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Security",
 ]
 dependencies = [
-    "safecadence-netrisk>=17.0.0a2,<18",
+    "safecadence-netrisk>=17.0.0a3,<18",
 ]
 
 [project.urls]

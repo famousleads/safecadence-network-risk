@@ -67,7 +67,8 @@ def _snapshot(mode):
             return dict(mode=mode, sample_data=True, reference_time=REFERENCE_TIME,
                         live_connector=False, controls_enabled=False, events=events,
                         sources=status, receipts=receipts, audit=audit,
-                        catalog=catalog() if mode == "security" else [],
+                        catalog=catalog() if mode == "security" else [dict(row, status=row["public_safety_status"])
+                            for row in catalog() if row["key"] in SAFETY_FILES],
                         limitation="Fictional supplied exports, not live monitoring. Human review required. No sensor control, public-site lookups or person identification.")
         finally:
             store.close()
@@ -131,7 +132,7 @@ function render(){
     const state=r.reason||r.review?.decision||r.freshness||r.severity||r.status||'unknown';
     summary.append(el('span',state,'tag'+(r.status==='rejected'?' danger':state==='unreviewed'?' warn':'')));
     if(view==='sources')summary.append(el('span','Sensor health: unknown','tag warn'));
-    if(view==='catalog')summary.append(el('span',r.live_connector?'Live connector':'No live connector','tag warn'));
+    if(view==='catalog')summary.append(el('span',r.local_polling_available?'Local polling available; not connected':r.passive_log_forwarder_available?'Passive log forwarding available; not connected':r.live_connector?'Live connector':'No live connector','tag warn'));
     if(r.recommendation)summary.append(el('small',r.recommendation));
     const button=el('button','View evidence');button.type='button';button.onclick=()=>detail(r);
     row.append(summary,button);content.append(row);

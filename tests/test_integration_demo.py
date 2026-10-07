@@ -61,3 +61,14 @@ def test_brand_observations_never_verified():
     brands = [r for r in data["events"] if r["source"] in ("sherlock", "maigret")]
     assert len(brands) == 2
     assert all(r["review"]["decision"] == "unreviewed" and not r["review"]["identity_verified"] for r in brands)
+
+
+def test_capability_catalog_does_not_claim_connected_or_installed():
+    _snapshot.cache_clear()
+    safety = demo_snapshot("safety")["catalog"]
+    assert len(safety) == 5
+    assert {row["key"] for row in safety if row["local_polling_available"]} == {"frigate", "home-assistant", "thingsboard"}
+    assert all(not row["live_connector"] and not row["engine_installed"] for row in safety)
+    security = demo_snapshot("security")["catalog"]
+    assert {row["key"] for row in security if row["passive_log_forwarder_available"]} == {"zeek", "suricata"}
+    assert all(not row["external_egress"] for row in security)
