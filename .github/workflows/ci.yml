@@ -34,7 +34,8 @@ jobs:
           pip install -e ".[ai,server]" "pydantic<2.13"
           # Pillow is needed by the v10.4+ PIL chart engine in
           # safecadence.reports.chart_png.
-          pip install pytest pillow
+          # The Python SDK contract tests import its requests transport.
+          pip install pytest pillow requests
 
       - name: Run tests
         run: pytest -v
