@@ -8,13 +8,15 @@
  * Cache is versioned so a release bump invalidates old assets automatically.
  */
 
-const CACHE_VERSION = 'sc-v16.0.1-mobile';
+const CACHE_VERSION = 'sc-v17-security-ui-20261007-1';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
 const STATIC_ASSETS = [
   '/manifest.webmanifest',
   '/static/responsive.css',
+  '/static/security-mark.svg?v=security-1',
+  '/static/security-app-icon.svg?v=security-1',
 ];
 
 self.addEventListener('install', (event) => {

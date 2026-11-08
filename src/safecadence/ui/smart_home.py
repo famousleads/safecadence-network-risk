@@ -469,6 +469,10 @@ def register(app):
 # ---------------- v9 home body (chrome supplies sidebar + topbar) -------
 
 _HOME_BODY_INLINE = """
+<header class="sc-workspace-heading">
+  <div><h1>NetRisk overview</h1><p>Network exposure, identity risk, and operational evidence.</p></div>
+  <nav class="links" aria-label="Monitoring workspaces"><a href="/security-integrations">Security integrations</a><a href="/map">Public Safety</a></nav>
+</header>
 <!-- Killer features hero band -->
 <div id="killer-band" style="display:grid;gap:10px;
      grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
@@ -478,7 +482,7 @@ _HOME_BODY_INLINE = """
      border-radius:12px;padding:14px 16px;display:block;
      border:1px solid var(--border)">
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;opacity:0.8">
-      🤖 AI translator
+      %ICON:users% Identity translator
     </div>
     <div style="font-size:14px;font-weight:700;margin-top:4px">
       Plain English → 5 IdPs
@@ -492,7 +496,7 @@ _HOME_BODY_INLINE = """
      border-radius:12px;padding:14px 16px;display:block;
      border:1px solid var(--border)">
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;opacity:0.8">
-      🔮 What-if simulator
+      %ICON:workflow% What-if simulator
     </div>
     <div style="font-size:14px;font-weight:700;margin-top:4px">
       Preview before commit
@@ -506,7 +510,7 @@ _HOME_BODY_INLINE = """
      border-radius:12px;padding:14px 16px;display:block;
      border:1px solid var(--border)">
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;opacity:0.8">
-      🎯 Attack paths
+      %ICON:git-branch% Attack paths
     </div>
     <div style="font-size:14px;font-weight:700;margin-top:4px">
       Human → SA → role → asset
@@ -520,7 +524,7 @@ _HOME_BODY_INLINE = """
      border-radius:12px;padding:14px 16px;display:block;
      border:1px solid var(--border)">
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;opacity:0.8">
-      ⏱️ JIT access
+      %ICON:key-round% JIT access
     </div>
     <div style="font-size:14px;font-weight:700;margin-top:4px">
       Time-bounded grants
@@ -534,7 +538,7 @@ _HOME_BODY_INLINE = """
      border-radius:12px;padding:14px 16px;display:block;
      border:1px solid var(--border)">
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;opacity:0.8">
-      ✨ See it in action
+      %ICON:book-open% Product tour
     </div>
     <div style="font-size:14px;font-weight:700;margin-top:4px">
       Take the 60-second tour
@@ -573,7 +577,7 @@ _HOME_BODY_INLINE = """
      border-left:4px solid var(--accent);background:linear-gradient(90deg,
      color-mix(in srgb, var(--accent) 8%, transparent), transparent)">
   <div style="display:flex;gap:14px;align-items:center">
-    <div style="font-size:28px;flex-shrink:0">🎯</div>
+    <div style="color:var(--warn);flex-shrink:0">%ICON:shield-alert%</div>
     <div style="flex:1;min-width:0">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);font-weight:600">
         Weakest link in your fleet
@@ -605,7 +609,7 @@ _HOME_BODY_INLINE = """
 <!-- Two-col -->
 <div style="display:grid;grid-template-columns:1fr 360px;gap:16px" id="two-col">
   <div class="card">
-    <h2 style="margin:0 0 12px">⚡ Your next 3 actions
+    <h2 style="margin:0 0 12px">%ICON:zap% Your next 3 actions
       <span class="sc-help" data-help="next-3-actions"></span>
     </h2>
     <div id="actions">
@@ -618,7 +622,7 @@ _HOME_BODY_INLINE = """
     </h2>
     <div id="feed"><div class="muted">Loading…</div></div>
     <div style="margin-top:12px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;display:flex;gap:8px;align-items:center">
-      <span style="color:var(--accent)">🤖</span>
+      <span style="color:var(--accent)">%ICON:bot%</span>
       <input id="ai-q" placeholder="Ask anything…" style="flex:1;background:transparent;border:0;color:var(--text);outline:0;width:auto;padding:0" />
       <button class="primary" style="width:auto;padding:5px 12px;font-size:12px" onclick="askAI()">Ask</button>
     </div>
@@ -627,7 +631,7 @@ _HOME_BODY_INLINE = """
 
 <!-- Empty fleet -->
 <div id="empty" class="card" style="display:none;text-align:center;padding:48px;border:2px dashed var(--border)">
-  <div style="font-size:36px">👋</div>
+  <div style="color:var(--muted)">%ICON:boxes%</div>
   <h3 style="margin:12px 0 4px">Your fleet is empty</h3>
   <p class="muted" style="margin:0">Load the realistic demo fleet (31 assets + 3 NHIs) to see SafeCadence in action.</p>
   <button class="primary" style="width:auto;padding:10px 20px;margin-top:16px" onclick="loadDemo()">Load demo data</button>

@@ -1,5 +1,17 @@
 # Changelog
 
+## [17.0.0a4] - 2026-10-07 - security interface redesign (prerelease)
+
+- New SafeCadence shield/S logo with matching browser and installed-app icons.
+- Shared graphite dark and neutral light themes, semantic risk colors, and
+  locally bundled Lucide icons with their original license.
+- Consistent NetRisk/Public Safety navigation, accessible mobile drawer,
+  search layering, keyboard tabs, evidence filtering and record counts.
+- Fixed setup-banner sizing and verified responsive layouts across both themes.
+- Public Safety 1.5.0a4 includes updated operational page headings and map toolbar.
+- No changes to permissions, approval policy, monitoring adapters or customer
+  data. Demo observations remain synthetic; no live sources are connected.
+
 ## [17.0.0a3] - 2026-10-07 - local monitoring software pilot (prerelease)
 
 - Explicitly approved read-only local HTTPS polling for Wazuh indexer alerts,

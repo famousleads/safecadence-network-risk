@@ -19,15 +19,17 @@ v9 experience automatically.
 
 from __future__ import annotations
 
+import os
 
 _HEAD = """<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="theme-color" content="#1F6F6A" />
+<meta name="theme-color" content="#141A1F" />
 <title>SafeCadence — %TITLE%</title>
 <link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" type="image/svg+xml" href="/static/security-mark.svg?v=security-1" />
 <link rel="stylesheet" href="/static/responsive.css?v=m5inline" />
 <style>
 :root {
@@ -413,6 +415,7 @@ th { color: var(--muted); font-weight: 500; }
   main table:not(.sc-inv-table) { display: block; overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
 }
 </style>
+<style>%SECURITY_THEME%</style>
 </head>
 <body data-theme="dark">
 
@@ -421,117 +424,120 @@ th { color: var(--muted); font-weight: 500; }
 
 <!-- ============ SIDEBAR ============ -->
 <aside class="sc-sidebar" id="sc-sidebar" aria-label="Primary navigation">
-  <div class="sc-logo" onclick="location.href='/home'" role="link" tabindex="0"
-       aria-label="SafeCadence home">
-    SafeCadence<span class="dot">.</span>
-  </div>
-  <div class="sc-search" onclick="scOpenPalette()">
-    <span style="color:var(--muted)">🔎</span>
-    <input placeholder="Search…" readonly />
+  <a class="sc-logo" href="/home" aria-label="SafeCadence home">
+    %SECURITY_MARK%<span>SafeCadence<small>Security &amp; public safety</small></span>
+  </a>
+  <nav class="sc-products" aria-label="Product workspace">
+    <a href="/home" id="sc-product-netrisk">%ICON:shield-check%NetRisk</a>
+    <a href="/map" id="sc-product-safety">%ICON:radio%Public Safety</a>
+  </nav>
+  <button class="sc-search" type="button" onclick="scOpenPalette()" aria-label="Search assets and tools">
+    %ICON:search%
+    <span class="sc-search-label">Search workspace</span>
     <kbd>⌘K</kbd>
-  </div>
+  </button>
 
   <a class="nav-item" id="nav-home" href="/home">
-    <span class="icon">🏠</span> Home
+    %ICON:layout-dashboard% Overview
   </a>
 
   <div class="group">
     <div class="group-title">Discover</div>
-    <a class="sub" id="nav-inventory" href="/inventory">Inventory</a>
-    <a class="sub" id="nav-groups" href="/groups">Groups</a>
-    <a class="sub" id="nav-topology" href="/topology">Topology</a>
-    <a class="sub" id="nav-shadow-it" href="/shadow-it">Shadow IT</a>
-    <a class="sub" id="nav-coverage" href="/coverage">Coverage</a>
-    <a class="sub" id="nav-changes" href="/changes">Changes</a>
-    <a class="sub" id="nav-discovery-jobs" href="/discovery-jobs">Schedule</a>
-    <a class="sub" id="nav-tags" href="/tags">Tags</a>
-    <a class="sub" id="nav-scope" href="/scope">Compliance scope</a>
+    <a class="sub" id="nav-inventory" href="/inventory">%ICON:boxes%Inventory</a>
+    <a class="sub" id="nav-groups" href="/groups">%ICON:layers%Groups</a>
+    <a class="sub" id="nav-topology" href="/topology">%ICON:network%Topology</a>
+    <a class="sub" id="nav-shadow-it" href="/shadow-it">%ICON:scan-line%Shadow IT</a>
+    <a class="sub" id="nav-coverage" href="/coverage">%ICON:shield%Coverage</a>
+    <a class="sub" id="nav-changes" href="/changes">%ICON:activity%Changes</a>
+    <a class="sub" id="nav-discovery-jobs" href="/discovery-jobs">%ICON:calendar-clock%Schedule</a>
+    <a class="sub" id="nav-tags" href="/tags">%ICON:tag%Tags</a>
+    <a class="sub" id="nav-scope" href="/scope">%ICON:clipboard-check%Compliance scope</a>
   </div>
 
   <div class="group">
     <div class="group-title">Compliance</div>
-    <a class="sub" id="nav-policies" href="/policies">Policies</a>
-    <a class="sub" id="nav-findings" href="/findings">Findings</a>
-    <a class="sub" id="nav-drift" href="/drift">Drift</a>
-    <a class="sub" id="nav-evidence" href="/evidence">Evidence</a>
-    <a class="sub" id="nav-security-integrations" href="/security-integrations">Security integrations</a>
-    <a class="sub" id="nav-compliance" href="/compliance">Compliance</a>
-    <a class="sub" id="nav-risks" href="/risks">Risk register</a>
-    <a class="sub" id="nav-vendors" href="/vendors">Vendor risk</a>
+    <a class="sub" id="nav-policies" href="/policies">%ICON:shield-check%Policies</a>
+    <a class="sub" id="nav-findings" href="/findings">%ICON:triangle-alert%Findings</a>
+    <a class="sub" id="nav-drift" href="/drift">%ICON:git-branch%Drift</a>
+    <a class="sub" id="nav-evidence" href="/evidence">%ICON:file-check%Evidence</a>
+    <a class="sub" id="nav-security-integrations" href="/security-integrations">%ICON:network%Security integrations</a>
+    <a class="sub" id="nav-compliance" href="/compliance">%ICON:clipboard-check%Compliance</a>
+    <a class="sub" id="nav-risks" href="/risks">%ICON:flag%Risk register</a>
+    <a class="sub" id="nav-vendors" href="/vendors">%ICON:boxes%Vendor risk</a>
   </div>
 
   <div class="group">
     <div class="group-title">Public safety</div>
-    <a class="sub" id="nav-map" href="/map">🗺️ Map</a>
-    <a class="sub" id="nav-evidence-infra" href="/evidence-infrastructure">🎥 Evidence infrastructure</a>
-    <a class="sub" id="nav-incidents" href="/incidents">🚨 Incidents</a>
-    <a class="sub" id="nav-events" href="/events">📡 Events</a>
-    <a class="sub" id="nav-safety-integrations" href="/safety-integrations">Safety integrations</a>
+    <a class="sub" id="nav-map" href="/map">%ICON:map%Map</a>
+    <a class="sub" id="nav-evidence-infra" href="/evidence-infrastructure">%ICON:camera%Evidence infrastructure</a>
+    <a class="sub" id="nav-incidents" href="/incidents">%ICON:shield-alert%Incidents</a>
+    <a class="sub" id="nav-events" href="/events">%ICON:radio%Events</a>
+    <a class="sub" id="nav-safety-integrations" href="/safety-integrations">%ICON:camera%Safety integrations</a>
   </div>
 
   <div class="group">
     <div class="group-title">Identity</div>
-    <a class="sub" id="nav-identity" href="/identity">Translator</a>
-    <a class="sub" id="nav-jit" href="/jit">JIT grants</a>
-    <a class="sub" id="nav-paths" href="/paths">Attack paths</a>
-    <a class="sub" id="nav-simulate" href="/simulate">Simulate</a>
+    <a class="sub" id="nav-identity" href="/identity">%ICON:users%Translator</a>
+    <a class="sub" id="nav-jit" href="/jit">%ICON:key-round%JIT grants</a>
+    <a class="sub" id="nav-paths" href="/paths">%ICON:git-branch%Attack paths</a>
+    <a class="sub" id="nav-simulate" href="/simulate">%ICON:workflow%Simulate</a>
   </div>
 
   <div class="group">
     <div class="group-title">Execute</div>
-    <a class="sub" id="nav-builder" href="/builder">Builder</a>
-    <a class="sub" id="nav-approvals" href="/approvals">Approvals</a>
-    <a class="sub" id="nav-queue" href="/queue">Queue</a>
-    <a class="sub" id="nav-rollback" href="/rollback">Rollback</a>
+    <a class="sub" id="nav-builder" href="/builder">%ICON:wrench%Builder</a>
+    <a class="sub" id="nav-approvals" href="/approvals">%ICON:check%Approvals</a>
+    <a class="sub" id="nav-queue" href="/queue">%ICON:list-checks%Queue</a>
+    <a class="sub" id="nav-rollback" href="/rollback">%ICON:archive-restore%Rollback</a>
   </div>
 
   <div class="group">
     <div class="group-title">Automation</div>
-    <a class="sub" id="nav-automation" href="/automation">Rules</a>
-    <a class="sub" id="nav-watchlists" href="/watchlists">Watchlists</a>
-    <a class="sub" id="nav-briefing" href="/briefing">Briefings</a>
+    <a class="sub" id="nav-automation" href="/automation">%ICON:workflow%Rules</a>
+    <a class="sub" id="nav-watchlists" href="/watchlists">%ICON:scan-line%Watchlists</a>
+    <a class="sub" id="nav-briefing" href="/briefing">%ICON:file-text%Briefings</a>
   </div>
 
   <div class="group">
     <div class="group-title">Audit</div>
-    <a class="sub" id="nav-timeline" href="/timeline">Timeline</a>
-    <a class="sub" id="nav-audit" href="/audit">Activity log</a>
-    <a class="sub" id="nav-idp-groups" href="/idp-groups">IdP groups</a>
-    <a class="sub" id="nav-share" href="/share">Public shares</a>
+    <a class="sub" id="nav-timeline" href="/timeline">%ICON:clock%Timeline</a>
+    <a class="sub" id="nav-audit" href="/audit">%ICON:terminal%Activity log</a>
+    <a class="sub" id="nav-idp-groups" href="/idp-groups">%ICON:users%IdP groups</a>
+    <a class="sub" id="nav-share" href="/share">%ICON:globe%Public shares</a>
   </div>
 
   <div class="group">
     <div class="group-title">Reports</div>
-    <a class="sub" id="nav-reports" href="/reports">📊 Builder</a>
+    <a class="sub" id="nav-reports" href="/reports">%ICON:chart-no-axes-combined%Builder</a>
   </div>
 
   <!-- v12.0.0a6 — Cluster & AI nav. Shows v12+ surfaces in one place. -->
   <div class="group">
     <div class="group-title">Cluster &amp; AI</div>
-    <a class="sub" id="nav-cluster" href="/cluster-status">🗄️ Cluster status</a>
-    <a class="sub" id="nav-customer" href="/customer">🤝 Customer portal</a>
-    <a class="sub" id="nav-ai-agents" href="/ai-agents">🤖 AI agents</a>
-    <a class="sub" id="nav-nudges" href="/nudges">📬 Nudge inbox</a>
-    <a class="sub" id="nav-redblue" href="/red-vs-blue">🟥🟦 Red vs Blue</a>
-    <a class="sub" id="nav-api-keys" href="/api-keys">🔐 Identity &amp; API key governance</a>
+    <a class="sub" id="nav-cluster" href="/cluster-status">%ICON:database%Cluster status</a>
+    <a class="sub" id="nav-customer" href="/customer">%ICON:user-round%Customer portal</a>
+    <a class="sub" id="nav-ai-agents" href="/ai-agents">%ICON:bot%AI agents</a>
+    <a class="sub" id="nav-nudges" href="/nudges">%ICON:mail%Nudge inbox</a>
+    <a class="sub" id="nav-redblue" href="/red-vs-blue">%ICON:shield%Red vs Blue</a>
+    <a class="sub" id="nav-api-keys" href="/api-keys">%ICON:lock-keyhole%Identity &amp; API key governance</a>
   </div>
 
   <div class="group">
     <div class="group-title">Settings</div>
-    <a class="sub" id="nav-settings" href="/settings">⚙️ Settings</a>
-    <a class="sub" id="nav-users" href="/users">👥 Users</a>
-    <a class="sub" id="nav-capabilities" href="/capabilities">🔑 Capabilities</a>
-    <a class="sub" id="nav-onboarding" href="/onboarding">Onboarding</a>
-    <a class="sub" id="nav-hub" href="/hub">All tools</a>
-    <a class="sub" id="nav-help" href="/help">📖 Help</a>
-    <a class="sub" id="nav-help-topics" href="/help/topics">🔍 All help topics</a>
+    <a class="sub" id="nav-settings" href="/settings">%ICON:settings%Settings</a>
+    <a class="sub" id="nav-users" href="/users">%ICON:users%Users</a>
+    <a class="sub" id="nav-capabilities" href="/capabilities">%ICON:key-round%Capabilities</a>
+    <a class="sub" id="nav-onboarding" href="/onboarding">%ICON:list-checks%Onboarding</a>
+    <a class="sub" id="nav-hub" href="/hub">%ICON:boxes%All tools</a>
+    <a class="sub" id="nav-help" href="/help">%ICON:book-open%Help</a>
+    <a class="sub" id="nav-help-topics" href="/help/topics">%ICON:search%All help topics</a>
   </div>
 
   <div class="footer">
-    <div id="sc-user">👤 admin</div>
+    <div id="sc-user">%ICON:user-round%admin</div>
     <div>
-      <button onclick="scToggleTheme()" title="toggle light/dark">🌗</button>
-      <button onclick="scShowHelp()" title="keyboard shortcuts">⌨</button>
+      <button onclick="scToggleTheme()" title="Switch light / dark theme" aria-label="Switch light / dark theme">%ICON:sun%</button>
+      <button onclick="scShowHelp()" title="Keyboard shortcuts" aria-label="Keyboard shortcuts">%ICON:book-open%</button>
     </div>
     <div class="sc-help-strip" style="width:100%;margin-top:8px;font-size:11px;line-height:1.45">
       <a href="mailto:hello@safecadence.com?subject=Help%20with%20SafeCadence"
@@ -539,34 +545,37 @@ th { color: var(--muted); font-weight: 500; }
     </div>
   </div>
 </aside>
+<button class="sc-nav-scrim" id="sc-nav-scrim" onclick="scCloseMobileNav()" aria-label="Close navigation menu" tabindex="-1"></button>
 
 <!-- ============ MAIN ============ -->
 <main class="sc-main" id="sc-main-content" role="main">
+  %DEMO_NOTICE%
 
   <!-- Top bar -->
   <div class="sc-topbar" role="banner">
     <button class="sc-hamburger" aria-label="Toggle navigation menu"
             aria-controls="sc-sidebar" aria-expanded="false"
-            onclick="scToggleSidebar()">&#9776;</button>
+            onclick="scToggleSidebar()">%ICON:menu%</button>
+    <a class="sc-mobile-brand" href="/home" aria-label="SafeCadence home">%SECURITY_MARK%SafeCadence</a>
     <div class="sc-breadcrumb" id="sc-breadcrumb" aria-label="Breadcrumb">
       <strong>%TITLE%</strong>
     </div>
-    <button class="sc-iconbtn" onclick="scOpenPalette()" title="Cmd+K"
-            aria-label="Open command palette (Cmd+K)">⌘K</button>
+    <button class="sc-iconbtn sc-command" onclick="scOpenPalette()" title="Search (Cmd+K)"
+            aria-label="Open command palette (Cmd+K)">%ICON:search%<span>⌘K</span></button>
     <button class="sc-iconbtn" onclick="location.href='/ask'"
-            aria-label="Open Ask AI">🤖 Ask AI</button>
+            aria-label="Open Ask AI" title="Ask AI">%ICON:bot%<span class="sc-action-label">Ask AI</span></button>
     <button class="sc-iconbtn" id="sc-bell" onclick="scToggleDrawer()"
-            aria-label="Notifications" aria-haspopup="true">
-      🔔<span class="badge" aria-hidden="true">0</span>
+            aria-label="Notifications" title="Notifications" aria-haspopup="true">
+      %ICON:bell%<span class="badge" aria-hidden="true">0</span>
     </button>
     <!-- v16.0.2 — open-source "real-human support" CTA. Every install
          + demo visit advertises support@safecadence.com so the OSS
          user base has a direct path to ask for help. -->
-    <a class="sc-iconbtn" href="mailto:support@safecadence.com?subject=NetRisk%20help%20request"
+    <a class="sc-iconbtn sc-support" href="mailto:support@safecadence.com?subject=NetRisk%20help%20request"
        title="Email a real human (me) — usually a same-business-day reply"
        aria-label="Email support@safecadence.com for help"
        style="text-decoration:none">
-      ✉ Help
+      %ICON:mail%Help
     </a>
     <!-- v12.1 — HA / cluster status badge.
          Hidden by default; the cluster.js fetch turns it on only when
@@ -580,14 +589,14 @@ th { color: var(--muted); font-weight: 500; }
 
   <!-- Onboarding banner -->
   <div class="sc-banner" id="sc-banner">
-    <div class="text">👋 New here? Take the 5-step tour — fleet to live findings in under 5 min.</div>
+    <div class="text">Workspace setup</div>
     <a href="/onboarding">Start tour</a>
-    <button class="dismiss" onclick="scDismissBanner()">✕</button>
+    <button class="dismiss" onclick="scDismissBanner()" title="Dismiss workspace setup" aria-label="Dismiss workspace setup">%ICON:x%</button>
   </div>
 
   <!-- Notifications drawer (shown on bell click) -->
   <div class="sc-drawer" id="sc-drawer">
-    <h3>🔔 Recent activity</h3>
+    <h3>%ICON:bell%Recent activity</h3>
     <div id="sc-drawer-list"><div class="muted">Loading…</div></div>
   </div>
 
@@ -616,7 +625,7 @@ _FOOT = """
 <div class="sc-slideover" id="sc-slideover">
   <div class="so-head">
     <h2 id="sc-so-title">—</h2>
-    <button class="so-close" onclick="scCloseSlide()">✕</button>
+    <button class="so-close" onclick="scCloseSlide()" aria-label="Close details" title="Close details">%ICON:x%</button>
   </div>
   <div id="sc-so-body"></div>
 </div>
@@ -997,6 +1006,7 @@ const SC_TOOLS = [
 let scPaletteSelected = 0;
 
 function scOpenPalette() {
+  if (document.body.classList.contains('sc-sidebar-open')) scCloseMobileNav();
   document.getElementById("sc-palette-bg").classList.add("open");
   setTimeout(() => {
     const i = document.getElementById("sc-palette-input");
@@ -1158,10 +1168,39 @@ window.scToggleSidebar = function() {
   const aside = document.getElementById('sc-sidebar');
   if (!aside) return;
   const btn = document.querySelector('.sc-hamburger');
-  const open = aside.classList.toggle('open');
-  aside.style.display = open ? 'flex' : '';
-  if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (window.matchMedia('(max-width: 768px)').matches) {
+    const open = aside.classList.toggle('open');
+    document.body.classList.toggle('sc-sidebar-open', open);
+    if (btn) btn.setAttribute('aria-expanded', String(open));
+    if (open) aside.querySelector('a')?.focus();
+  } else {
+    const collapsed = aside.classList.toggle('collapsed');
+    if (btn) btn.setAttribute('aria-expanded', String(!collapsed));
+  }
 };
+window.scCloseMobileNav = function() {
+  document.getElementById('sc-sidebar')?.classList.remove('open');
+  document.body.classList.remove('sc-sidebar-open');
+  const btn = document.querySelector('.sc-hamburger');
+  if (btn) btn.setAttribute('aria-expanded', String(!window.matchMedia('(max-width: 768px)').matches && !document.getElementById('sc-sidebar').classList.contains('collapsed')));
+};
+document.getElementById('sc-sidebar').addEventListener('click', event => {
+  if (event.target.closest('a') && window.matchMedia('(max-width: 768px)').matches) scCloseMobileNav();
+});
+document.addEventListener('keydown', event => {
+  if (!document.body.classList.contains('sc-sidebar-open')) return;
+  if (event.key === 'Escape') { scCloseMobileNav(); document.querySelector('.sc-hamburger').focus(); }
+  if (event.key === 'Tab') {
+    const items = [...document.getElementById('sc-sidebar').querySelectorAll('a,button,[tabindex="0"]')].filter(el => el.getClientRects().length);
+    const first = items[0], last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  }
+});
+window.matchMedia('(max-width: 768px)').addEventListener('change', scCloseMobileNav);
+scCloseMobileNav();
+const scSafetyPaths = ['/map','/incidents','/events','/evidence-infrastructure','/safety-integrations'];
+document.getElementById(scSafetyPaths.includes(location.pathname) ? 'sc-product-safety' : 'sc-product-netrisk').setAttribute('aria-current', 'true');
 
 // ---- Boot ----
 scHighlightNav();
@@ -1193,7 +1232,15 @@ document.addEventListener("keydown", e => {
 def wrap(title: str, body: str, page_script: str = "") -> str:
     """Wrap any page body in the v9 universal chrome."""
     from safecadence.ui.help_registry import help_json
+    from safecadence.ui.security_brand import render_brand
     foot = (_FOOT
             .replace("%PAGE_SCRIPT%", page_script)
             .replace("%SC_HELP_JSON%", help_json()))
-    return _HEAD.replace("%TITLE%", title) + body + foot
+    demo_notice = (
+        '<div class="sc-demo-banner" role="note">'
+        '%ICON:lock-keyhole%<span><strong>Read-only demo</strong> '
+        'Sample data, not live monitoring.</span></div>'
+        if os.environ.get("SC_DEMO_MODE") == "1" else ""
+    )
+    head = _HEAD.replace("%TITLE%", title).replace("%DEMO_NOTICE%", demo_notice)
+    return render_brand(head + body + foot)

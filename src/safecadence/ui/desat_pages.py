@@ -79,8 +79,8 @@ _MAP_BODY = """
 .sc-row .ti{font-size:12.5px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sc-row .me,.sc-row .st{font-size:11px;color:var(--muted,#8b95b1);white-space:nowrap}
 </style>
-<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-  <h1 style="margin:0">🗺️ Command overview</h1>
+<div class="sc-ps-toolbar" style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+  <h1 style="margin:0">%ICON:map% Command overview</h1>
   <span class="muted" id="map-stats" style="font-size:12px"></span>
   <span style="flex:1"></span>
   <select id="map-band" onchange="mapLoad()" style="width:auto;padding:6px 10px;font-size:12px">
@@ -297,7 +297,7 @@ mapLoad();stripLoad();postureLoad();
 
 _EIH_BODY = """
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-  <h1 style="margin:0">🎥 Evidence infrastructure</h1>
+  <h1 style="margin:0">%ICON:camera% Evidence infrastructure</h1>
   <span class="muted" id="eih-stats" style="font-size:12px"></span>
   <span style="flex:1"></span>
   <button class="alt" style="width:auto;padding:6px 10px;font-size:12px"
@@ -371,7 +371,7 @@ eihLoad();
 
 _INC_BODY = """
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-  <h1 style="margin:0">🚨 Incidents</h1>
+  <h1 style="margin:0">%ICON:shield-alert% Incidents</h1>
   <span class="muted" id="inc-stats" style="font-size:12px"></span>
   <span style="flex:1"></span>
   <select id="inc-status" onchange="incLoad()" style="width:auto;padding:6px 10px;font-size:12px">
@@ -516,7 +516,7 @@ incLoad();
 
 _EVT_BODY = """
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-  <h1 style="margin:0">📡 Events</h1>
+  <h1 style="margin:0">%ICON:radio% Events</h1>
   <span class="muted" id="evt-stats" style="font-size:12px"></span>
   <span style="flex:1"></span>
   <select id="evt-sev" onchange="evtLoad()" style="width:auto;padding:6px 10px;font-size:12px">
@@ -598,7 +598,7 @@ evtLoad();
 # ============================================================ community page
 
 _COMMUNITY_BODY = """
-<h1 style="margin:0 0 4px">🤝 Community</h1>
+<h1 style="margin:0 0 4px">%ICON:users% Community</h1>
 <p class="muted" style="margin:0 0 14px;font-size:12.5px">
   Consent-based programs, agency-controlled. The Camera Registry lists
   residents who <b>volunteered</b> to be contacted — no feeds, no access,
@@ -607,7 +607,7 @@ _COMMUNITY_BODY = """
 </p>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" class="cm-grid">
  <div class="card">
-  <h2 style="font-size:15px;margin:0 0 4px">📷 Camera Registry <span class="muted" id="cm-cam-count" style="font-size:11px"></span></h2>
+  <h2 style="font-size:15px;margin:0 0 4px">%ICON:camera% Camera Registry <span class="muted" id="cm-cam-count" style="font-size:11px"></span></h2>
   <div id="cm-cams" style="font-size:12.5px"></div>
   <details style="margin-top:10px"><summary style="cursor:pointer;font-size:12.5px">Register a camera (staff entry)</summary>
    <div style="display:grid;gap:6px;margin-top:8px;font-size:12px">
@@ -623,7 +623,7 @@ _COMMUNITY_BODY = """
   </details>
  </div>
  <div class="card">
-  <h2 style="font-size:15px;margin:0 0 4px">🏠 Watch Requests <span class="muted" id="cm-watch-count" style="font-size:11px"></span></h2>
+  <h2 style="font-size:15px;margin:0 0 4px">%ICON:house% Watch Requests <span class="muted" id="cm-watch-count" style="font-size:11px"></span></h2>
   <div id="cm-watches" style="font-size:12.5px"></div>
   <details style="margin-top:10px"><summary style="cursor:pointer;font-size:12.5px">New watch request (staff entry)</summary>
    <div style="display:grid;gap:6px;margin-top:8px;font-size:12px">
@@ -703,7 +703,7 @@ cmLoad();
 # ============================================================ safecheck page
 
 _SAFECHECK_BODY = """
-<h1 style="margin:0 0 4px">⏱️ SafeCheck</h1>
+<h1 style="margin:0 0 4px">%ICON:clock% SafeCheck</h1>
 <p class="muted" style="margin:0 0 14px;font-size:12.5px">
   Solo building check? Late-night evidence run? Start a timer. If you
   don't clear it in time, your shift gets alerted automatically — with
@@ -778,7 +778,7 @@ setInterval(skLoad, 15000);
 # ============================================================ custody page
 
 _CUSTODY_BODY = """
-<h1 style="margin:0 0 4px">🔐 Evidence Custody</h1>
+<h1 style="margin:0 0 4px">%ICON:lock-keyhole% Evidence Custody</h1>
 <p class="muted" style="margin:0 0 14px;font-size:12.5px">
   Who touched what, when, and why — provably. Every action is
   hash-chained; <b>verify</b> recomputes the chain so an auditor or a
@@ -865,7 +865,7 @@ cuLoad();
 # ============================================================ situations page
 
 _SITUATION_BODY = """
-<h1 style="margin:0 0 4px">🧿 Situation Analytics</h1>
+<h1 style="margin:0 0 4px">%ICON:scan-line% Situation Analytics</h1>
 <p class="muted" style="margin:0 0 10px;font-size:12.5px">
   Your cameras and detection systems already raise events — person,
   vehicle, door forced, weapon, crowd, tamper. SafeCadence connects
@@ -978,7 +978,7 @@ swLoad();
 # ============================================================ notify page
 
 _NOTIFY_BODY = """
-<h1 style="margin:0 0 4px">📢 Mass Notification</h1>
+<h1 style="margin:0 0 4px">%ICON:bell% Mass Notification</h1>
 <p class="muted" style="margin:0 0 6px;font-size:12.5px">
   Trigger, approve, deliver, <b>prove</b>. Alerts ride the systems you
   already own — your email relay, carrier SMS gateways, your own phone

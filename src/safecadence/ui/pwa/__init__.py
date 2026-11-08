@@ -45,6 +45,18 @@ def register(app: Any) -> None:
     except Exception:                                # pragma: no cover
         return
 
+    @app.get("/static/security-mark.svg")
+    def _security_mark():
+        from safecadence.ui.security_brand import brand_mark
+        return Response(content=brand_mark(), media_type="image/svg+xml",
+                        headers={"Cache-Control": "public, max-age=3600"})
+
+    @app.get("/static/security-app-icon.svg")
+    def _security_app_icon():
+        return Response(content=_read(_UI_DIR / "assets" / "security-app-icon.svg"),
+                        media_type="image/svg+xml",
+                        headers={"Cache-Control": "public, max-age=3600"})
+
     @app.get("/manifest.webmanifest")
     def _manifest():                                # pragma: no cover - thin wrapper
         return Response(
