@@ -180,7 +180,7 @@ def register(app, get_current_user, require_writer):
     # ---- v9.33 #4: onboarding (discover + connector status) ----------
     @app.post("/api/identity/discover")
     def identity_discover(body: dict = Body(default={}),
-                            user=Depends(get_current_user)):
+                            user=Depends(require_writer)):
         """v9.33 #4 — probe the local environment for reachable Okta /
         Entra / ISE / ClearPass / AD systems. Returns findings with
         confidence + env-var recipe. Pure read; nothing committed.
@@ -189,14 +189,21 @@ def register(app, get_current_user, require_writer):
         lan_cidrs: [str]}.
         """
         try:
-            from safecadence.identity.discover import discover
+            from safecadence.identity.discover import discover, validate_lan_cidrs
         except Exception as e:                                  # pragma: no cover
             raise HTTPException(500, f"discover unavailable: {e}")
+        # Probes reach the network from this server, so only admins and analysts may run them,
+        # and only against private LAN ranges (validate_lan_cidrs).
+        raw = body.get("lan_cidrs")
+        try:
+            cidrs = validate_lan_cidrs(list(raw)) if raw else None
+        except (TypeError, ValueError) as e:
+            raise HTTPException(400, detail=str(e))
         findings = discover(
             email_domain=body.get("email_domain"),
             entra_tenant_hint=body.get("entra_tenant"),
             ad_domain=body.get("ad_domain"),
-            lan_cidrs=list(body.get("lan_cidrs") or []) or None,
+            lan_cidrs=cidrs,
         ) or []
         return {"count": len(findings),
                  "findings": [{

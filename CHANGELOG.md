@@ -1,5 +1,34 @@
 # Changelog
 
+## [16.7.2] - 2026-11-08 - security fixes
+
+Security fixes for issues reported privately by Kaccy (F1 to F3), plus one we found while confirming them.
+Upgrade if you run the server mode (`safecadence-netrisk[server]`). The local UI (`safecadence ui`) is single-user
+and unauthenticated by design: keep it on localhost (the default), or run it read-only with `SC_READONLY=1`.
+
+- **Role checks work again and can't be skipped.** The `require_role()` dependency was annotated in a way
+  FastAPI couldn't resolve, so every role-gated endpoint (incidents, events, geo assets, dashboard
+  widgets) answered 422 to every caller. Behind it, a request without an org id skipped the role check
+  entirely. Now the org must exist, the caller's role in it is always checked, and a caller who belongs
+  to several orgs (or none) must name one. Malformed org ids are refused before they reach a file path.
+- **Discovery jobs no longer return stored credentials.** The job list returned AD bind passwords,
+  Entra client secrets and SNMP communities in plain text to any signed-in user, for every tenant. The
+  API now shows only that a credential is set, lists and runs only the caller's own tenant's jobs, and
+  job files are written owner-only (0600). Encrypting them at rest is planned.
+- **DHCP lease files are read only from allowed directories** (`/var/lib/dhcp`, `/var/lib/dhcpd`,
+  `/var/lib/dhcp3`, `/etc/dhcp`, `/var/db/dhcpd`, plus any listed in `SC_DHCP_LEASE_DIRS`). The path
+  is resolved first, so `..` and symlinks can't leave them, and read errors no longer reveal whether a
+  file exists.
+- **Identity discovery probes only reach private LAN addresses.** Only admins and analysts can run
+  them; ranges must be private IPv4 /24 or smaller (at most 16), never loopback, link-local (cloud
+  metadata), multicast or reserved; caller-supplied domains must be public DNS names that don't resolve
+  to internal addresses; probes don't follow redirects. The ClearPass probe still skips certificate
+  checks because on-prem ClearPass usually has a self-signed certificate; it sends nothing and reads
+  only the status code.
+- Behaviour change: a discovery job can only be listed, run or deleted by users of the tenant that
+  created it. Jobs created from the CLI belong to the `local` tenant.
+- New regression tests: `tests/test_security_2026_11.py`.
+
 ## [16.7.1] — 2026-10-05 — compliance wording guardrails
 
 - **Compliance wording guardrails.** Report statuses now read "No gaps indicated / Partial evidence / Gaps indicated" (HTML, Word, PowerPoint) instead of PASS/FAIL. Every compliance section carries a "Human review required — readiness evidence, not an audit/attestation/certification" note and `human_review_required: true` in its JSON. Data keys (`pass/partial/fail`) are unchanged.
