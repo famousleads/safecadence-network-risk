@@ -69,6 +69,46 @@ SOURCE_DESCRIPTIONS: dict[str, dict[str, str]] = {
 }
 
 
+# Parameters that hold credentials. They are kept for the runner but never returned by the API.
+_SECRET_PARAM = re.compile(r"(pass|secret|token|community|api[_-]?key|private[_-]?key|credential)", re.I)
+SECRET_PLACEHOLDER = "(set, hidden)"
+
+
+def public_params(params: dict | None) -> dict:
+    """Job parameters safe to show: credential values replaced by a placeholder."""
+    out = {}
+    for k, v in (params or {}).items():
+        out[k] = (SECRET_PLACEHOLDER if str(v or "") else "") if _SECRET_PARAM.search(str(k)) else v
+    return out
+
+
+def public_job(job: "DiscoveryJob") -> dict:
+    d = asdict(job)
+    d["params"] = public_params(job.params)
+    return d
+
+
+# DHCP lease files may only be read from these directories (plus any listed in SC_DHCP_LEASE_DIRS,
+# separated by os.pathsep). The path is resolved first, so symlinks and ``..`` can't leave them.
+DHCP_LEASE_DIRS = ("/var/lib/dhcp", "/var/lib/dhcpd", "/var/lib/dhcp3", "/etc/dhcp", "/var/db/dhcpd")
+
+
+def safe_lease_path(raw: str) -> str | None:
+    """The resolved lease-file path if it is inside an allowed directory, else None."""
+    if not raw or "\x00" in str(raw):
+        return None
+    extra = [d for d in os.environ.get("SC_DHCP_LEASE_DIRS", "").split(os.pathsep) if d.strip()]
+    p = os.path.realpath(str(raw))
+    for base in list(DHCP_LEASE_DIRS) + extra:
+        b = os.path.realpath(base)
+        try:
+            if os.path.commonpath([p, b]) == b and p != b:
+                return p
+        except ValueError:                         # different drives on Windows
+            continue
+    return None
+
+
 def validate_params(source: str, params: dict | None) -> tuple[bool, str]:
     """Check that every key required for `source` is present and non-empty.
 
@@ -83,6 +123,9 @@ def validate_params(source: str, params: dict | None) -> tuple[bool, str]:
     missing = [k for k in needed if not str(p.get(k) or "").strip()]
     if missing:
         return False, (f"{source} requires: {', '.join(missing)}")
+    if source == "dhcp" and "lease_file" in p and safe_lease_path(p.get("lease_file")) is None:
+        return False, ("lease_file must be inside " + ", ".join(DHCP_LEASE_DIRS)
+                       + " (or a directory listed in SC_DHCP_LEASE_DIRS)")
     return True, ""
 
 
@@ -155,6 +198,10 @@ def save_job(job: DiscoveryJob) -> DiscoveryJob:
                            timedelta(hours=max(1, job.interval_hours))).isoformat()
     f = _path_for(job.job_id)
     f.write_text(json.dumps(asdict(job), indent=2))
+    try:
+        os.chmod(f, 0o600)                     # job files can hold credentials
+    except OSError:                            # pragma: no cover
+        pass
     return job
 
 
@@ -273,9 +320,12 @@ def fire_job(job: DiscoveryJob) -> tuple[bool, str]:
 
         if src == "dhcp":
             from safecadence.discovery.dhcp_harvest import harvest_isc
-            r = harvest_isc(lease_file=p.get(
-                "lease_file", "/var/lib/dhcp/dhcpd.leases"))
-            return (not r.error), r.error or ""
+            path = safe_lease_path(p.get("lease_file") or "/var/lib/dhcp/dhcpd.leases")
+            if path is None:
+                return False, "lease_file is outside the allowed directories"
+            r = harvest_isc(lease_file=path)
+            # Don't echo the path or the OS error back: it told callers whether a file exists.
+            return (not r.error), ("could not read the DHCP lease file" if r.error else "")
 
         if src in ("aws", "azure", "gcp"):
             from safecadence.discovery.cloud_harvest import (

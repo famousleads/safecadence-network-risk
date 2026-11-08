@@ -18,7 +18,24 @@ from __future__ import annotations
 import enum
 import json
 import os
+import re
 from typing import Optional
+
+try:
+    # Must be importable at module scope: with ``from __future__ import annotations`` FastAPI resolves the
+    # dependency's ``request: Request`` annotation against this module's globals. A name that only existed
+    # inside require_role() turned the parameter into a required query field (422 on every call).
+    from fastapi import Request
+except Exception:                                  # pragma: no cover
+    Request = None  # type: ignore[assignment,misc]
+
+# Org ids are generated as ``org_<urlsafe>``; anything else (``..``, slashes) is refused before it can
+# reach a filesystem path.
+_ORG_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+
+
+def _valid_org_id(org_id: str) -> bool:
+    return bool(org_id) and bool(_ORG_ID_RE.match(org_id)) and org_id not in (".", "..")
 
 
 class UserRole(str, enum.Enum):
@@ -57,6 +74,8 @@ def role_satisfies(actual: UserRole | None, minimum: UserRole) -> bool:
 
 
 def _members_path(org_id: str):
+    if not _valid_org_id(org_id):
+        raise ValueError("invalid org_id")
     from safecadence.storage.org_store import org_data_dir
     return org_data_dir(org_id) / "members.json"
 
@@ -111,7 +130,7 @@ def get_role(org_id: str, user_email: str) -> Optional[UserRole]:
     """
     if os.environ.get("SC_AUTH_DISABLED", "") == "1":
         return UserRole.ADMIN
-    if not org_id or not user_email:
+    if not org_id or not user_email or not _valid_org_id(org_id):
         return None
     email = user_email.strip().lower()
     members = _read_members(org_id)
@@ -149,10 +168,13 @@ def require_role(min_role: UserRole | str):
     """Return a FastAPI dependency that enforces ``min_role``.
 
     The dependency reads the org id from the request (header
-    ``X-SafeCadence-Org`` or query param ``org_id``); if absent it
-    falls back to global mode where any authenticated session passes
-    (legacy single-tenant behavior). When :envvar:`SC_AUTH_DISABLED`
-    the dependency passes through unconditionally.
+    ``X-SafeCadence-Org`` or query param ``org_id``). The org must exist
+    and the caller's role in it is always checked. If no org id is sent,
+    the caller's only org is used; a caller in no org, or in several,
+    gets 403 and must name one. (Before 17.0.0a5 a missing org id let any
+    signed-in session through without a role check.) When
+    :envvar:`SC_AUTH_DISABLED` the dependency passes through
+    unconditionally; never set it in production.
     """
     min_enum = min_role if isinstance(min_role, UserRole) else UserRole.from_str(min_role)
     if min_enum is None:
@@ -167,18 +189,26 @@ def require_role(min_role: UserRole | str):
 
     from safecadence.auth.deps import require_session
 
-    def _dep(request: "Request", session: dict = Depends(require_session)) -> dict:
+    def _dep(request: Request, session: dict = Depends(require_session)) -> dict:
         if os.environ.get("SC_AUTH_DISABLED", "") == "1":
             return session
+        email = session.get("email") or ""
         org_id = (
             request.headers.get("X-SafeCadence-Org")
             or request.query_params.get("org_id")
             or ""
         ).strip()
-        if not org_id:
-            # Legacy single-tenant — any authenticated session passes.
-            return session
-        email = session.get("email") or ""
+        if org_id:
+            if not _org_exists(org_id):
+                raise HTTPException(status_code=403, detail="Unknown organization.")
+        else:
+            mine = _orgs_for(email)
+            if len(mine) != 1:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Choose an organization (X-SafeCadence-Org header or org_id).",
+                )
+            org_id = mine[0]
         actual = get_role(org_id, email)
         if not role_satisfies(actual, min_enum):
             raise HTTPException(
@@ -188,6 +218,27 @@ def require_role(min_role: UserRole | str):
         return session
 
     return _dep
+
+
+def _org_exists(org_id: str) -> bool:
+    if not _valid_org_id(org_id):
+        return False
+    try:
+        from safecadence.storage.org_store import get_org
+    except Exception:                              # pragma: no cover
+        return False
+    return get_org(org_id) is not None
+
+
+def _orgs_for(email: str) -> list[str]:
+    """Ids of the orgs where ``email`` has a role."""
+    if not email:
+        return []
+    try:
+        from safecadence.storage.org_store import list_orgs
+    except Exception:                              # pragma: no cover
+        return []
+    return [o.id for o in list_orgs() if _valid_org_id(o.id) and get_role(o.id, email) is not None]
 
 
 __all__ = [

@@ -38,6 +38,66 @@ class DiscoveryFinding:
 
 # ---------------------------------------------------------------- public
 
+MAX_LAN_CIDRS = 16
+
+
+def _probe_target_allowed(host: str) -> bool:
+    """LAN probes only reach private addresses, never loopback, link-local (cloud metadata),
+    multicast, reserved or unspecified ones."""
+    import ipaddress
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return (ip.is_private and not (ip.is_loopback or ip.is_link_local or ip.is_multicast
+                                    or ip.is_reserved or ip.is_unspecified))
+
+
+def validate_lan_cidrs(cidrs) -> list[str]:
+    """Checked LAN ranges for discovery. Raises ValueError with a plain reason."""
+    import ipaddress
+    if not isinstance(cidrs, (list, tuple)):
+        raise ValueError("lan_cidrs must be a list")
+    if len(cidrs) > MAX_LAN_CIDRS:
+        raise ValueError(f"at most {MAX_LAN_CIDRS} ranges per request")
+    out = []
+    for c in cidrs:
+        try:
+            net = ipaddress.ip_network(str(c).strip(), strict=False)
+        except ValueError:
+            raise ValueError(f"not a network range: {str(c)[:40]}")
+        if net.version != 4 or net.prefixlen < 24:
+            raise ValueError(f"use IPv4 ranges of /24 or smaller: {net}")
+        if not _probe_target_allowed(str(net.network_address)):
+            raise ValueError(f"only private LAN ranges can be probed: {net}")
+        out.append(str(net))
+    return out
+
+
+_DOMAIN_RE = None
+
+
+def _public_domain(name: str) -> str | None:
+    """``name`` if it is a plain DNS name (no IP literal, port, path or credentials) that doesn't
+    resolve to a private or internal address; else None."""
+    import ipaddress, re
+    global _DOMAIN_RE
+    if _DOMAIN_RE is None:
+        _DOMAIN_RE = re.compile(r"^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
+    name = (name or "").strip().lower().rstrip(".")
+    if not _DOMAIN_RE.match(name):
+        return None
+    try:
+        addrs = {ai[4][0] for ai in socket.getaddrinfo(name, 443, proto=socket.IPPROTO_TCP)}
+    except OSError:
+        return None
+    for a in addrs:
+        ip = ipaddress.ip_address(a.split("%")[0])
+        if not ip.is_global:
+            return None
+    return name
+
+
 def discover(*, email_domain: str | None = None,
               entra_tenant_hint: str | None = None,
               lan_cidrs: list[str] | None = None,
@@ -93,6 +153,8 @@ def _probe_okta_from_domain(domain: str) -> DiscoveryFinding | None:
     candidates = list(dict.fromkeys(candidates))   # dedupe, preserve order
 
     for cand in candidates:
+        if _public_domain(cand) is None:          # caller-supplied: only public DNS names
+            continue
         url = f"https://{cand}/.well-known/openid-configuration"
         try:
             import httpx
@@ -117,7 +179,10 @@ def _probe_okta_from_domain(domain: str) -> DiscoveryFinding | None:
 
 def _probe_entra(tenant_hint: str) -> DiscoveryFinding | None:
     """Hit Microsoft's tenant discovery doc."""
-    cand = tenant_hint
+    import re
+    cand = (tenant_hint or "").strip()
+    if not re.match(r"^[A-Za-z0-9.-]{1,253}$", cand):   # it goes into a URL path
+        return None
     if "." not in cand:
         cand = f"{cand}.onmicrosoft.com"
     url = (f"https://login.microsoftonline.com/{cand}/.well-known/"
@@ -145,6 +210,8 @@ def _probe_entra(tenant_hint: str) -> DiscoveryFinding | None:
 
 
 def _probe_ise(host: str) -> DiscoveryFinding | None:
+    if not _probe_target_allowed(host):
+        return None
     """Cisco ISE serves ERS on TCP 9060."""
     if not _tcp_open(host, 9060, timeout=1.5):
         return None
@@ -163,12 +230,20 @@ def _probe_ise(host: str) -> DiscoveryFinding | None:
 
 
 def _probe_clearpass(host: str) -> DiscoveryFinding | None:
-    """ClearPass exposes /api/oauth on 443; 200 is suggestive."""
+    """ClearPass exposes /api/oauth on 443; 200 is suggestive.
+
+    Certificate checks stay off on purpose: on-prem ClearPass usually has a self-signed certificate,
+    the probe sends no credentials or data, follows no redirects and only reads the status code.
+    What keeps it safe is the target check: only private LAN addresses (never loopback, link-local
+    or metadata addresses) chosen by an admin or analyst."""
+    if not _probe_target_allowed(host):
+        return None
     if not _tcp_open(host, 443, timeout=1.5):
         return None
     try:
         import httpx
-        r = httpx.get(f"https://{host}/api/oauth", verify=False, timeout=2.0)
+        r = httpx.get(f"https://{host}/api/oauth", verify=False, timeout=2.0,
+                      follow_redirects=False)
     except Exception:
         return None
     # ClearPass returns 405 / 401 / 400 on GET — anything but 404 implies present

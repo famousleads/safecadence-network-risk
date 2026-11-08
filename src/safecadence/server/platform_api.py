@@ -258,15 +258,16 @@ def register(app, get_current_user, require_writer):
     # v9.19 — discovery scheduling
     @app.get("/api/platform/discovery-jobs")
     def discovery_jobs_list(_user=Depends(get_current_user)):
-        from safecadence.intel.discovery_jobs import list_jobs
-        from dataclasses import asdict
-        return {"jobs": [asdict(j) for j in list_jobs()]}
+        # Only the caller's tenant, and never the stored credentials.
+        from safecadence.intel.discovery_jobs import list_jobs, public_job
+        tenant = getattr(_user, "tenant", "local")
+        return {"jobs": [public_job(j) for j in list_jobs()
+                         if (j.tenant or "local") == tenant]}
 
     @app.post("/api/platform/discovery-jobs")
     def discovery_jobs_create(body: dict = Body(...),
                                user=Depends(require_writer)):
-        from safecadence.intel.discovery_jobs import create_job
-        from dataclasses import asdict
+        from safecadence.intel.discovery_jobs import create_job, public_job
         try:
             j = create_job(
                 name=body.get("name", ""),
@@ -277,12 +278,15 @@ def register(app, get_current_user, require_writer):
             )
         except ValueError as e:
             raise HTTPException(400, detail=str(e))
-        return asdict(j)
+        return public_job(j)
 
     @app.delete("/api/platform/discovery-jobs/{job_id}")
     def discovery_jobs_delete(job_id: str,
                                user=Depends(require_writer)):
-        from safecadence.intel.discovery_jobs import delete_job
+        from safecadence.intel.discovery_jobs import delete_job, get_job
+        j = get_job(job_id)
+        if not j or (j.tenant or "local") != getattr(user, "tenant", "local"):
+            raise HTTPException(404, detail="job not found")
         if not delete_job(job_id):
             raise HTTPException(404, detail="job not found")
         return {"deleted": True}
@@ -303,7 +307,7 @@ def register(app, get_current_user, require_writer):
             get_job, mark_run, fire_job,
         )
         j = get_job(job_id)
-        if not j:
+        if not j or (j.tenant or "local") != getattr(user, "tenant", "local"):
             raise HTTPException(404, detail="job not found")
         ok, err = fire_job(j)
         mark_run(job_id, ok=ok, error=err)

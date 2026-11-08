@@ -223,8 +223,10 @@ def test_run_now_calls_fire_job_and_records_real_outcome(
     from safecadence.server import create_app
 
     # Create a job with known params so we can verify fire_job got it
+    # The job belongs to alice's tenant: since 17.0.0a5 a job can only be
+    # run by users of the tenant that created it.
     DJ.create_job(name="rn-test", source="lan-scan",
-                   params={"cidr": "10.99.0.0/24"})
+                   params={"cidr": "10.99.0.0/24"}, tenant="acme")
     job_id = next(j.job_id for j in DJ.list_jobs())
 
     # Stub fire_job so we don't actually probe a network
